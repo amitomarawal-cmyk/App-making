@@ -1,0 +1,129 @@
+# Universal APK builder
+# Repo-র root-এ app.zip নামে যেকোনো Android (Gradle) বা Flutter প্রজেক্ট আপলোড করুন।
+# এই ফাইলের পাথ: .github/workflows/build.yml
+name: Build APK from app.zip
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unzip app.zip and detect project
+        id: detect
+        run: |
+          set -eu
+          [ -f app.zip ] || { echo "::error::app.zip not found in repository root"; exit 1; }
+          rm -rf work; mkdir work
+          unzip -q -o app.zip -d work
+          find work -name __MACOSX -type d -exec rm -rf {} + 2>/dev/null || true
+
+          shallowest() { awk -F/ '{print NF, $0}' | sort -n | head -n 1 | cut -d' ' -f2-; }
+          PUB=$(find work -maxdepth 6 -name pubspec.yaml | shallowest || true)
+          SET=$(find work -maxdepth 6 \( -name settings.gradle -o -name settings.gradle.kts \) | shallowest || true)
+
+          if [ -n "$PUB" ]; then
+            TYPE=flutter; DIR=$(dirname "$PUB")
+          elif [ -n "$SET" ]; then
+            TYPE=gradle; DIR=$(dirname "$SET")
+          else
+            echo "::error::No Android (settings.gradle) or Flutter (pubspec.yaml) project found inside app.zip"
+            exit 1
+          fi
+
+          JAVA=17; GV=""; GV_INSTALL=""; WRAPPER=false
+          if [ "$TYPE" = "gradle" ]; then
+            if [ -f "$DIR/gradlew" ] && [ -f "$DIR/gradle/wrapper/gradle-wrapper.jar" ]; then WRAPPER=true; fi
+            if [ -f "$DIR/gradle/wrapper/gradle-wrapper.properties" ]; then
+              GV=$(grep -oE 'gradle-[0-9]+(\.[0-9]+)*' "$DIR/gradle/wrapper/gradle-wrapper.properties" | head -n 1 | sed 's/gradle-//' || true)
+            fi
+            if [ -z "$GV" ]; then
+              AGP=$(grep -rhE "com\.android\.tools\.build:gradle:|com\.android\.(application|library).*version|^agp *=" "$DIR" --include=*.gradle --include=*.kts --include=*.toml 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 | cut -d. -f1,2 || true)
+              case "$AGP" in
+                4.0|4.1|4.2) GV=6.7.1 ;;
+                7.0) GV=7.0.2 ;;
+                7.1) GV=7.2 ;;
+                7.2) GV=7.3.3 ;;
+                7.3) GV=7.4 ;;
+                7.4) GV=7.5 ;;
+                8.0|8.1) GV=8.0 ;;
+                8.2) GV=8.2 ;;
+                8.3) GV=8.4 ;;
+                8.4) GV=8.6 ;;
+                8.5|8.6) GV=8.7 ;;
+                8.7) GV=8.9 ;;
+                8.8) GV=8.10.2 ;;
+                8.9|8.10) GV=8.11.1 ;;
+                8.11|8.12|8.13) GV=8.13 ;;
+                *) GV=8.10.2 ;;
+              esac
+            fi
+            case "$GV" in 4.*|5.*|6.*|7.0*|7.1*|7.2*) JAVA=11 ;; esac
+            if [ "$WRAPPER" = "false" ]; then GV_INSTALL="$GV"; fi
+          fi
+
+          {
+            echo "type=$TYPE"
+            echo "dir=$DIR"
+            echo "java=$JAVA"
+            echo "gradle=$GV_INSTALL"
+            echo "wrapper=$WRAPPER"
+          } >> "$GITHUB_OUTPUT"
+          echo "Detected: type=$TYPE dir=$DIR java=$JAVA gradle=${GV:-n/a} wrapper=$WRAPPER"
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ steps.detect.outputs.java }}
+
+      - name: Accept Android licenses (SDK is preinstalled on the runner)
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      # ---------- Android (Gradle) ----------
+      - name: Set up Gradle
+        if: steps.detect.outputs.type == 'gradle'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ steps.detect.outputs.gradle }}
+
+      - name: Build debug APK (Gradle)
+        if: steps.detect.outputs.type == 'gradle'
+        working-directory: ${{ steps.detect.outputs.dir }}
+        env:
+          WRAPPER: ${{ steps.detect.outputs.wrapper }}
+        run: |
+          if [ "$WRAPPER" = "true" ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug --no-daemon --console=plain
+          else
+            gradle assembleDebug --no-daemon --console=plain
+          fi
+
+      # ---------- Flutter ----------
+      - name: Set up Flutter
+        if: steps.detect.outputs.type == 'flutter'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build APK (Flutter)
+        if: steps.detect.outputs.type == 'flutter'
+        working-directory: ${{ steps.detect.outputs.dir }}
+        run: |
+          flutter pub get
+          flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: APK
+          path: work/**/build/**/*.apk
+          if-no-files-found: error
