@@ -1,0 +1,120 @@
+name: Build iControl Launcher APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # ───────────────────────────────────────────
+      # Step 1: Checkout the repository code
+      # ───────────────────────────────────────────
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # ───────────────────────────────────────────
+      # Step 2: Setup Java 17 (required for Gradle 8)
+      # ───────────────────────────────────────────
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      # ───────────────────────────────────────────
+      # Step 3: Setup Android SDK
+      # ───────────────────────────────────────────
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # ───────────────────────────────────────────
+      # Step 4: Make gradlew executable
+      # ───────────────────────────────────────────
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # ───────────────────────────────────────────
+      # Step 5: Cache Gradle dependencies
+      # ───────────────────────────────────────────
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # ───────────────────────────────────────────
+      # Step 6: Build the debug APK
+      # ───────────────────────────────────────────
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      # ───────────────────────────────────────────
+      # Step 7: Build the release APK (self-signed)
+      # ───────────────────────────────────────────
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      # ───────────────────────────────────────────
+      # Step 8: Upload Debug APK as artifact
+      # ───────────────────────────────────────────
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: iControl-Launcher-Debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      # ───────────────────────────────────────────
+      # Step 9: Upload Release APK as artifact
+      # ───────────────────────────────────────────
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: iControl-Launcher-Release
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: 30
+
+      # ───────────────────────────────────────────
+      # Step 10: Create GitHub Release (on push to main)
+      # ───────────────────────────────────────────
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: iControl Launcher v1.0.${{ github.run_number }}
+          body: |
+            ## iControl Launcher APK
+            
+            📱 **iPhone-style Launcher for Android**
+            
+            **Creator:** Mohammod Abdul Awal  
+            **Department:** English, National University
+            
+            ### What's included:
+            - ✅ iPhone-style home screen
+            - ✅ Control Centre (swipe down)
+            - ✅ Lock Screen with clock
+            - ✅ App grid with smooth animations
+            - ✅ Lock button at bottom
+            
+            > Download the APK below and install on your Android device!
+          files: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/release/app-release-unsigned.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
