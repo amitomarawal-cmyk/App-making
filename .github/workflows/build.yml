@@ -99,6 +99,7 @@ jobs:
               implementation 'androidx.appcompat:appcompat:1.6.1'
               implementation 'com.google.android.material:material:1.11.0'
               implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+              implementation 'androidx.cardview:cardview:1.0.0'
           }
           EOF
 
@@ -114,25 +115,24 @@ jobs:
 
       - name: Download Gradle Wrapper JAR
         run: |
-          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
+          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" \
+            -o gradle/wrapper/gradle-wrapper.jar
 
       - name: Create gradlew
         run: |
-          cat > gradlew << 'EOF'
-          #!/bin/sh
+          python3 - << 'PYEOF'
+          content = r"""#!/bin/sh
           APP_NAME="Gradle"
           APP_BASE_NAME=`basename "$0"`
-          DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
           MAX_FD="maximum"
           warn () { echo "$*"; }
           die () { echo; echo "$*"; echo; exit 1; }
-          case "`uname`" in CYGWIN*) cygwin=true;; Darwin*) darwin=true;; MSYS*|MINGW*) msys=true;; *) ;;  esac
-          GRADLE_OPTS="$GRADLE_OPTS \"-Dorg.gradle.appname=$APP_BASE_NAME\""
           PRG="$0"
           while [ -h "$PRG" ] ; do
               ls=`ls -ld "$PRG"`
               link=`expr "$ls" : '.*-> \(.*\)$'`
-              if expr "$link" : '/.*' > /dev/null; then PRG="$link"; else PRG=`dirname "$PRG"`"/$link"; fi
+              if expr "$link" : '/.*' > /dev/null; then PRG="$link"
+              else PRG=`dirname "$PRG"`"/$link"; fi
           done
           SAVED="`pwd`"
           cd "`dirname \"$PRG\"`/" >/dev/null
@@ -140,9 +140,15 @@ jobs:
           cd "$SAVED" >/dev/null
           CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
           JAVACMD="java"
-          MAX_FD_LIMIT=`ulimit -H -n` 2>/dev/null
-          exec "$JAVACMD" $DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS "-Dorg.gradle.appname=$APP_BASE_NAME" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
-          EOF
+          exec "$JAVACMD" -Xmx64m -Xms64m \
+            -Dorg.gradle.appname="$APP_BASE_NAME" \
+            -classpath "$CLASSPATH" \
+            org.gradle.wrapper.GradleWrapperMain "$@"
+          """
+          with open('gradlew', 'w') as f:
+              f.write(content)
+          print("gradlew created")
+          PYEOF
           chmod +x gradlew
 
       - name: Create AndroidManifest.xml
@@ -178,7 +184,6 @@ jobs:
 
           import android.media.AudioManager;
           import android.media.audiofx.BassBoost;
-          import android.media.audiofx.EnvironmentalReverb;
           import android.media.audiofx.PresetReverb;
           import android.media.audiofx.Virtualizer;
           import android.os.Bundle;
@@ -205,30 +210,26 @@ jobs:
                   super.onCreate(savedInstanceState);
                   setContentView(R.layout.activity_main);
 
-                  AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
-
                   try {
                       bassBoost = new BassBoost(0, audioSessionId);
                       bassBoost.setEnabled(true);
-
                       virtualizer = new Virtualizer(0, audioSessionId);
                       virtualizer.setEnabled(true);
-
                       presetReverb = new PresetReverb(0, audioSessionId);
                       presetReverb.setEnabled(true);
                   } catch (Exception e) {
                       Toast.makeText(this, "Audio FX not supported on this device", Toast.LENGTH_LONG).show();
                   }
 
-                  seekBass = findViewById(R.id.seekBass);
+                  seekBass     = findViewById(R.id.seekBass);
                   seekSurround = findViewById(R.id.seekSurround);
-                  seekReverb = findViewById(R.id.seekReverb);
-                  tvBassVal = findViewById(R.id.tvBassVal);
+                  seekReverb   = findViewById(R.id.seekReverb);
+                  tvBassVal     = findViewById(R.id.tvBassVal);
                   tvSurroundVal = findViewById(R.id.tvSurroundVal);
-                  tvReverbVal = findViewById(R.id.tvReverbVal);
-                  switchBass = findViewById(R.id.switchBass);
+                  tvReverbVal   = findViewById(R.id.tvReverbVal);
+                  switchBass     = findViewById(R.id.switchBass);
                   switchSurround = findViewById(R.id.switchSurround);
-                  switchReverb = findViewById(R.id.switchReverb);
+                  switchReverb   = findViewById(R.id.switchReverb);
 
                   seekBass.setMax(1000);
                   seekSurround.setMax(1000);
@@ -237,9 +238,7 @@ jobs:
                   seekBass.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                       public void onProgressChanged(SeekBar s, int p, boolean u) {
                           tvBassVal.setText(p / 10 + "%");
-                          if (bassBoost != null) {
-                              try { bassBoost.setStrength((short) p); } catch (Exception ignored) {}
-                          }
+                          if (bassBoost != null) try { bassBoost.setStrength((short) p); } catch (Exception ignored) {}
                       }
                       public void onStartTrackingTouch(SeekBar s) {}
                       public void onStopTrackingTouch(SeekBar s) {}
@@ -248,17 +247,15 @@ jobs:
                   seekSurround.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                       public void onProgressChanged(SeekBar s, int p, boolean u) {
                           tvSurroundVal.setText(p / 10 + "%");
-                          if (virtualizer != null) {
-                              try { virtualizer.setStrength((short) p); } catch (Exception ignored) {}
-                          }
+                          if (virtualizer != null) try { virtualizer.setStrength((short) p); } catch (Exception ignored) {}
                       }
                       public void onStartTrackingTouch(SeekBar s) {}
                       public void onStopTrackingTouch(SeekBar s) {}
                   });
 
                   seekReverb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                      String[] labels = {"None","Small Room","Med Room","Large Room","Med Hall","Large Hall"};
-                      short[] presets = {
+                      String[] labels  = {"None","Small Room","Med Room","Large Room","Med Hall","Large Hall"};
+                      short[]  presets = {
                           PresetReverb.PRESET_NONE,
                           PresetReverb.PRESET_SMALLROOM,
                           PresetReverb.PRESET_MEDIUMROOM,
@@ -268,22 +265,20 @@ jobs:
                       };
                       public void onProgressChanged(SeekBar s, int p, boolean u) {
                           tvReverbVal.setText(labels[p]);
-                          if (presetReverb != null) {
-                              try { presetReverb.setPreset(presets[p]); } catch (Exception ignored) {}
-                          }
+                          if (presetReverb != null) try { presetReverb.setPreset(presets[p]); } catch (Exception ignored) {}
                       }
                       public void onStartTrackingTouch(SeekBar s) {}
                       public void onStopTrackingTouch(SeekBar s) {}
                   });
 
-                  switchBass.setOnCheckedChangeListener((b, checked) -> {
-                      if (bassBoost != null) try { bassBoost.setEnabled(checked); } catch (Exception ignored) {}
+                  switchBass.setOnCheckedChangeListener((b, c) -> {
+                      if (bassBoost   != null) try { bassBoost.setEnabled(c);   } catch (Exception ignored) {}
                   });
-                  switchSurround.setOnCheckedChangeListener((b, checked) -> {
-                      if (virtualizer != null) try { virtualizer.setEnabled(checked); } catch (Exception ignored) {}
+                  switchSurround.setOnCheckedChangeListener((b, c) -> {
+                      if (virtualizer != null) try { virtualizer.setEnabled(c); } catch (Exception ignored) {}
                   });
-                  switchReverb.setOnCheckedChangeListener((b, checked) -> {
-                      if (presetReverb != null) try { presetReverb.setEnabled(checked); } catch (Exception ignored) {}
+                  switchReverb.setOnCheckedChangeListener((b, c) -> {
+                      if (presetReverb!= null) try { presetReverb.setEnabled(c);} catch (Exception ignored) {}
                   });
 
                   switchBass.setChecked(true);
@@ -297,9 +292,9 @@ jobs:
               @Override
               protected void onDestroy() {
                   super.onDestroy();
-                  if (bassBoost != null) { try { bassBoost.release(); } catch (Exception ignored) {} }
-                  if (virtualizer != null) { try { virtualizer.release(); } catch (Exception ignored) {} }
-                  if (presetReverb != null) { try { presetReverb.release(); } catch (Exception ignored) {} }
+                  if (bassBoost   != null) try { bassBoost.release();   } catch (Exception ignored) {}
+                  if (virtualizer != null) try { virtualizer.release(); } catch (Exception ignored) {}
+                  if (presetReverb!= null) try { presetReverb.release();} catch (Exception ignored) {}
               }
           }
           EOF
@@ -312,7 +307,6 @@ jobs:
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:background="@color/bg_dark">
-
               <LinearLayout
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
@@ -327,13 +321,11 @@ jobs:
                       android:gravity="center"
                       android:paddingTop="24dp"
                       android:paddingBottom="16dp">
-
                       <TextView
                           android:layout_width="wrap_content"
                           android:layout_height="wrap_content"
-                          android:text="🎵"
+                          android:text="&#127925;"
                           android:textSize="48sp"/>
-
                       <TextView
                           android:layout_width="wrap_content"
                           android:layout_height="wrap_content"
@@ -342,7 +334,6 @@ jobs:
                           android:textSize="28sp"
                           android:textStyle="bold"
                           android:letterSpacing="0.15"/>
-
                       <TextView
                           android:layout_width="wrap_content"
                           android:layout_height="wrap_content"
@@ -361,28 +352,24 @@ jobs:
                       card:cardCornerRadius="16dp"
                       card:cardBackgroundColor="@color/card_bg"
                       card:cardElevation="6dp">
-
                       <LinearLayout
                           android:layout_width="match_parent"
                           android:layout_height="wrap_content"
                           android:orientation="vertical"
                           android:padding="20dp">
-
                           <LinearLayout
                               android:layout_width="match_parent"
                               android:layout_height="wrap_content"
                               android:orientation="horizontal"
                               android:gravity="center_vertical">
-
                               <TextView
                                   android:layout_width="0dp"
                                   android:layout_height="wrap_content"
                                   android:layout_weight="1"
-                                  android:text="🔊  Bass Boost"
+                                  android:text="&#128266;  Bass Boost"
                                   android:textColor="@color/text_primary"
                                   android:textSize="18sp"
                                   android:textStyle="bold"/>
-
                               <Switch
                                   android:id="@+id/switchBass"
                                   android:layout_width="wrap_content"
@@ -391,7 +378,6 @@ jobs:
                                   android:thumbTint="@color/accent_orange"
                                   android:trackTint="@color/track_color"/>
                           </LinearLayout>
-
                           <TextView
                               android:layout_width="match_parent"
                               android:layout_height="wrap_content"
@@ -400,14 +386,12 @@ jobs:
                               android:textSize="12sp"
                               android:layout_marginTop="4dp"
                               android:layout_marginBottom="12dp"/>
-
                           <SeekBar
                               android:id="@+id/seekBass"
                               android:layout_width="match_parent"
                               android:layout_height="wrap_content"
                               android:progressTint="@color/accent_orange"
                               android:thumbTint="@color/accent_orange"/>
-
                           <TextView
                               android:id="@+id/tvBassVal"
                               android:layout_width="match_parent"
@@ -430,28 +414,24 @@ jobs:
                       card:cardCornerRadius="16dp"
                       card:cardBackgroundColor="@color/card_bg"
                       card:cardElevation="6dp">
-
                       <LinearLayout
                           android:layout_width="match_parent"
                           android:layout_height="wrap_content"
                           android:orientation="vertical"
                           android:padding="20dp">
-
                           <LinearLayout
                               android:layout_width="match_parent"
                               android:layout_height="wrap_content"
                               android:orientation="horizontal"
                               android:gravity="center_vertical">
-
                               <TextView
                                   android:layout_width="0dp"
                                   android:layout_height="wrap_content"
                                   android:layout_weight="1"
-                                  android:text="🎧  Surrounding Sound"
+                                  android:text="&#127911;  Surrounding Sound"
                                   android:textColor="@color/text_primary"
                                   android:textSize="18sp"
                                   android:textStyle="bold"/>
-
                               <Switch
                                   android:id="@+id/switchSurround"
                                   android:layout_width="wrap_content"
@@ -460,7 +440,6 @@ jobs:
                                   android:thumbTint="@color/accent_purple"
                                   android:trackTint="@color/track_color"/>
                           </LinearLayout>
-
                           <TextView
                               android:layout_width="match_parent"
                               android:layout_height="wrap_content"
@@ -469,14 +448,12 @@ jobs:
                               android:textSize="12sp"
                               android:layout_marginTop="4dp"
                               android:layout_marginBottom="12dp"/>
-
                           <SeekBar
                               android:id="@+id/seekSurround"
                               android:layout_width="match_parent"
                               android:layout_height="wrap_content"
                               android:progressTint="@color/accent_purple"
                               android:thumbTint="@color/accent_purple"/>
-
                           <TextView
                               android:id="@+id/tvSurroundVal"
                               android:layout_width="match_parent"
@@ -499,28 +476,24 @@ jobs:
                       card:cardCornerRadius="16dp"
                       card:cardBackgroundColor="@color/card_bg"
                       card:cardElevation="6dp">
-
                       <LinearLayout
                           android:layout_width="match_parent"
                           android:layout_height="wrap_content"
                           android:orientation="vertical"
                           android:padding="20dp">
-
                           <LinearLayout
                               android:layout_width="match_parent"
                               android:layout_height="wrap_content"
                               android:orientation="horizontal"
                               android:gravity="center_vertical">
-
                               <TextView
                                   android:layout_width="0dp"
                                   android:layout_height="wrap_content"
                                   android:layout_weight="1"
-                                  android:text="🏛️  Reverb"
+                                  android:text="&#127963;  Reverb"
                                   android:textColor="@color/text_primary"
                                   android:textSize="18sp"
                                   android:textStyle="bold"/>
-
                               <Switch
                                   android:id="@+id/switchReverb"
                                   android:layout_width="wrap_content"
@@ -529,7 +502,6 @@ jobs:
                                   android:thumbTint="@color/accent_cyan"
                                   android:trackTint="@color/track_color"/>
                           </LinearLayout>
-
                           <TextView
                               android:layout_width="match_parent"
                               android:layout_height="wrap_content"
@@ -538,14 +510,12 @@ jobs:
                               android:textSize="12sp"
                               android:layout_marginTop="4dp"
                               android:layout_marginBottom="12dp"/>
-
                           <SeekBar
                               android:id="@+id/seekReverb"
                               android:layout_width="match_parent"
                               android:layout_height="wrap_content"
                               android:progressTint="@color/accent_cyan"
                               android:thumbTint="@color/accent_cyan"/>
-
                           <TextView
                               android:id="@+id/tvReverbVal"
                               android:layout_width="match_parent"
@@ -566,13 +536,11 @@ jobs:
                       android:orientation="vertical"
                       android:gravity="center"
                       android:paddingBottom="16dp">
-
                       <View
                           android:layout_width="60dp"
                           android:layout_height="1dp"
                           android:background="@color/divider"
                           android:layout_marginBottom="12dp"/>
-
                       <TextView
                           android:layout_width="wrap_content"
                           android:layout_height="wrap_content"
@@ -580,7 +548,6 @@ jobs:
                           android:textColor="@color/text_secondary"
                           android:textSize="12sp"
                           android:textStyle="bold"/>
-
                       <TextView
                           android:layout_width="wrap_content"
                           android:layout_height="wrap_content"
@@ -588,7 +555,6 @@ jobs:
                           android:textColor="@color/text_hint"
                           android:textSize="11sp"
                           android:layout_marginTop="2dp"/>
-
                       <TextView
                           android:layout_width="wrap_content"
                           android:layout_height="wrap_content"
@@ -645,10 +611,10 @@ jobs:
           </resources>
           EOF
 
-      - name: Create launcher icon (Python script)
+      - name: Create launcher icons
         run: |
           python3 << 'PYEOF'
-          import struct, zlib, base64
+          import struct, zlib
 
           def create_png(width, height, pixels_fn):
               def chunk(name, data):
@@ -666,53 +632,41 @@ jobs:
               return sig + ihdr + idat + iend
 
           def bass_icon(x, y, w, h):
-              cx, cy = w/2, h/2
-              r = min(w,h)/2 - 2
-              dx, dy = x-cx, y-cy
-              dist = (dx**2+dy**2)**0.5
-              # Outer ring
-              if r-3 < dist <= r:
-                  return bytes([255,107,53])
-              # Inner circle
-              if dist <= r-3:
-                  # Dark bg
-                  bg = bytes([15,15,26])
-                  # Music note-like shape
-                  nx, ny = x - w*0.35, y - h*0.25
-                  note_r = min(w,h)*0.12
-                  if (nx**2 + ny**2)**0.5 < note_r:
-                      return bytes([255,107,53])
-                  nx2, ny2 = x - w*0.55, y - h*0.38
-                  if (nx2**2 + ny2**2)**0.5 < note_r*0.8:
-                      return bytes([168,85,247])
-                  # Stem
-                  if w*0.30 < x < w*0.36 and h*0.25 < y < h*0.55:
-                      return bytes([255,107,53])
-                  if w*0.50 < x < w*0.56 and h*0.12 < y < h*0.42:
-                      return bytes([168,85,247])
-                  # Sound waves
-                  for i, color in enumerate([(6,182,212),(255,107,53),(168,85,247)]):
-                      wave_r = r * (0.45 + i*0.12)
-                      if wave_r-2 < dist <= wave_r and x > cx:
+              cx, cy = w / 2, h / 2
+              r = min(w, h) / 2 - 2
+              dx, dy = x - cx, y - cy
+              dist = (dx ** 2 + dy ** 2) ** 0.5
+              if r - 3 < dist <= r:
+                  return bytes([255, 107, 53])
+              if dist <= r - 3:
+                  nx, ny = x - w * 0.35, y - h * 0.25
+                  note_r = min(w, h) * 0.12
+                  if (nx ** 2 + ny ** 2) ** 0.5 < note_r:
+                      return bytes([255, 107, 53])
+                  nx2, ny2 = x - w * 0.55, y - h * 0.38
+                  if (nx2 ** 2 + ny2 ** 2) ** 0.5 < note_r * 0.8:
+                      return bytes([168, 85, 247])
+                  if w * 0.30 < x < w * 0.36 and h * 0.25 < y < h * 0.55:
+                      return bytes([255, 107, 53])
+                  if w * 0.50 < x < w * 0.56 and h * 0.12 < y < h * 0.42:
+                      return bytes([168, 85, 247])
+                  for i, color in enumerate([(6, 182, 212), (255, 107, 53), (168, 85, 247)]):
+                      wave_r = r * (0.45 + i * 0.12)
+                      if wave_r - 2 < dist <= wave_r and x > cx:
                           return bytes(color)
-                  return bg
-              return bytes([15,15,26])
+                  return bytes([15, 15, 26])
+              return bytes([15, 15, 26])
 
-          sizes = {'hdpi':72,'mdpi':48,'xhdpi':96,'xxhdpi':144,'xxxhdpi':192}
+          sizes = {'hdpi': 72, 'mdpi': 48, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
           for folder, size in sizes.items():
               png = create_png(size, size, bass_icon)
-              path = f'app/src/main/res/mipmap-{folder}/ic_launcher.png'
-              with open(path, 'wb') as f:
-                  f.write(png)
-              with open(path.replace('ic_launcher','ic_launcher_round'), 'wb') as f:
-                  f.write(png)
-              print(f'Created {path} ({size}x{size})')
-          print('Icons done!')
+              for name in ['ic_launcher', 'ic_launcher_round']:
+                  path = f'app/src/main/res/mipmap-{folder}/{name}.png'
+                  with open(path, 'wb') as f:
+                      f.write(png)
+              print(f'Created {folder} ({size}x{size})')
+          print('All icons done!')
           PYEOF
-
-      - name: Add CardView dependency
-        run: |
-          sed -i 's/implementation '\''androidx.constraintlayout:constraintlayout:2.1.4'\''/implementation '\''androidx.constraintlayout:constraintlayout:2.1.4'\''\n    implementation '\''androidx.cardview:cardview:1.0.0'\''/' app/build.gradle
 
       - name: Build APK
         run: ./gradlew assembleDebug --stacktrace
