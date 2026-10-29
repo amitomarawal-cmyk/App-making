@@ -1,8 +1,4 @@
-name: Build RetroLens APK
-
-# Creator: Mohammod Abdul Awal
-# Student: Department of English, National University
-# Mail: awal.sorkar.144@gmail.com
+name: Build Bass Booster APK
 
 on:
   push:
@@ -12,1792 +8,40 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup Java
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
           java-version: '17'
+          distribution: 'temurin'
 
-      - name: Accept Android SDK licenses
+      - name: Accept Android SDK Licenses
         run: |
-          sudo mkdir -p $ANDROID_HOME/licenses
-          sudo chmod -R a+rwX $ANDROID_HOME || true
           mkdir -p $ANDROID_HOME/licenses
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
           echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
           echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_HOME/licenses/android-googletv-license
 
-      - name: Create project files (all code lives in this one file)
+      - name: Create Project Structure
         run: |
-          mkdir -p app app/src/main app/src/main/java/com/awal/retrolens app/src/main/res/drawable app/src/main/res/values gradle/wrapper
-          cat > app/build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application'
-          }
-
-          android {
-              namespace 'com.awal.retrolens'
-              compileSdk 34
-
-              defaultConfig {
-                  applicationId "com.awal.retrolens"
-                  minSdk 24
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-              }
-
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                  }
-              }
-
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
-
-          dependencies {
-              implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'androidx.camera:camera-core:1.3.1'
-              implementation 'androidx.camera:camera-camera2:1.3.1'
-              implementation 'androidx.camera:camera-lifecycle:1.3.1'
-              implementation 'androidx.camera:camera-view:1.3.1'
-              implementation 'androidx.camera:camera-video:1.3.1'
-              implementation 'com.google.guava:guava:31.1-android'
-          }
-          EOF
-          cat > app/src/main/AndroidManifest.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-              <uses-feature android:name="android.hardware.camera" android:required="false" />
-              <uses-permission android:name="android.permission.CAMERA" />
-              <uses-permission android:name="android.permission.RECORD_AUDIO" />
-              <uses-permission
-                  android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-                  android:maxSdkVersion="28" />
-
-              <application
-                  android:allowBackup="true"
-                  android:icon="@drawable/ic_logo"
-                  android:label="RetroLens"
-                  android:largeHeap="true"
-                  android:theme="@style/AppTheme">
-
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:screenOrientation="portrait">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-          cat > app/src/main/java/com/awal/retrolens/Filter.java << 'EOF'
-          package com.awal.retrolens;
-
-          import android.graphics.ColorMatrix;
-
-          import java.util.ArrayList;
-          import java.util.List;
-          import java.util.Random;
-
-          public class Filter {
-              public final String name;
-              public float sat = 1f, con = 1f, bri = 0f, r = 1f, g = 1f, b = 1f;
-              public float fade = 0f, vig = 0f, grain = 0f;
-              public int leakColor = 0, leakSide = 0;
-
-              public Filter(String name) {
-                  this.name = name;
-              }
-
-              public Filter set(float sat, float con, float bri, float r, float g, float b,
-                                float fade, float vig, float grain) {
-                  this.sat = sat; this.con = con; this.bri = bri;
-                  this.r = r; this.g = g; this.b = b;
-                  this.fade = fade; this.vig = vig; this.grain = grain;
-                  return this;
-              }
-
-              public Filter leak(int color, int side) {
-                  this.leakColor = color;
-                  this.leakSide = side;
-                  return this;
-              }
-
-              public ColorMatrix matrix() {
-                  ColorMatrix m = new ColorMatrix();
-                  m.setSaturation(sat);
-                  float s = con * (1f - fade * 0.25f);
-                  float t = (1f - con) * 128f + bri * 255f + fade * 45f;
-                  ColorMatrix c = new ColorMatrix(new float[]{
-                          s * r, 0, 0, 0, t,
-                          0, s * g, 0, 0, t,
-                          0, 0, s * b, 0, t,
-                          0, 0, 0, 1, 0});
-                  m.postConcat(c);
-                  return m;
-              }
-
-              private static float rf(Random q, float a, float b) {
-                  return a + q.nextFloat() * (b - a);
-              }
-
-              private static final int[] LEAKS = {
-                      0x66FF5A1E, 0x665A78FF, 0x66C83CFF, 0x66FFC832, 0x66FF3C6E, 0x6628C8B4
-              };
-
-              // p: sat, con, bri, warm, fade, vig, grain  (min,max pairs)
-              private static void grp(List<Filter> l, String pre, int n, int seed, float[] p, float leakChance) {
-                  for (int i = 1; i <= n; i++) {
-                      Random q = new Random(seed * 131L + i);
-                      float warm = rf(q, p[6], p[7]);
-                      float gt = rf(q, -.04f, .04f);
-                      Filter f = new Filter(pre + i).set(
-                              rf(q, p[0], p[1]), rf(q, p[2], p[3]), rf(q, p[4], p[5]),
-                              1f + warm, 1f + gt, 1f - warm,
-                              rf(q, p[8], p[9]), rf(q, p[10], p[11]), rf(q, p[12], p[13]));
-                      if (q.nextFloat() < leakChance) {
-                          f.leak(LEAKS[q.nextInt(LEAKS.length)], q.nextInt(4));
-                      }
-                      l.add(f);
-                  }
-              }
-
-              public static List<Filter> all() {
-                  List<Filter> l = new ArrayList<>();
-                  l.add(new Filter("Original"));
-                  grp(l, "F", 5, 1, new float[]{.9f, 1.2f, 1.0f, 1.15f, -.02f, .03f, .02f, .10f, .02f, .10f, .2f, .4f, .15f, .3f}, .2f);
-                  grp(l, "C", 8, 2, new float[]{1.0f, 1.5f, 1.05f, 1.25f, -.03f, .03f, -.10f, .08f, 0f, .06f, .1f, .3f, .1f, .25f}, .5f);
-                  grp(l, "K", 8, 3, new float[]{1.1f, 1.4f, 1.05f, 1.2f, 0f, .05f, .04f, .12f, 0f, .05f, .15f, .35f, .1f, .25f}, .3f);
-                  grp(l, "P", 11, 4, new float[]{.7f, 1.0f, .85f, 1.0f, .03f, .10f, -.04f, .06f, .06f, .16f, .05f, .2f, .05f, .15f}, .5f);
-                  grp(l, "H", 15, 5, new float[]{.9f, 1.3f, 1.1f, 1.3f, -.05f, .03f, -.06f, .10f, 0f, .08f, .25f, .5f, .15f, .3f}, .45f);
-                  grp(l, "M", 15, 6, new float[]{.6f, 1.0f, .95f, 1.15f, -.08f, 0f, -.08f, .08f, .05f, .18f, .3f, .55f, .15f, .3f}, .5f);
-                  grp(l, "bw", 8, 7, new float[]{0f, 0f, .95f, 1.4f, -.05f, .05f, -.02f, .10f, 0f, .12f, .2f, .5f, .2f, .4f}, 0f);
-                  l.add(new Filter("FJ-Provia-400").set(1.10f, 1.10f, 0f, 1.00f, 1.02f, 1.05f, .02f, .20f, .20f));
-                  l.add(new Filter("FJ-C200").set(1.15f, 1.05f, 0f, 1.05f, 1.03f, .96f, .03f, .20f, .20f));
-                  l.add(new Filter("FJ-A100C").set(1.25f, 1.15f, 0f, 1.00f, 1.04f, 1.00f, 0f, .15f, .15f));
-                  l.add(new Filter("BB-White").set(.60f, .95f, .08f, 1.00f, 1.00f, 1.05f, .10f, .10f, .10f));
-                  l.add(new Filter("BB-Wedding").set(.85f, .92f, .06f, 1.06f, 1.00f, 1.02f, .12f, .15f, .12f).leak(0x66FF3C6E, 0));
-                  l.add(new Filter("AG-O100W").set(.90f, 1.00f, 0f, 1.08f, 1.00f, .90f, .08f, .30f, .20f));
-                  l.add(new Filter("AG-400C").set(1.10f, 1.10f, 0f, 1.05f, 1.00f, .95f, .04f, .25f, .35f));
-                  l.add(new Filter("FJ-V100C").set(1.40f, 1.20f, 0f, 1.00f, 1.05f, 1.00f, 0f, .25f, .15f));
-                  return l;
-              }
-          }
-          EOF
-          cat > app/src/main/java/com/awal/retrolens/Fx.java << 'EOF'
-          package com.awal.retrolens;
-
-          import android.graphics.Bitmap;
-          import android.graphics.BitmapShader;
-          import android.graphics.Canvas;
-          import android.graphics.LinearGradient;
-          import android.graphics.Matrix;
-          import android.graphics.Paint;
-          import android.graphics.RadialGradient;
-          import android.graphics.Shader;
-
-          import java.util.Random;
-
-          /** Draws leak / vignette / grain effects. Used for live preview and saved photo. */
-          public class Fx {
-              private static Bitmap noise;
-
-              private static Bitmap noise() {
-                  if (noise == null) {
-                      int n = 160;
-                      int[] px = new int[n * n];
-                      Random q = new Random(7);
-                      for (int i = 0; i < px.length; i++) {
-                          int v = q.nextInt(256);
-                          px[i] = 0xFF000000 | (v << 16) | (v << 8) | v;
-                      }
-                      noise = Bitmap.createBitmap(px, n, n, Bitmap.Config.ARGB_8888);
-                  }
-                  return noise;
-              }
-
-              public static void draw(Canvas c, int w, int h, Filter f, float grainScale) {
-                  if (w <= 0 || h <= 0) return;
-                  Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-                  if (f.leakColor != 0) {
-                      float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
-                      switch (f.leakSide) {
-                          case 0: x0 = 0; x1 = w * .6f; break;
-                          case 1: x0 = w; x1 = w * .4f; break;
-                          case 2: y0 = 0; y1 = h * .5f; break;
-                          default: y0 = h; y1 = h * .5f; break;
-                      }
-                      p.setShader(new LinearGradient(x0, y0, x1, y1, f.leakColor,
-                              f.leakColor & 0x00FFFFFF, Shader.TileMode.CLAMP));
-                      c.drawRect(0, 0, w, h, p);
-                      p.setShader(null);
-                  }
-
-                  if (f.vig > 0f) {
-                      float rad = (float) Math.hypot(w, h) / 2f;
-                      int a = (int) (Math.min(1f, f.vig) * 255f);
-                      p.setShader(new RadialGradient(w / 2f, h / 2f, rad,
-                              new int[]{0x00000000, 0x00000000, (a << 24)},
-                              new float[]{0f, .5f, 1f}, Shader.TileMode.CLAMP));
-                      c.drawRect(0, 0, w, h, p);
-                      p.setShader(null);
-                  }
-
-                  if (f.grain > 0f) {
-                      BitmapShader s = new BitmapShader(noise(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT);
-                      Matrix m = new Matrix();
-                      m.setScale(grainScale, grainScale);
-                      s.setLocalMatrix(m);
-                      p.setShader(s);
-                      p.setAlpha((int) (f.grain * 0.45f * 255f));
-                      c.drawRect(0, 0, w, h, p);
-                      p.setShader(null);
-                  }
-              }
-          }
-          EOF
-          cat > app/src/main/java/com/awal/retrolens/MainActivity.java << 'EOF'
-          package com.awal.retrolens;
-
-          import android.Manifest;
-          import android.content.ContentValues;
-          import android.content.Intent;
-          import android.content.SharedPreferences;
-          import android.content.pm.PackageManager;
-          import android.graphics.Bitmap;
-          import android.graphics.BitmapFactory;
-          import android.graphics.Canvas;
-          import android.graphics.ColorMatrixColorFilter;
-          import android.graphics.Matrix;
-          import android.graphics.Outline;
-          import android.graphics.Paint;
-          import android.graphics.drawable.GradientDrawable;
-          import android.media.ExifInterface;
-          import android.media.MediaScannerConnection;
-          import android.net.Uri;
-          import android.os.Build;
-          import android.os.Environment;
-          import android.provider.MediaStore;
-          import android.text.util.Linkify;
-          import android.util.DisplayMetrics;
-          import android.util.Range;
-          import android.view.Gravity;
-          import android.view.MotionEvent;
-          import android.view.ScaleGestureDetector;
-          import android.view.View;
-          import android.view.ViewGroup;
-          import android.view.ViewOutlineProvider;
-          import android.view.WindowManager;
-          import android.widget.FrameLayout;
-          import android.widget.HorizontalScrollView;
-          import android.widget.ImageView;
-          import android.widget.LinearLayout;
-          import android.widget.RadioButton;
-          import android.widget.RadioGroup;
-          import android.widget.ScrollView;
-          import android.widget.TextView;
-          import android.widget.Toast;
-
-          import androidx.activity.result.ActivityResultLauncher;
-          import androidx.activity.result.contract.ActivityResultContracts;
-          import androidx.appcompat.app.AlertDialog;
-          import androidx.appcompat.app.AppCompatActivity;
-          import androidx.appcompat.widget.SwitchCompat;
-          import androidx.camera.core.AspectRatio;
-          import androidx.camera.core.Camera;
-          import androidx.camera.core.CameraSelector;
-          import androidx.camera.core.ExposureState;
-          import androidx.camera.core.FocusMeteringAction;
-          import androidx.camera.core.ImageCapture;
-          import androidx.camera.core.ImageCaptureException;
-          import androidx.camera.core.MeteringPoint;
-          import androidx.camera.core.Preview;
-          import androidx.camera.core.UseCaseGroup;
-          import androidx.camera.core.ZoomState;
-          import androidx.camera.lifecycle.ProcessCameraProvider;
-          import androidx.camera.video.FallbackStrategy;
-          import androidx.camera.video.MediaStoreOutputOptions;
-          import androidx.camera.video.PendingRecording;
-          import androidx.camera.video.Quality;
-          import androidx.camera.video.QualitySelector;
-          import androidx.camera.video.Recorder;
-          import androidx.camera.video.Recording;
-          import androidx.camera.video.VideoCapture;
-          import androidx.camera.video.VideoRecordEvent;
-          import androidx.camera.view.PreviewView;
-          import androidx.core.content.ContextCompat;
-
-          import com.google.common.util.concurrent.ListenableFuture;
-
-          import java.io.File;
-          import java.io.FileOutputStream;
-          import java.io.OutputStream;
-          import java.text.SimpleDateFormat;
-          import java.util.ArrayList;
-          import java.util.Date;
-          import java.util.List;
-          import java.util.Locale;
-          import java.util.Random;
-          import java.util.concurrent.ExecutorService;
-          import java.util.concurrent.Executors;
-          import java.util.concurrent.TimeUnit;
-
-          public class MainActivity extends AppCompatActivity {
-
-              private PreviewView previewView;
-              private OverlayView overlay;
-              private FrameLayout innerFrame;
-              private ProcessCameraProvider provider;
-              private Camera camera;
-              private ImageCapture imageCapture;
-              private int lensFacing = CameraSelector.LENS_FACING_BACK;
-              private int flashMode = ImageCapture.FLASH_MODE_OFF;
-              private List<Filter> filters;
-              private int filterIndex = 0;
-              private final List<TextView> keys = new ArrayList<>();
-              private HorizontalScrollView strip;
-              private SharedPreferences prefs;
-              private boolean gridOn, mirrorOn;
-              private int quality; // 0 = High, 1 = Medium, 2 = Low
-              private TextView zoomBtn, flashBtn;
-              private ImageView thumb;
-              private ScaleGestureDetector scaleDetector;
-              private int evIndex = 0;
-              private Uri lastUri;
-              private boolean videoMode = false;
-              private VideoCapture<Recorder> videoCapture;
-              private Recording recording;
-              private int vq; // 0 SD, 1 HD, 2 FHD, 3 UHD
-              private TextView timerView, modePhoto, modeVideo, pauseBtn;
-              private boolean paused = false;
-              private VideoFx videoFx;
-              private boolean vfxOn = true;
-              private long lastSec = 0;
-              private View shutterDot;
-              private static final Quality[] VQ = {Quality.SD, Quality.HD, Quality.FHD, Quality.UHD};
-              private static final String[] VQ_NAME = {"480p SD", "720p HD", "1080p Full HD", "4K Ultra HD"};
-              private static final int[] V_BPS = {2000000, 5000000, 10000000, 35000000};
-              private final ExecutorService io = Executors.newSingleThreadExecutor();
-              private final Random rnd = new Random();
-
-              private final ActivityResultLauncher<String[]> permLauncher =
-                      registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), res -> {
-                          if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                                  == PackageManager.PERMISSION_GRANTED) {
-                              startCamera();
-                          } else {
-                              Toast.makeText(this, "Camera permission is required", Toast.LENGTH_LONG).show();
-                          }
-                      });
-
-              @Override
-              protected void onCreate(android.os.Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                  getWindow().setStatusBarColor(0xFF000000);
-                  getWindow().setNavigationBarColor(0xFF000000);
-                  prefs = getSharedPreferences("retrolens", MODE_PRIVATE);
-                  gridOn = prefs.getBoolean("grid", false);
-                  mirrorOn = prefs.getBoolean("mirror", true);
-                  quality = prefs.getInt("quality", 0);
-                  vq = prefs.getInt("vq", 2);
-                  vfxOn = prefs.getBoolean("vfx", true);
-                  filters = Filter.all();
-                  buildUi();
-                  overlay.setGrid(gridOn);
-                  selectFilter(0);
-                  ensurePermissions();
-              }
-
-              @Override
-              protected void onDestroy() {
-                  super.onDestroy();
-                  io.shutdown();
-                  if (videoFx != null) videoFx.close();
-              }
-
-              // ------------------------------------------------------------ UI
-
-              private int dp(float v) {
-                  return Math.round(v * getResources().getDisplayMetrics().density);
-              }
-
-              private TextView roundBtn(String t, int sizeDp, int color, float textSp) {
-                  TextView v = new TextView(this);
-                  v.setText(t);
-                  v.setTextColor(color);
-                  v.setTextSize(textSp);
-                  v.setGravity(Gravity.CENTER);
-                  GradientDrawable g = new GradientDrawable();
-                  g.setShape(GradientDrawable.OVAL);
-                  g.setColor(0xFF262626);
-                  g.setStroke(dp(3), 0xFF0E0E0E);
-                  v.setBackground(g);
-                  v.setLayoutParams(new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)));
-                  return v;
-              }
-
-              private FrameLayout cell(View v, int sizeDp) {
-                  FrameLayout f = new FrameLayout(this);
-                  f.addView(v, new FrameLayout.LayoutParams(dp(sizeDp), dp(sizeDp), Gravity.CENTER));
-                  f.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-                  return f;
-              }
-
-              private GradientDrawable keyBg(boolean sel) {
-                  GradientDrawable g = new GradientDrawable();
-                  g.setColor(0xFF353535);
-                  g.setCornerRadius(dp(4));
-                  if (sel) g.setStroke(dp(2), 0xFFFF9F2E);
-                  return g;
-              }
-
-              private void buildUi() {
-                  DisplayMetrics dm = getResources().getDisplayMetrics();
-                  int sw = dm.widthPixels, sh = dm.heightPixels;
-
-                  FrameLayout root = new FrameLayout(this);
-                  root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                          new int[]{0xFF262626, 0xFF0C0C0C, 0xFF000000}));
-                  setContentView(root);
-
-                  LinearLayout col = new LinearLayout(this);
-                  col.setOrientation(LinearLayout.VERTICAL);
-                  col.setGravity(Gravity.CENTER_HORIZONTAL);
-                  root.addView(col, new FrameLayout.LayoutParams(-1, -1));
-
-                  // ---- top bar
-                  LinearLayout top = new LinearLayout(this);
-                  top.setOrientation(LinearLayout.HORIZONTAL);
-                  top.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-                  top.setPadding(dp(12), dp(8), dp(18), dp(8));
-                  TextView switchBtn = roundBtn("\u27F3", 46, 0xFFB06CFF, 22);
-                  flashBtn = roundBtn("\u26A1", 46, 0xFF777777, 20);
-                  TextView settingsBtn = roundBtn("\u2699", 46, 0xFF7B5CFF, 22);
-                  LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(dp(46), dp(46));
-                  tl.leftMargin = dp(12);
-                  top.addView(switchBtn, tl);
-                  top.addView(flashBtn, tl);
-                  top.addView(settingsBtn, tl);
-                  col.addView(top, new LinearLayout.LayoutParams(-1, -2));
-                  switchBtn.setOnClickListener(v -> {
-                      if (recording != null) return;
-                      lensFacing = lensFacing == CameraSelector.LENS_FACING_BACK
-                              ? CameraSelector.LENS_FACING_FRONT : CameraSelector.LENS_FACING_BACK;
-                      bindCamera();
-                  });
-                  flashBtn.setOnClickListener(v -> cycleFlash());
-                  settingsBtn.setOnClickListener(v -> showSettings());
-
-                  // ---- preview frame
-                  int innerH = Math.min((int) ((sw * 0.8f - dp(24)) * 4f / 3f), sh - dp(400));
-                  int innerW = innerH * 3 / 4;
-
-                  FrameLayout frame = new FrameLayout(this);
-                  GradientDrawable fg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                          new int[]{0xFFEDEDED, 0xFF9A9A9A, 0xFF3C3538, 0xFF5B5156});
-                  fg.setCornerRadius(dp(30));
-                  frame.setBackground(fg);
-                  frame.setPadding(dp(12), dp(12), dp(12), dp(12));
-
-                  FrameLayout bezel = new FrameLayout(this);
-                  GradientDrawable bz = new GradientDrawable();
-                  bz.setColor(0xFF2A2327);
-                  bz.setCornerRadius(dp(22));
-                  bezel.setBackground(bz);
-                  bezel.setPadding(dp(6), dp(6), dp(6), dp(6));
-
-                  innerFrame = new FrameLayout(this);
-                  innerFrame.setBackgroundColor(0xFF000000);
-                  innerFrame.setOutlineProvider(new ViewOutlineProvider() {
-                      @Override
-                      public void getOutline(View view, Outline o) {
-                          o.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(16));
-                      }
-                  });
-                  innerFrame.setClipToOutline(true);
-
-                  previewView = new PreviewView(this);
-                  previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);
-                  previewView.setScaleType(PreviewView.ScaleType.FILL_CENTER);
-                  previewView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-                  innerFrame.addView(previewView, new FrameLayout.LayoutParams(-1, -1));
-
-                  overlay = new OverlayView(this);
-                  innerFrame.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
-
-                  timerView = new TextView(this);
-                  timerView.setText("\u25CF 00:00");
-                  timerView.setTextColor(0xFFFF3B30);
-                  timerView.setTextSize(14);
-                  timerView.setPadding(dp(10), dp(4), dp(10), dp(4));
-                  GradientDrawable tb = new GradientDrawable();
-                  tb.setColor(0x88000000);
-                  tb.setCornerRadius(dp(12));
-                  timerView.setBackground(tb);
-                  timerView.setVisibility(View.GONE);
-                  FrameLayout.LayoutParams tlp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-                  tlp.topMargin = dp(10);
-                  innerFrame.addView(timerView, tlp);
-
-                  pauseBtn = roundBtn("\u275A\u275A", 52, 0xFFFFFFFF, 18);
-                  pauseBtn.setVisibility(View.GONE);
-                  FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(dp(52), dp(52),
-                          Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-                  plp.bottomMargin = dp(14);
-                  innerFrame.addView(pauseBtn, plp);
-                  pauseBtn.setOnClickListener(v -> togglePause());
-
-                  bezel.addView(innerFrame, new FrameLayout.LayoutParams(innerW, innerH));
-                  frame.addView(bezel, new FrameLayout.LayoutParams(-2, -2));
-                  LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-2, -2);
-                  fl.topMargin = dp(4);
-                  col.addView(frame, fl);
-
-                  setupTouch();
-
-                  // ---- dice
-                  TextView dice = roundBtn("\uD83C\uDFB2", 56, 0xFFDDBBFF, 22);
-                  LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(56), dp(56));
-                  dl.topMargin = dp(14);
-                  col.addView(dice, dl);
-                  dice.setOnClickListener(v -> selectFilter(1 + rnd.nextInt(filters.size() - 1)));
-
-                  // ---- filter strip
-                  strip = new HorizontalScrollView(this);
-                  strip.setHorizontalScrollBarEnabled(false);
-                  LinearLayout row = new LinearLayout(this);
-                  row.setOrientation(LinearLayout.HORIZONTAL);
-                  int sidePad = sw / 2 - dp(42);
-                  row.setPadding(sidePad, dp(4), sidePad, dp(4));
-                  for (int i = 0; i < filters.size(); i++) {
-                      final int idx = i;
-                      String name = filters.get(i).name;
-                      TextView k = new TextView(this);
-                      k.setText(name);
-                      k.setTextColor(0xFFEEEEEE);
-                      k.setTextSize(name.length() > 6 ? 11 : 14);
-                      k.setGravity(Gravity.CENTER);
-                      k.setMaxLines(2);
-                      k.setPadding(dp(3), 0, dp(3), 0);
-                      k.setBackground(keyBg(false));
-                      LinearLayout.LayoutParams kp = new LinearLayout.LayoutParams(dp(76), dp(52));
-                      kp.setMargins(dp(4), 0, dp(4), 0);
-                      k.setOnClickListener(v -> selectFilter(idx));
-                      row.addView(k, kp);
-                      keys.add(k);
-                  }
-                  strip.addView(row);
-                  LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, dp(64));
-                  sp.topMargin = dp(16);
-                  col.addView(strip, sp);
-
-                  // ---- spacer
-                  col.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
-
-                  // ---- mode switch
-                  LinearLayout modeRow = new LinearLayout(this);
-                  modeRow.setOrientation(LinearLayout.HORIZONTAL);
-                  modeRow.setGravity(Gravity.CENTER);
-                  modePhoto = new TextView(this);
-                  modePhoto.setText("PHOTO");
-                  modePhoto.setTextSize(14);
-                  modePhoto.setPadding(dp(18), dp(6), dp(18), dp(6));
-                  modeVideo = new TextView(this);
-                  modeVideo.setText("VIDEO");
-                  modeVideo.setTextSize(14);
-                  modeVideo.setPadding(dp(18), dp(6), dp(18), dp(6));
-                  modeRow.addView(modePhoto);
-                  modeRow.addView(modeVideo);
-                  col.addView(modeRow, new LinearLayout.LayoutParams(-2, -2));
-                  modePhoto.setOnClickListener(v -> setMode(false));
-                  modeVideo.setOnClickListener(v -> setMode(true));
-
-                  // ---- bottom controls
-                  LinearLayout bottom = new LinearLayout(this);
-                  bottom.setOrientation(LinearLayout.HORIZONTAL);
-                  bottom.setGravity(Gravity.CENTER_VERTICAL);
-
-                  zoomBtn = roundBtn("1.0x", 58, 0xFFFF9A2E, 14);
-                  zoomBtn.setOnClickListener(v -> cycleZoom());
-
-                  FrameLayout shutter = new FrameLayout(this);
-                  GradientDrawable ringBg = new GradientDrawable();
-                  ringBg.setShape(GradientDrawable.OVAL);
-                  ringBg.setColor(0xFF0F0F0F);
-                  ringBg.setStroke(dp(3), 0xFF2C2C2C);
-                  shutter.setBackground(ringBg);
-                  View dot = new View(this);
-                  shutterDot = dot;
-                  GradientDrawable od = new GradientDrawable();
-                  od.setShape(GradientDrawable.OVAL);
-                  od.setColor(0xFFFF6600);
-                  dot.setBackground(od);
-                  shutter.addView(dot, new FrameLayout.LayoutParams(dp(74), dp(74), Gravity.CENTER));
-                  shutter.setOnClickListener(v -> capture());
-
-                  thumb = new ImageView(this);
-                  thumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                  GradientDrawable td = new GradientDrawable();
-                  td.setShape(GradientDrawable.OVAL);
-                  td.setColor(0xFF333333);
-                  td.setStroke(dp(3), 0xFF111111);
-                  thumb.setBackground(td);
-                  thumb.setOutlineProvider(new ViewOutlineProvider() {
-                      @Override
-                      public void getOutline(View view, Outline o) {
-                          o.setOval(0, 0, view.getWidth(), view.getHeight());
-                      }
-                  });
-                  thumb.setClipToOutline(true);
-                  thumb.setOnClickListener(v -> openGallery());
-
-                  bottom.addView(cell(zoomBtn, 58));
-                  bottom.addView(cell(shutter, 94));
-                  bottom.addView(cell(thumb, 58));
-                  LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
-                  bp.bottomMargin = dp(24);
-                  bp.topMargin = dp(6);
-                  col.addView(bottom, bp);
-                  updateModeUi();
-              }
-
-              private void selectFilter(int i) {
-                  filterIndex = i;
-                  for (int k = 0; k < keys.size(); k++) {
-                      keys.get(k).setBackground(keyBg(k == i));
-                      keys.get(k).setTextColor(k == i ? 0xFFFFC27A : 0xFFEEEEEE);
-                  }
-                  Filter f = filters.get(i);
-                  Paint p = new Paint();
-                  p.setColorFilter(new ColorMatrixColorFilter(f.matrix()));
-                  previewView.setLayerPaint(p);
-                  overlay.setFilter(f);
-                  if (videoFx != null) videoFx.setFilter(f);
-                  final TextView key = keys.get(i);
-                  strip.post(() -> strip.smoothScrollTo(key.getLeft() + key.getWidth() / 2 - strip.getWidth() / 2, 0));
-              }
-
-              // ------------------------------------------------------------ touch: focus / exposure / pinch zoom
-
-              private void setupTouch() {
-                  scaleDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                      @Override
-                      public boolean onScale(ScaleGestureDetector d) {
-                          if (camera == null) return true;
-                          ZoomState zs = camera.getCameraInfo().getZoomState().getValue();
-                          if (zs == null) return true;
-                          float r = zs.getZoomRatio() * d.getScaleFactor();
-                          r = Math.max(zs.getMinZoomRatio(), Math.min(zs.getMaxZoomRatio(), r));
-                          setZoom(r);
-                          return true;
-                      }
-                  });
-
-                  overlay.setOnTouchListener(new View.OnTouchListener() {
-                      float dx, dy;
-                      boolean moved, scaled;
-                      int baseEv;
-
-                      @Override
-                      public boolean onTouch(View v, MotionEvent e) {
-                          scaleDetector.onTouchEvent(e);
-                          switch (e.getActionMasked()) {
-                              case MotionEvent.ACTION_DOWN:
-                                  dx = e.getX();
-                                  dy = e.getY();
-                                  moved = false;
-                                  scaled = false;
-                                  baseEv = evIndex;
-                                  break;
-                              case MotionEvent.ACTION_POINTER_DOWN:
-                                  scaled = true;
-                                  break;
-                              case MotionEvent.ACTION_MOVE:
-                                  if (scaleDetector.isInProgress()) {
-                                      scaled = true;
-                                      break;
-                                  }
-                                  if (!scaled && e.getPointerCount() == 1) {
-                                      float d = dy - e.getY();
-                                      if (moved || Math.abs(d) > dp(12)) {
-                                          if (!moved) {
-                                              moved = true;
-                                              focusAt(dx, dy);
-                                          }
-                                          setEv(baseEv + Math.round(d / dp(14)));
-                                      }
-                                  }
-                                  break;
-                              case MotionEvent.ACTION_UP:
-                                  if (!moved && !scaled) focusAt(e.getX(), e.getY());
-                                  v.performClick();
-                                  break;
-                              default:
-                                  break;
-                          }
-                          return true;
-                      }
-                  });
-              }
-
-              private void focusAt(float x, float y) {
-                  if (camera == null) return;
-                  try {
-                      MeteringPoint pt = previewView.getMeteringPointFactory().createPoint(x, y);
-                      FocusMeteringAction a = new FocusMeteringAction.Builder(pt,
-                              FocusMeteringAction.FLAG_AF | FocusMeteringAction.FLAG_AE)
-                              .setAutoCancelDuration(4, TimeUnit.SECONDS).build();
-                      camera.getCameraControl().startFocusAndMetering(a);
-                  } catch (Exception ignored) {
-                  }
-                  overlay.showFocus(x, y);
-              }
-
-              private void setEv(int index) {
-                  if (camera == null) return;
-                  ExposureState es = camera.getCameraInfo().getExposureState();
-                  if (!es.isExposureCompensationSupported()) return;
-                  Range<Integer> range = es.getExposureCompensationRange();
-                  int idx = Math.max(range.getLower(), Math.min(range.getUpper(), index));
-                  evIndex = idx;
-                  camera.getCameraControl().setExposureCompensationIndex(idx);
-                  float ev = idx * es.getExposureCompensationStep().floatValue();
-                  overlay.showEv(String.format(Locale.US, "\u2600 EV %+.1f", ev));
-              }
-
-              // ------------------------------------------------------------ zoom / flash
-
-              private void setZoom(float r) {
-                  if (camera == null) return;
-                  camera.getCameraControl().setZoomRatio(r);
-                  zoomBtn.setText(String.format(Locale.US, "%.1fx", r));
-              }
-
-              private void cycleZoom() {
-                  if (camera == null) return;
-                  ZoomState zs = camera.getCameraInfo().getZoomState().getValue();
-                  if (zs == null) return;
-                  float cur = zs.getZoomRatio();
-                  float[] levels = {1f, 2f, 3f, 5f};
-                  float next = 1f;
-                  for (float z : levels) {
-                      if (z > cur + 0.05f && z <= zs.getMaxZoomRatio()) {
-                          next = z;
-                          break;
-                      }
-                  }
-                  next = Math.max(zs.getMinZoomRatio(), next);
-                  setZoom(next);
-              }
-
-              private void cycleFlash() {
-                  String label;
-                  if (flashMode == ImageCapture.FLASH_MODE_OFF) {
-                      flashMode = ImageCapture.FLASH_MODE_AUTO;
-                      label = "Flash: Auto";
-                      flashBtn.setTextColor(0xFFFFD54F);
-                  } else if (flashMode == ImageCapture.FLASH_MODE_AUTO) {
-                      flashMode = ImageCapture.FLASH_MODE_ON;
-                      label = "Flash: On";
-                      flashBtn.setTextColor(0xFFFF7A00);
-                  } else {
-                      flashMode = ImageCapture.FLASH_MODE_OFF;
-                      label = "Flash: Off";
-                      flashBtn.setTextColor(0xFF777777);
-                  }
-                  if (imageCapture != null) imageCapture.setFlashMode(flashMode);
-                  if (videoMode && camera != null) {
-                      camera.getCameraControl().enableTorch(flashMode == ImageCapture.FLASH_MODE_ON);
-                  }
-                  Toast.makeText(this, label, Toast.LENGTH_SHORT).show();
-              }
-
-              // ------------------------------------------------------------ camera
-
-              private void ensurePermissions() {
-                  List<String> need = new ArrayList<>();
-                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                          != PackageManager.PERMISSION_GRANTED) {
-                      need.add(Manifest.permission.CAMERA);
-                  }
-                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-                          != PackageManager.PERMISSION_GRANTED) {
-                      need.add(Manifest.permission.RECORD_AUDIO);
-                  }
-                  if (Build.VERSION.SDK_INT <= 28 && ContextCompat.checkSelfPermission(this,
-                          Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                      need.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
-                  }
-                  if (need.isEmpty()) startCamera();
-                  else permLauncher.launch(need.toArray(new String[0]));
-              }
-
-              private void startCamera() {
-                  final ListenableFuture<ProcessCameraProvider> f = ProcessCameraProvider.getInstance(this);
-                  f.addListener(() -> {
-                      try {
-                          provider = f.get();
-                          bindCamera();
-                      } catch (Exception e) {
-                          Toast.makeText(this, "Camera error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                      }
-                  }, ContextCompat.getMainExecutor(this));
-              }
-
-              private void bindCamera() {
-                  if (provider == null) return;
-                  provider.unbindAll();
-                  if (videoFx != null) {
-                      videoFx.close();
-                      videoFx = null;
-                  }
-                  Preview preview = new Preview.Builder()
-                          .setTargetAspectRatio(videoMode ? AspectRatio.RATIO_16_9 : AspectRatio.RATIO_4_3).build();
-                  preview.setSurfaceProvider(previewView.getSurfaceProvider());
-                  CameraSelector sel = new CameraSelector.Builder().requireLensFacing(lensFacing).build();
-                  try {
-                      if (videoMode) {
-                          Quality qv = VQ[vq];
-                          QualitySelector qs = QualitySelector.from(qv, FallbackStrategy.lowerQualityOrHigherThan(qv));
-                          Recorder rec = new Recorder.Builder()
-                                  .setQualitySelector(qs)
-                                  .setTargetVideoEncodingBitRate(V_BPS[vq])
-                                  .build();
-                          videoCapture = VideoCapture.withOutput(rec);
-                          imageCapture = null;
-                          UseCaseGroup.Builder gb = new UseCaseGroup.Builder()
-                                  .addUseCase(preview).addUseCase(videoCapture);
-                          if (vfxOn) {
-                              videoFx = new VideoFx(t -> runOnUiThread(() -> Toast.makeText(this,
-                                      "Video filter error: " + t.getMessage(), Toast.LENGTH_LONG).show()));
-                              videoFx.setFilter(filters.get(filterIndex));
-                              gb.addEffect(new VideoFx.Effect(videoFx.executor, videoFx, t -> runOnUiThread(
-                                      () -> Toast.makeText(this, "Video filter error: " + t.getMessage(),
-                                              Toast.LENGTH_LONG).show())));
-                          }
-                          camera = provider.bindToLifecycle(this, sel, gb.build());
-                          camera.getCameraControl().enableTorch(flashMode == ImageCapture.FLASH_MODE_ON);
-                      } else {
-                          imageCapture = new ImageCapture.Builder()
-                                  .setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                                  .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                                  .setFlashMode(flashMode)
-                                  .build();
-                          videoCapture = null;
-                          camera = provider.bindToLifecycle(this, sel, preview, imageCapture);
-                      }
-                      evIndex = 0;
-                      zoomBtn.setText("1.0x");
-                  } catch (Exception e) {
-                      Toast.makeText(this, "Cannot open this camera/mode", Toast.LENGTH_SHORT).show();
-                      if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
-                          lensFacing = CameraSelector.LENS_FACING_BACK;
-                      }
-                  }
-              }
-
-              // ------------------------------------------------------------ photo / video mode + recording
-
-              private void updateModeUi() {
-                  modePhoto.setTextColor(videoMode ? 0xFF888888 : 0xFFFF9A2E);
-                  modeVideo.setTextColor(videoMode ? 0xFFFF9A2E : 0xFF888888);
-                  GradientDrawable od = new GradientDrawable();
-                  od.setShape(GradientDrawable.OVAL);
-                  od.setColor(videoMode ? 0xFFE53935 : 0xFFFF6600);
-                  shutterDot.setBackground(od);
-              }
-
-              private void setMode(boolean video) {
-                  if (recording != null || video == videoMode) return;
-                  videoMode = video;
-                  updateModeUi();
-                  bindCamera();
-                  if (video && filterIndex != 0 && !vfxOn) {
-                      Toast.makeText(this, "Video filter is OFF (Settings), video is saved without filter",
-                              Toast.LENGTH_LONG).show();
-                  }
-              }
-
-              private String sizeText(int i) {
-                  double mb = (V_BPS[i] + 128000) * 600.0 / 8.0 / 1e6;
-                  if (mb >= 1000) return String.format(Locale.US, "%.1f GB", mb / 1000.0);
-                  return String.format(Locale.US, "%d MB", Math.round(mb));
-              }
-
-              private void toggleRecord() {
-                  if (recording != null) {
-                      recording.stop();
-                      return;
-                  }
-                  if (videoCapture == null) return;
-                  String name = "RetroLens_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
-                  ContentValues cv = new ContentValues();
-                  cv.put(MediaStore.Video.Media.DISPLAY_NAME, name);
-                  cv.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
-                  if (Build.VERSION.SDK_INT >= 29) {
-                      cv.put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/RetroLens");
-                  }
-                  MediaStoreOutputOptions opt = new MediaStoreOutputOptions.Builder(
-                          getContentResolver(), MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
-                          .setContentValues(cv).build();
-                  PendingRecording pr = videoCapture.getOutput().prepareRecording(this, opt);
-                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-                          == PackageManager.PERMISSION_GRANTED) {
-                      pr = pr.withAudioEnabled();
-                  }
-                  recording = pr.start(ContextCompat.getMainExecutor(this), ev -> {
-                      if (ev instanceof VideoRecordEvent.Start) {
-                          paused = false;
-                          lastSec = 0;
-                          timerView.setTextColor(0xFFFF3B30);
-                          timerView.setText("\u25CF 00:00");
-                          timerView.setVisibility(View.VISIBLE);
-                          pauseBtn.setText("\u275A\u275A");
-                          pauseBtn.setVisibility(View.VISIBLE);
-                      } else if (ev instanceof VideoRecordEvent.Status) {
-                          lastSec = ((VideoRecordEvent.Status) ev).getRecordingStats()
-                                  .getRecordedDurationNanos() / 1000000000L;
-                          showTimer();
-                      } else if (ev instanceof VideoRecordEvent.Pause) {
-                          paused = true;
-                          pauseBtn.setText("\u25B6");
-                          timerView.setTextColor(0xFFFFB22E);
-                          showTimer();
-                      } else if (ev instanceof VideoRecordEvent.Resume) {
-                          paused = false;
-                          pauseBtn.setText("\u275A\u275A");
-                          timerView.setTextColor(0xFFFF3B30);
-                          showTimer();
-                      } else if (ev instanceof VideoRecordEvent.Finalize) {
-                          VideoRecordEvent.Finalize fz = (VideoRecordEvent.Finalize) ev;
-                          recording = null;
-                          paused = false;
-                          timerView.setVisibility(View.GONE);
-                          pauseBtn.setVisibility(View.GONE);
-                          if (!fz.hasError()) {
-                              lastUri = fz.getOutputResults().getOutputUri();
-                              Toast.makeText(this, "Video saved \u2714  Movies/RetroLens", Toast.LENGTH_SHORT).show();
-                          } else {
-                              Toast.makeText(this, "Video error code " + fz.getError(), Toast.LENGTH_LONG).show();
-                          }
-                      }
-                  });
-              }
-
-              private void showTimer() {
-                  timerView.setText(String.format(Locale.US, "%s %02d:%02d",
-                          paused ? "\u275A\u275A" : "\u25CF", lastSec / 60, lastSec % 60));
-              }
-
-              private void togglePause() {
-                  if (recording == null) return;
-                  if (paused) recording.resume();
-                  else recording.pause();
-              }
-
-              // ------------------------------------------------------------ capture + processing
-
-              private void capture() {
-                  if (videoMode) {
-                      toggleRecord();
-                      return;
-                  }
-                  if (imageCapture == null) return;
-                  innerFrame.animate().alpha(0.35f).setDuration(60).withEndAction(
-                          () -> innerFrame.animate().alpha(1f).setDuration(140).start()).start();
-
-                  final File tmp = new File(getCacheDir(), "cap_" + System.currentTimeMillis() + ".jpg");
-                  ImageCapture.OutputFileOptions opt = new ImageCapture.OutputFileOptions.Builder(tmp).build();
-                  final boolean mir = lensFacing == CameraSelector.LENS_FACING_FRONT && mirrorOn;
-                  final Filter f = filters.get(filterIndex);
-                  final int q = quality;
-                  imageCapture.takePicture(opt, ContextCompat.getMainExecutor(this),
-                          new ImageCapture.OnImageSavedCallback() {
-                              @Override
-                              public void onImageSaved(ImageCapture.OutputFileResults r) {
-                                  io.execute(() -> process(tmp, mir, f, q));
-                              }
-
-                              @Override
-                              public void onError(ImageCaptureException e) {
-                                  Toast.makeText(MainActivity.this, "Capture failed: " + e.getMessage(),
-                                          Toast.LENGTH_LONG).show();
-                              }
-                          });
-              }
-
-              private void process(File tmp, boolean mir, Filter f, int q) {
-                  Bitmap src = null, rot = null, out = null;
-                  try {
-                      int maxSide = q == 0 ? 4096 : (q == 1 ? 2048 : 1280);
-                      int jq = q == 0 ? 95 : (q == 1 ? 85 : 70);
-                      String path = tmp.getAbsolutePath();
-
-                      BitmapFactory.Options o = new BitmapFactory.Options();
-                      o.inJustDecodeBounds = true;
-                      BitmapFactory.decodeFile(path, o);
-                      int big = Math.max(o.outWidth, o.outHeight);
-                      int sample = 1;
-                      while (big / (sample * 2) >= maxSide) sample *= 2;
-                      o = new BitmapFactory.Options();
-                      o.inSampleSize = sample;
-                      src = BitmapFactory.decodeFile(path, o);
-                      if (src == null) throw new RuntimeException("decode failed");
-
-                      int orient = new ExifInterface(path).getAttributeInt(
-                              ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
-                      Matrix m = new Matrix();
-                      if (orient == ExifInterface.ORIENTATION_ROTATE_90) m.postRotate(90);
-                      else if (orient == ExifInterface.ORIENTATION_ROTATE_180) m.postRotate(180);
-                      else if (orient == ExifInterface.ORIENTATION_ROTATE_270) m.postRotate(270);
-                      if (mir) m.postScale(-1f, 1f);
-                      float sc = Math.min(1f, (float) maxSide / Math.max(src.getWidth(), src.getHeight()));
-                      if (sc < 1f) m.postScale(sc, sc);
-                      rot = Bitmap.createBitmap(src, 0, 0, src.getWidth(), src.getHeight(), m, true);
-
-                      out = Bitmap.createBitmap(rot.getWidth(), rot.getHeight(), Bitmap.Config.ARGB_8888);
-                      Canvas c = new Canvas(out);
-                      Paint p = new Paint(Paint.FILTER_BITMAP_FLAG);
-                      p.setColorFilter(new ColorMatrixColorFilter(f.matrix()));
-                      c.drawBitmap(rot, 0, 0, p);
-                      Fx.draw(c, out.getWidth(), out.getHeight(), f, Math.max(1f, out.getWidth() / 900f));
-
-                      final Uri uri = saveBitmap(out, jq);
-
-                      int s = Math.min(out.getWidth(), out.getHeight());
-                      Bitmap sq = Bitmap.createBitmap(out, (out.getWidth() - s) / 2, (out.getHeight() - s) / 2, s, s);
-                      final Bitmap th = Bitmap.createScaledBitmap(sq, 160, 160, true);
-                      runOnUiThread(() -> {
-                          lastUri = uri;
-                          thumb.setImageBitmap(th);
-                          Toast.makeText(this, "Saved \u2714  Pictures/RetroLens", Toast.LENGTH_SHORT).show();
-                      });
-                  } catch (Exception e) {
-                      final String msg = String.valueOf(e.getMessage());
-                      runOnUiThread(() -> Toast.makeText(this, "Save failed: " + msg, Toast.LENGTH_LONG).show());
-                  } finally {
-                      tmp.delete();
-                  }
-              }
-
-              private Uri saveBitmap(Bitmap bmp, int jq) throws Exception {
-                  String name = "RetroLens_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".jpg";
-                  if (Build.VERSION.SDK_INT >= 29) {
-                      ContentValues v = new ContentValues();
-                      v.put(MediaStore.Images.Media.DISPLAY_NAME, name);
-                      v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-                      v.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/RetroLens");
-                      v.put(MediaStore.Images.Media.IS_PENDING, 1);
-                      Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
-                      if (uri == null) throw new RuntimeException("MediaStore insert failed");
-                      OutputStream os = getContentResolver().openOutputStream(uri);
-                      bmp.compress(Bitmap.CompressFormat.JPEG, jq, os);
-                      os.close();
-                      ContentValues done = new ContentValues();
-                      done.put(MediaStore.Images.Media.IS_PENDING, 0);
-                      getContentResolver().update(uri, done, null, null);
-                      return uri;
-                  } else {
-                      File dir = new File(Environment.getExternalStoragePublicDirectory(
-                              Environment.DIRECTORY_PICTURES), "RetroLens");
-                      dir.mkdirs();
-                      File file = new File(dir, name);
-                      FileOutputStream fo = new FileOutputStream(file);
-                      bmp.compress(Bitmap.CompressFormat.JPEG, jq, fo);
-                      fo.close();
-                      MediaScannerConnection.scanFile(this, new String[]{file.getAbsolutePath()},
-                              new String[]{"image/jpeg"}, null);
-                      return Uri.fromFile(file);
-                  }
-              }
-
-              private void openGallery() {
-                  try {
-                      Intent i;
-                      if (lastUri != null) {
-                          i = new Intent(Intent.ACTION_VIEW);
-                          i.setDataAndType(lastUri, "*/*");
-                          i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                      } else {
-                          i = new Intent(Intent.ACTION_VIEW, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-                      }
-                      startActivity(i);
-                  } catch (Exception e) {
-                      Toast.makeText(this, "No gallery app found", Toast.LENGTH_SHORT).show();
-                  }
-              }
-
-              // ------------------------------------------------------------ settings
-
-              private void showSettings() {
-                  LinearLayout box = new LinearLayout(this);
-                  box.setOrientation(LinearLayout.VERTICAL);
-                  box.setPadding(dp(22), dp(14), dp(22), dp(6));
-
-                  SwitchCompat gs = new SwitchCompat(this);
-                  gs.setText("Rule of Thirds grid  (\u09B0\u09C1\u09B2 \u0985\u09AB \u09A5\u09BE\u09B0\u09CD\u09A1\u09B8)");
-                  gs.setTextColor(0xFFFFFFFF);
-                  gs.setChecked(gridOn);
-                  gs.setOnCheckedChangeListener((b, c) -> {
-                      gridOn = c;
-                      prefs.edit().putBoolean("grid", c).apply();
-                      overlay.setGrid(c);
-                  });
-                  box.addView(gs, new LinearLayout.LayoutParams(-1, dp(48)));
-
-                  SwitchCompat ms = new SwitchCompat(this);
-                  ms.setText("Mirror selfie image  (\u09B8\u09C7\u09B2\u09AB\u09BF \u09AE\u09BF\u09B0\u09B0)");
-                  ms.setTextColor(0xFFFFFFFF);
-                  ms.setChecked(mirrorOn);
-                  ms.setOnCheckedChangeListener((b, c) -> {
-                      mirrorOn = c;
-                      prefs.edit().putBoolean("mirror", c).apply();
-                  });
-                  box.addView(ms, new LinearLayout.LayoutParams(-1, dp(48)));
-
-                  TextView qt = new TextView(this);
-                  qt.setText("Image quality / size");
-                  qt.setTextColor(0xFFFFB066);
-                  qt.setPadding(0, dp(14), 0, dp(4));
-                  box.addView(qt);
-
-                  String[] labels = {
-                          "High  \u2013 up to 4096 px, JPEG 95%",
-                          "Medium \u2013 up to 2048 px, JPEG 85%",
-                          "Low \u2013 up to 1280 px, JPEG 70% (small file)"};
-                  final int[] ids = new int[3];
-                  RadioGroup rg = new RadioGroup(this);
-                  for (int i = 0; i < 3; i++) {
-                      RadioButton rb = new RadioButton(this);
-                      rb.setText(labels[i]);
-                      rb.setTextColor(0xFFFFFFFF);
-                      ids[i] = View.generateViewId();
-                      rb.setId(ids[i]);
-                      rg.addView(rb);
-                  }
-                  rg.check(ids[Math.max(0, Math.min(2, quality))]);
-                  rg.setOnCheckedChangeListener((g, id) -> {
-                      for (int i = 0; i < 3; i++) {
-                          if (ids[i] == id) {
-                              quality = i;
-                              prefs.edit().putInt("quality", i).apply();
-                          }
-                      }
-                  });
-                  box.addView(rg);
-
-                  SwitchCompat vs = new SwitchCompat(this);
-                  vs.setText("Apply filter to saved video (beta)");
-                  vs.setTextColor(0xFFFFFFFF);
-                  vs.setChecked(vfxOn);
-                  vs.setOnCheckedChangeListener((b, c) -> {
-                      vfxOn = c;
-                      prefs.edit().putBoolean("vfx", c).apply();
-                      if (videoMode && recording == null) bindCamera();
-                  });
-                  LinearLayout.LayoutParams vsp = new LinearLayout.LayoutParams(-1, dp(48));
-                  vsp.topMargin = dp(10);
-                  box.addView(vs, vsp);
-
-                  TextView vt = new TextView(this);
-                  vt.setText("Video quality  (approx. size of a 10 minute video)");
-                  vt.setTextColor(0xFFFFB066);
-                  vt.setPadding(0, dp(14), 0, dp(4));
-                  box.addView(vt);
-                  final int[] vids = new int[4];
-                  RadioGroup vg = new RadioGroup(this);
-                  for (int i = 0; i < 4; i++) {
-                      RadioButton rb = new RadioButton(this);
-                      rb.setText(VQ_NAME[i] + "  \u2013  ~" + sizeText(i) + " / 10 min");
-                      rb.setTextColor(0xFFFFFFFF);
-                      vids[i] = View.generateViewId();
-                      rb.setId(vids[i]);
-                      vg.addView(rb);
-                  }
-                  vg.check(vids[Math.max(0, Math.min(3, vq))]);
-                  vg.setOnCheckedChangeListener((g, id) -> {
-                      for (int i = 0; i < 4; i++) {
-                          if (vids[i] == id && vq != i) {
-                              vq = i;
-                              prefs.edit().putInt("vq", i).apply();
-                              if (videoMode && recording == null) bindCamera();
-                          }
-                      }
-                  });
-                  box.addView(vg);
-
-                  View line = new View(this);
-                  line.setBackgroundColor(0x44FFFFFF);
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(1));
-                  lp.topMargin = dp(14);
-                  lp.bottomMargin = dp(10);
-                  box.addView(line, lp);
-
-                  TextView about = new TextView(this);
-                  about.setText("RetroLens 1.0\n"
-                          + "Creator: Mohammod Abdul Awal\n"
-                          + "Student: Department of English, National University\n"
-                          + "Mail: awal.sorkar.144@gmail.com");
-                  about.setTextColor(0xFFCCCCCC);
-                  about.setTextSize(13);
-                  about.setAutoLinkMask(Linkify.EMAIL_ADDRESSES);
-                  about.setLinkTextColor(0xFFFF9A2E);
-                  box.addView(about);
-
-                  ScrollView scroll = new ScrollView(this);
-                  scroll.addView(box);
-                  new AlertDialog.Builder(this)
-                          .setTitle("Settings")
-                          .setView(scroll)
-                          .setPositiveButton("OK", null)
-                          .show();
-              }
-          }
-          EOF
-          cat > app/src/main/java/com/awal/retrolens/OverlayView.java << 'EOF'
-          package com.awal.retrolens;
-
-          import android.content.Context;
-          import android.graphics.Canvas;
-          import android.graphics.Paint;
-          import android.os.SystemClock;
-          import android.view.View;
-
-          /** Effects layer + rule-of-thirds grid + focus ring + exposure label. */
-          public class OverlayView extends View {
-              private Filter filter;
-              private boolean grid = false;
-              private float fx = -1f, fy = -1f;
-              private long focusT = 0, evT = 0;
-              private String evText = "";
-              private final Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
-              private final Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
-              private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
-              private final float d;
-
-              public OverlayView(Context c) {
-                  super(c);
-                  d = c.getResources().getDisplayMetrics().density;
-                  line.setColor(0xAAFFFFFF);
-                  line.setStrokeWidth(1.2f * d);
-                  ring.setStyle(Paint.Style.STROKE);
-                  ring.setStrokeWidth(2f * d);
-                  ring.setColor(0xFFFFB22E);
-                  text.setColor(0xFFFFD27A);
-                  text.setTextSize(15f * d);
-                  text.setTextAlign(Paint.Align.CENTER);
-                  text.setShadowLayer(3f * d, 0, 0, 0xFF000000);
-                  setClickable(true);
-              }
-
-              public void setFilter(Filter f) { filter = f; invalidate(); }
-              public void setGrid(boolean g) { grid = g; invalidate(); }
-
-              public void showFocus(float x, float y) {
-                  fx = x; fy = y;
-                  focusT = SystemClock.uptimeMillis();
-                  invalidate();
-              }
-
-              public void showEv(String s) {
-                  evText = s;
-                  evT = SystemClock.uptimeMillis();
-                  invalidate();
-              }
-
-              @Override
-              protected void onDraw(Canvas c) {
-                  int w = getWidth(), h = getHeight();
-                  if (filter != null) Fx.draw(c, w, h, filter, 1f);
-
-                  if (grid) {
-                      c.drawLine(w / 3f, 0, w / 3f, h, line);
-                      c.drawLine(2f * w / 3f, 0, 2f * w / 3f, h, line);
-                      c.drawLine(0, h / 3f, w, h / 3f, line);
-                      c.drawLine(0, 2f * h / 3f, w, 2f * h / 3f, line);
-                  }
-
-                  long now = SystemClock.uptimeMillis();
-                  boolean again = false;
-
-                  if (fx >= 0) {
-                      long t = now - focusT;
-                      if (t < 2000) {
-                          float k = Math.min(1f, t / 220f);
-                          float r = (52f - 18f * k) * d;
-                          int a = t < 1400 ? 255 : (int) (255f * (2000 - t) / 600f);
-                          ring.setAlpha(Math.max(0, Math.min(255, a)));
-                          c.drawCircle(fx, fy, r, ring);
-                          c.drawCircle(fx, fy, 3f * d, ring);
-                          again = true;
-                      }
-                  }
-
-                  long te = now - evT;
-                  if (evT > 0 && te < 1800) {
-                      int a = te < 1200 ? 255 : (int) (255f * (1800 - te) / 600f);
-                      text.setAlpha(Math.max(0, Math.min(255, a)));
-                      c.drawText(evText, w / 2f, 34f * d, text);
-                      again = true;
-                  }
-
-                  if (again) postInvalidateOnAnimation();
-              }
-          }
-          EOF
-          cat > app/src/main/java/com/awal/retrolens/VideoFx.java << 'EOF'
-          package com.awal.retrolens;
-
-          import android.graphics.SurfaceTexture;
-          import android.opengl.EGL14;
-          import android.opengl.EGLConfig;
-          import android.opengl.EGLContext;
-          import android.opengl.EGLDisplay;
-          import android.opengl.EGLExt;
-          import android.opengl.EGLSurface;
-          import android.opengl.GLES11Ext;
-          import android.opengl.GLES20;
-          import android.os.Handler;
-          import android.os.HandlerThread;
-          import android.util.Size;
-          import android.view.Surface;
-
-          import androidx.camera.core.CameraEffect;
-          import androidx.camera.core.SurfaceOutput;
-          import androidx.camera.core.SurfaceProcessor;
-          import androidx.camera.core.SurfaceRequest;
-          import androidx.core.util.Consumer;
-
-          import java.nio.ByteBuffer;
-          import java.nio.ByteOrder;
-          import java.nio.FloatBuffer;
-          import java.util.ArrayList;
-          import java.util.List;
-          import java.util.concurrent.Executor;
-
-          /** OpenGL processor: applies the selected filter to every video frame before encoding. */
-          public class VideoFx implements SurfaceProcessor {
-
-              public static class Effect extends CameraEffect {
-                  public Effect(Executor e, SurfaceProcessor p, Consumer<Throwable> l) {
-                      super(CameraEffect.VIDEO_CAPTURE, e, p, l);
-                  }
-              }
-
-              private static class Out {
-                  SurfaceOutput out;
-                  EGLSurface es = EGL14.EGL_NO_SURFACE;
-                  float[] mat = new float[16];
-              }
-
-              private static final String VS =
-                      "uniform mat4 uTexM;\n"
-                      + "attribute vec4 aPos;\n"
-                      + "attribute vec4 aTex;\n"
-                      + "varying vec2 vTex;\n"
-                      + "varying vec2 vPos;\n"
-                      + "void main(){\n"
-                      + "  gl_Position = aPos;\n"
-                      + "  vTex = (uTexM * aTex).xy;\n"
-                      + "  vPos = aTex.xy;\n"
-                      + "}\n";
-
-              private static final String FS =
-                      "#extension GL_OES_EGL_image_external : require\n"
-                      + "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
-                      + "precision highp float;\n"
-                      + "#else\n"
-                      + "precision mediump float;\n"
-                      + "#endif\n"
-                      + "varying vec2 vTex;\n"
-                      + "varying vec2 vPos;\n"
-                      + "uniform samplerExternalOES sTex;\n"
-                      + "uniform mat3 uColor;\n"
-                      + "uniform vec3 uOff;\n"
-                      + "uniform float uVig;\n"
-                      + "uniform vec4 uLeak;\n"
-                      + "uniform int uSide;\n"
-                      + "uniform float uGrain;\n"
-                      + "uniform vec2 uRes;\n"
-                      + "uniform float uTime;\n"
-                      + "void main(){\n"
-                      + "  vec3 c = texture2D(sTex, vTex).rgb;\n"
-                      + "  c = clamp(uColor * c + uOff, 0.0, 1.0);\n"
-                      + "  if (uLeak.a > 0.0) {\n"
-                      + "    float t;\n"
-                      + "    if (uSide == 0) t = 1.0 - vPos.x / 0.6;\n"
-                      + "    else if (uSide == 1) t = 1.0 - (1.0 - vPos.x) / 0.6;\n"
-                      + "    else if (uSide == 2) t = 1.0 - (1.0 - vPos.y) / 0.5;\n"
-                      + "    else t = 1.0 - vPos.y / 0.5;\n"
-                      + "    t = clamp(t, 0.0, 1.0);\n"
-                      + "    c = mix(c, uLeak.rgb, uLeak.a * t);\n"
-                      + "  }\n"
-                      + "  if (uVig > 0.0) {\n"
-                      + "    vec2 p = (vPos - 0.5) * uRes;\n"
-                      + "    float d = length(p) / (0.5 * length(uRes));\n"
-                      + "    float t2 = clamp((d - 0.5) / 0.5, 0.0, 1.0);\n"
-                      + "    c *= 1.0 - uVig * t2;\n"
-                      + "  }\n"
-                      + "  if (uGrain > 0.0) {\n"
-                      + "    float n = fract(sin(dot(vPos * uRes * 0.5 + uTime * 100.0, vec2(12.9898, 78.233))) * 43758.5453);\n"
-                      + "    c = mix(c, vec3(n), uGrain * 0.35);\n"
-                      + "  }\n"
-                      + "  gl_FragColor = vec4(c, 1.0);\n"
-                      + "}\n";
-
-              private final HandlerThread thread;
-              private final Handler handler;
-              public final Executor executor;
-              private final Consumer<Throwable> errorCb;
-
-              private volatile Filter filter;
-              private Filter cachedFor;
-              private final float[] mat3 = new float[9];
-              private final float[] off = new float[3];
-
-              private EGLDisplay dpy = EGL14.EGL_NO_DISPLAY;
-              private EGLContext ctx = EGL14.EGL_NO_CONTEXT;
-              private EGLConfig cfg;
-              private EGLSurface pbuf = EGL14.EGL_NO_SURFACE;
-              private boolean glReady = false;
-              private volatile boolean released = false;
-
-              private int prog, oesTex;
-              private int uTexM, uColor, uOff, uVig, uLeak, uSide, uGrain, uRes, uTime;
-              private FloatBuffer quad;
-
-              private SurfaceTexture inTex;
-              private Surface inSurface;
-              private final float[] texMat = new float[16];
-              private final List<Out> outs = new ArrayList<>();
-
-              public VideoFx(Consumer<Throwable> errorCb) {
-                  this.errorCb = errorCb;
-                  thread = new HandlerThread("RetroLensGL");
-                  thread.start();
-                  handler = new Handler(thread.getLooper());
-                  executor = r -> handler.post(r);
-              }
-
-              public void setFilter(Filter f) {
-                  filter = f;
-              }
-
-              public void close() {
-                  handler.postDelayed(() -> {
-                      released = true;
-                      try {
-                          for (Out o : new ArrayList<>(outs)) {
-                              destroySurface(o.es);
-                              try { o.out.close(); } catch (Exception ignored) { }
-                          }
-                          outs.clear();
-                          if (inTex != null) { inTex.setOnFrameAvailableListener(null); }
-                          if (glReady) {
-                              destroySurface(pbuf);
-                              if (ctx != EGL14.EGL_NO_CONTEXT) {
-                                  EGL14.eglMakeCurrent(dpy, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT);
-                                  EGL14.eglDestroyContext(dpy, ctx);
-                              }
-                          }
-                      } catch (Exception ignored) {
-                      }
-                      thread.quitSafely();
-                  }, 1500);
-              }
-
-              // ---------------------------------------------------------------- SurfaceProcessor
-
-              @Override
-              public void onInputSurface(final SurfaceRequest request) {
-                  try {
-                      ensureGl();
-                      Size size = request.getResolution();
-                      final SurfaceTexture st = new SurfaceTexture(oesTex);
-                      st.setDefaultBufferSize(size.getWidth(), size.getHeight());
-                      final Surface surface = new Surface(st);
-                      inTex = st;
-                      inSurface = surface;
-                      st.setOnFrameAvailableListener(t -> drawFrame(), handler);
-                      request.provideSurface(surface, executor, result -> {
-                          try {
-                              st.setOnFrameAvailableListener(null);
-                              st.release();
-                              surface.release();
-                          } catch (Exception ignored) {
-                          }
-                          if (inTex == st) {
-                              inTex = null;
-                              inSurface = null;
-                          }
-                      });
-                  } catch (Throwable t) {
-                      fail(t);
-                      request.willNotProvideSurface();
-                  }
-              }
-
-              @Override
-              public void onOutputSurface(final SurfaceOutput output) {
-                  try {
-                      ensureGl();
-                      final Out o = new Out();
-                      o.out = output;
-                      Surface s = output.getSurface(executor, ev -> {
-                          outs.remove(o);
-                          destroySurface(o.es);
-                          output.close();
-                      });
-                      int[] a = {EGL14.EGL_NONE};
-                      o.es = EGL14.eglCreateWindowSurface(dpy, cfg, s, a, 0);
-                      outs.add(o);
-                  } catch (Throwable t) {
-                      fail(t);
-                  }
-              }
-
-              private void fail(Throwable t) {
-                  try {
-                      errorCb.accept(t);
-                  } catch (Exception ignored) {
-                  }
-              }
-
-              // ---------------------------------------------------------------- GL
-
-              private void ensureGl() {
-                  if (glReady) return;
-                  dpy = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY);
-                  int[] ver = new int[2];
-                  EGL14.eglInitialize(dpy, ver, 0, ver, 1);
-                  EGLConfig[] cfgs = new EGLConfig[1];
-                  int[] n = new int[1];
-                  int[] withRec = {EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8, EGL14.EGL_BLUE_SIZE, 8,
-                          EGL14.EGL_ALPHA_SIZE, 8, EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
-                          EGLExt.EGL_RECORDABLE_ANDROID, 1, EGL14.EGL_NONE};
-                  int[] noRec = {EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8, EGL14.EGL_BLUE_SIZE, 8,
-                          EGL14.EGL_ALPHA_SIZE, 8, EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
-                          EGL14.EGL_NONE};
-                  if (!EGL14.eglChooseConfig(dpy, withRec, 0, cfgs, 0, 1, n, 0) || n[0] == 0) {
-                      if (!EGL14.eglChooseConfig(dpy, noRec, 0, cfgs, 0, 1, n, 0) || n[0] == 0) {
-                          throw new RuntimeException("No EGL config");
-                      }
-                  }
-                  cfg = cfgs[0];
-                  int[] ca = {EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE};
-                  ctx = EGL14.eglCreateContext(dpy, cfg, EGL14.EGL_NO_CONTEXT, ca, 0);
-                  int[] pa = {EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE};
-                  pbuf = EGL14.eglCreatePbufferSurface(dpy, cfg, pa, 0);
-                  if (!EGL14.eglMakeCurrent(dpy, pbuf, pbuf, ctx)) throw new RuntimeException("eglMakeCurrent failed");
-
-                  int[] t = new int[1];
-                  GLES20.glGenTextures(1, t, 0);
-                  oesTex = t[0];
-                  GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTex);
-                  GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
-                  GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-                  GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
-                  GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
-
-                  int vs = compile(GLES20.GL_VERTEX_SHADER, VS);
-                  int fs = compile(GLES20.GL_FRAGMENT_SHADER, FS);
-                  prog = GLES20.glCreateProgram();
-                  GLES20.glAttachShader(prog, vs);
-                  GLES20.glAttachShader(prog, fs);
-                  GLES20.glLinkProgram(prog);
-                  int[] ok = new int[1];
-                  GLES20.glGetProgramiv(prog, GLES20.GL_LINK_STATUS, ok, 0);
-                  if (ok[0] == 0) throw new RuntimeException("link: " + GLES20.glGetProgramInfoLog(prog));
-                  uTexM = GLES20.glGetUniformLocation(prog, "uTexM");
-                  uColor = GLES20.glGetUniformLocation(prog, "uColor");
-                  uOff = GLES20.glGetUniformLocation(prog, "uOff");
-                  uVig = GLES20.glGetUniformLocation(prog, "uVig");
-                  uLeak = GLES20.glGetUniformLocation(prog, "uLeak");
-                  uSide = GLES20.glGetUniformLocation(prog, "uSide");
-                  uGrain = GLES20.glGetUniformLocation(prog, "uGrain");
-                  uRes = GLES20.glGetUniformLocation(prog, "uRes");
-                  uTime = GLES20.glGetUniformLocation(prog, "uTime");
-
-                  float[] v = {
-                          -1f, -1f, 0f, 0f,
-                          1f, -1f, 1f, 0f,
-                          -1f, 1f, 0f, 1f,
-                          1f, 1f, 1f, 1f};
-                  quad = ByteBuffer.allocateDirect(v.length * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
-                  quad.put(v).position(0);
-                  glReady = true;
-              }
-
-              private int compile(int type, String src) {
-                  int s = GLES20.glCreateShader(type);
-                  GLES20.glShaderSource(s, src);
-                  GLES20.glCompileShader(s);
-                  int[] ok = new int[1];
-                  GLES20.glGetShaderiv(s, GLES20.GL_COMPILE_STATUS, ok, 0);
-                  if (ok[0] == 0) throw new RuntimeException("shader: " + GLES20.glGetShaderInfoLog(s));
-                  return s;
-              }
-
-              private void destroySurface(EGLSurface s) {
-                  if (s != null && s != EGL14.EGL_NO_SURFACE && dpy != EGL14.EGL_NO_DISPLAY) {
-                      try {
-                          EGL14.eglDestroySurface(dpy, s);
-                      } catch (Exception ignored) {
-                      }
-                  }
-              }
-
-              private void drawFrame() {
-                  if (released || !glReady || inTex == null) return;
-                  try {
-                      EGL14.eglMakeCurrent(dpy, pbuf, pbuf, ctx);
-                      inTex.updateTexImage();
-                      inTex.getTransformMatrix(texMat);
-                      long ts = inTex.getTimestamp();
-                      for (Out o : new ArrayList<>(outs)) {
-                          if (o.es == EGL14.EGL_NO_SURFACE) continue;
-                          o.out.updateTransformMatrix(o.mat, texMat);
-                          EGL14.eglMakeCurrent(dpy, o.es, o.es, ctx);
-                          Size sz = o.out.getSize();
-                          render(o.mat, sz.getWidth(), sz.getHeight(), ts);
-                          EGLExt.eglPresentationTimeANDROID(dpy, o.es, ts);
-                          EGL14.eglSwapBuffers(dpy, o.es);
-                      }
-                      EGL14.eglMakeCurrent(dpy, pbuf, pbuf, ctx);
-                  } catch (Throwable t) {
-                      fail(t);
-                  }
-              }
-
-              private void prepareColor(Filter f) {
-                  if (f == cachedFor) return;
-                  float[] a = f.matrix().getArray(); // 4x5 row-major, offsets in 0..255
-                  for (int row = 0; row < 3; row++) {
-                      for (int col = 0; col < 3; col++) {
-                          mat3[col * 3 + row] = a[row * 5 + col];
-                      }
-                      off[row] = a[row * 5 + 4] / 255f;
-                  }
-                  cachedFor = f;
-              }
-
-              private void render(float[] texM, int w, int h, long ts) {
-                  Filter f = filter;
-                  if (f == null) f = new Filter("none");
-                  prepareColor(f);
-
-                  GLES20.glViewport(0, 0, w, h);
-                  GLES20.glUseProgram(prog);
-                  GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-                  GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTex);
-
-                  GLES20.glUniformMatrix4fv(uTexM, 1, false, texM, 0);
-                  GLES20.glUniformMatrix3fv(uColor, 1, false, mat3, 0);
-                  GLES20.glUniform3f(uOff, off[0], off[1], off[2]);
-                  GLES20.glUniform1f(uVig, f.vig);
-                  float la = f.leakColor == 0 ? 0f : ((f.leakColor >>> 24) & 255) / 255f;
-                  GLES20.glUniform4f(uLeak, ((f.leakColor >> 16) & 255) / 255f, ((f.leakColor >> 8) & 255) / 255f,
-                          (f.leakColor & 255) / 255f, la);
-                  GLES20.glUniform1i(uSide, f.leakSide);
-                  GLES20.glUniform1f(uGrain, f.grain);
-                  GLES20.glUniform2f(uRes, w, h);
-                  GLES20.glUniform1f(uTime, ((ts / 1000000L) % 1000L) / 1000f);
-
-                  int aPos = GLES20.glGetAttribLocation(prog, "aPos");
-                  int aTex = GLES20.glGetAttribLocation(prog, "aTex");
-                  quad.position(0);
-                  GLES20.glVertexAttribPointer(aPos, 2, GLES20.GL_FLOAT, false, 16, quad);
-                  GLES20.glEnableVertexAttribArray(aPos);
-                  quad.position(2);
-                  GLES20.glVertexAttribPointer(aTex, 2, GLES20.GL_FLOAT, false, 16, quad);
-                  GLES20.glEnableVertexAttribArray(aTex);
-                  GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-                  GLES20.glDisableVertexAttribArray(aPos);
-                  GLES20.glDisableVertexAttribArray(aTex);
-              }
-          }
-          EOF
-          cat > app/src/main/res/drawable/ic_logo.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="96dp"
-              android:height="96dp"
-              android:viewportWidth="96"
-              android:viewportHeight="96">
-              <path
-                  android:fillColor="#1C1C1E"
-                  android:pathData="M20,0 H76 A20,20 0 0 1 96,20 V76 A20,20 0 0 1 76,96 H20 A20,20 0 0 1 0,76 V20 A20,20 0 0 1 20,0 Z" />
-              <path
-                  android:fillColor="#FF6A00"
-                  android:pathData="M48,50m-31,0a31,31 0 1,0 62,0a31,31 0 1,0 -62,0" />
-              <path
-                  android:fillColor="#1C1C1E"
-                  android:pathData="M48,50m-23,0a23,23 0 1,0 46,0a23,23 0 1,0 -46,0" />
-              <path
-                  android:fillColor="#3D3D42"
-                  android:pathData="M48,50m-15,0a15,15 0 1,0 30,0a15,15 0 1,0 -30,0" />
-              <path
-                  android:fillColor="#FFB066"
-                  android:pathData="M42,43m-5,0a5,5 0 1,0 10,0a5,5 0 1,0 -10,0" />
-              <path
-                  android:fillColor="#FFD9B0"
-                  android:pathData="M74,16m-4.5,0a4.5,4.5 0 1,0 9,0a4.5,4.5 0 1,0 -9,0" />
-          </vector>
-          EOF
-          cat > app/src/main/res/values/styles.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
-                  <item name="colorPrimary">#FF6A00</item>
-                  <item name="colorAccent">#FF6A00</item>
-                  <item name="android:windowBackground">@android:color/black</item>
-              </style>
-          </resources>
-          EOF
-          cat > build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application' version '8.2.2' apply false
-          }
-          EOF
-          cat > gradle.properties << 'EOF'
-          org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
-          android.useAndroidX=true
-          android.nonTransitiveRClass=true
-          EOF
-          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          EOF
-          cat > gradlew << 'EOF'
-          #!/bin/sh
-          APP_HOME=$(cd "$(dirname "$0")" && pwd -P)
-          if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
-            JAVACMD="$JAVA_HOME/bin/java"
-          else
-            JAVACMD=java
-          fi
-          exec "$JAVACMD" -Xmx64m -Xms64m -Dorg.gradle.appname=gradlew -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
-          EOF
+          mkdir -p app/src/main/java/com/awal/bassbooster
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+          mkdir -p gradle/wrapper
+
+      - name: Create settings.gradle
+        run: |
           cat > settings.gradle << 'EOF'
           pluginManagement {
               repositories {
@@ -1813,21 +57,669 @@ jobs:
                   mavenCentral()
               }
           }
-          rootProject.name = "RetroLens"
+          rootProject.name = "BassBooster"
           include ':app'
           EOF
 
-      - name: Download Gradle wrapper jar and create gradlew
+      - name: Create root build.gradle
         run: |
-          mkdir -p gradle/wrapper
+          cat > build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.1.0' apply false
+          }
+          EOF
+
+      - name: Create app/build.gradle
+        run: |
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.awal.bassbooster'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.awal.bassbooster"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  debug {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+          }
+          EOF
+
+      - name: Create gradle wrapper properties
+        run: |
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+
+      - name: Download Gradle Wrapper JAR
+        run: |
           curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
+
+      - name: Create gradlew
+        run: |
+          cat > gradlew << 'EOF'
+          #!/bin/sh
+          APP_NAME="Gradle"
+          APP_BASE_NAME=`basename "$0"`
+          DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
+          MAX_FD="maximum"
+          warn () { echo "$*"; }
+          die () { echo; echo "$*"; echo; exit 1; }
+          case "`uname`" in CYGWIN*) cygwin=true;; Darwin*) darwin=true;; MSYS*|MINGW*) msys=true;; *) ;;  esac
+          GRADLE_OPTS="$GRADLE_OPTS \"-Dorg.gradle.appname=$APP_BASE_NAME\""
+          PRG="$0"
+          while [ -h "$PRG" ] ; do
+              ls=`ls -ld "$PRG"`
+              link=`expr "$ls" : '.*-> \(.*\)$'`
+              if expr "$link" : '/.*' > /dev/null; then PRG="$link"; else PRG=`dirname "$PRG"`"/$link"; fi
+          done
+          SAVED="`pwd`"
+          cd "`dirname \"$PRG\"`/" >/dev/null
+          APP_HOME="`pwd -P`"
+          cd "$SAVED" >/dev/null
+          CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+          JAVACMD="java"
+          MAX_FD_LIMIT=`ulimit -H -n` 2>/dev/null
+          exec "$JAVACMD" $DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS "-Dorg.gradle.appname=$APP_BASE_NAME" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+          EOF
           chmod +x gradlew
 
-      - name: Build debug APK
+      - name: Create AndroidManifest.xml
+        run: |
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+              <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="@string/app_name"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.BassBooster">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+      - name: Create MainActivity.java
+        run: |
+          cat > app/src/main/java/com/awal/bassbooster/MainActivity.java << 'EOF'
+          package com.awal.bassbooster;
+
+          import android.media.AudioManager;
+          import android.media.audiofx.BassBoost;
+          import android.media.audiofx.EnvironmentalReverb;
+          import android.media.audiofx.PresetReverb;
+          import android.media.audiofx.Virtualizer;
+          import android.os.Bundle;
+          import android.widget.SeekBar;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import android.widget.Switch;
+          import androidx.appcompat.app.AppCompatActivity;
+
+          public class MainActivity extends AppCompatActivity {
+
+              private BassBoost bassBoost;
+              private Virtualizer virtualizer;
+              private PresetReverb presetReverb;
+
+              private SeekBar seekBass, seekSurround, seekReverb;
+              private TextView tvBassVal, tvSurroundVal, tvReverbVal;
+              private Switch switchBass, switchSurround, switchReverb;
+
+              private int audioSessionId = 0;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+
+                  AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+
+                  try {
+                      bassBoost = new BassBoost(0, audioSessionId);
+                      bassBoost.setEnabled(true);
+
+                      virtualizer = new Virtualizer(0, audioSessionId);
+                      virtualizer.setEnabled(true);
+
+                      presetReverb = new PresetReverb(0, audioSessionId);
+                      presetReverb.setEnabled(true);
+                  } catch (Exception e) {
+                      Toast.makeText(this, "Audio FX not supported on this device", Toast.LENGTH_LONG).show();
+                  }
+
+                  seekBass = findViewById(R.id.seekBass);
+                  seekSurround = findViewById(R.id.seekSurround);
+                  seekReverb = findViewById(R.id.seekReverb);
+                  tvBassVal = findViewById(R.id.tvBassVal);
+                  tvSurroundVal = findViewById(R.id.tvSurroundVal);
+                  tvReverbVal = findViewById(R.id.tvReverbVal);
+                  switchBass = findViewById(R.id.switchBass);
+                  switchSurround = findViewById(R.id.switchSurround);
+                  switchReverb = findViewById(R.id.switchReverb);
+
+                  seekBass.setMax(1000);
+                  seekSurround.setMax(1000);
+                  seekReverb.setMax(5);
+
+                  seekBass.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      public void onProgressChanged(SeekBar s, int p, boolean u) {
+                          tvBassVal.setText(p / 10 + "%");
+                          if (bassBoost != null) {
+                              try { bassBoost.setStrength((short) p); } catch (Exception ignored) {}
+                          }
+                      }
+                      public void onStartTrackingTouch(SeekBar s) {}
+                      public void onStopTrackingTouch(SeekBar s) {}
+                  });
+
+                  seekSurround.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      public void onProgressChanged(SeekBar s, int p, boolean u) {
+                          tvSurroundVal.setText(p / 10 + "%");
+                          if (virtualizer != null) {
+                              try { virtualizer.setStrength((short) p); } catch (Exception ignored) {}
+                          }
+                      }
+                      public void onStartTrackingTouch(SeekBar s) {}
+                      public void onStopTrackingTouch(SeekBar s) {}
+                  });
+
+                  seekReverb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      String[] labels = {"None","Small Room","Med Room","Large Room","Med Hall","Large Hall"};
+                      short[] presets = {
+                          PresetReverb.PRESET_NONE,
+                          PresetReverb.PRESET_SMALLROOM,
+                          PresetReverb.PRESET_MEDIUMROOM,
+                          PresetReverb.PRESET_LARGEROOM,
+                          PresetReverb.PRESET_MEDIUMHALL,
+                          PresetReverb.PRESET_LARGEHALL
+                      };
+                      public void onProgressChanged(SeekBar s, int p, boolean u) {
+                          tvReverbVal.setText(labels[p]);
+                          if (presetReverb != null) {
+                              try { presetReverb.setPreset(presets[p]); } catch (Exception ignored) {}
+                          }
+                      }
+                      public void onStartTrackingTouch(SeekBar s) {}
+                      public void onStopTrackingTouch(SeekBar s) {}
+                  });
+
+                  switchBass.setOnCheckedChangeListener((b, checked) -> {
+                      if (bassBoost != null) try { bassBoost.setEnabled(checked); } catch (Exception ignored) {}
+                  });
+                  switchSurround.setOnCheckedChangeListener((b, checked) -> {
+                      if (virtualizer != null) try { virtualizer.setEnabled(checked); } catch (Exception ignored) {}
+                  });
+                  switchReverb.setOnCheckedChangeListener((b, checked) -> {
+                      if (presetReverb != null) try { presetReverb.setEnabled(checked); } catch (Exception ignored) {}
+                  });
+
+                  switchBass.setChecked(true);
+                  switchSurround.setChecked(true);
+                  switchReverb.setChecked(true);
+                  seekBass.setProgress(500);
+                  seekSurround.setProgress(500);
+                  seekReverb.setProgress(0);
+              }
+
+              @Override
+              protected void onDestroy() {
+                  super.onDestroy();
+                  if (bassBoost != null) { try { bassBoost.release(); } catch (Exception ignored) {} }
+                  if (virtualizer != null) { try { virtualizer.release(); } catch (Exception ignored) {} }
+                  if (presetReverb != null) { try { presetReverb.release(); } catch (Exception ignored) {} }
+              }
+          }
+          EOF
+
+      - name: Create activity_main.xml layout
+        run: |
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@color/bg_dark">
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="vertical"
+                  android:padding="20dp">
+
+                  <!-- HEADER -->
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="vertical"
+                      android:gravity="center"
+                      android:paddingTop="24dp"
+                      android:paddingBottom="16dp">
+
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="🎵"
+                          android:textSize="48sp"/>
+
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="BASS BOOSTER"
+                          android:textColor="@color/accent_orange"
+                          android:textSize="28sp"
+                          android:textStyle="bold"
+                          android:letterSpacing="0.15"/>
+
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="Pro Audio Enhancer"
+                          android:textColor="@color/text_secondary"
+                          android:textSize="13sp"
+                          android:layout_marginTop="2dp"/>
+                  </LinearLayout>
+
+                  <!-- BASS BOOST CARD -->
+                  <androidx.cardview.widget.CardView
+                      xmlns:card="http://schemas.android.com/apk/res-auto"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginBottom="16dp"
+                      card:cardCornerRadius="16dp"
+                      card:cardBackgroundColor="@color/card_bg"
+                      card:cardElevation="6dp">
+
+                      <LinearLayout
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:orientation="vertical"
+                          android:padding="20dp">
+
+                          <LinearLayout
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:orientation="horizontal"
+                              android:gravity="center_vertical">
+
+                              <TextView
+                                  android:layout_width="0dp"
+                                  android:layout_height="wrap_content"
+                                  android:layout_weight="1"
+                                  android:text="🔊  Bass Boost"
+                                  android:textColor="@color/text_primary"
+                                  android:textSize="18sp"
+                                  android:textStyle="bold"/>
+
+                              <Switch
+                                  android:id="@+id/switchBass"
+                                  android:layout_width="wrap_content"
+                                  android:layout_height="wrap_content"
+                                  android:checked="true"
+                                  android:thumbTint="@color/accent_orange"
+                                  android:trackTint="@color/track_color"/>
+                          </LinearLayout>
+
+                          <TextView
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:text="Amplifies low-frequency sound for deeper bass"
+                              android:textColor="@color/text_secondary"
+                              android:textSize="12sp"
+                              android:layout_marginTop="4dp"
+                              android:layout_marginBottom="12dp"/>
+
+                          <SeekBar
+                              android:id="@+id/seekBass"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:progressTint="@color/accent_orange"
+                              android:thumbTint="@color/accent_orange"/>
+
+                          <TextView
+                              android:id="@+id/tvBassVal"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:text="50%"
+                              android:textColor="@color/accent_orange"
+                              android:textSize="14sp"
+                              android:textStyle="bold"
+                              android:gravity="end"
+                              android:layout_marginTop="4dp"/>
+                      </LinearLayout>
+                  </androidx.cardview.widget.CardView>
+
+                  <!-- SURROUND SOUND CARD -->
+                  <androidx.cardview.widget.CardView
+                      xmlns:card="http://schemas.android.com/apk/res-auto"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginBottom="16dp"
+                      card:cardCornerRadius="16dp"
+                      card:cardBackgroundColor="@color/card_bg"
+                      card:cardElevation="6dp">
+
+                      <LinearLayout
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:orientation="vertical"
+                          android:padding="20dp">
+
+                          <LinearLayout
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:orientation="horizontal"
+                              android:gravity="center_vertical">
+
+                              <TextView
+                                  android:layout_width="0dp"
+                                  android:layout_height="wrap_content"
+                                  android:layout_weight="1"
+                                  android:text="🎧  Surrounding Sound"
+                                  android:textColor="@color/text_primary"
+                                  android:textSize="18sp"
+                                  android:textStyle="bold"/>
+
+                              <Switch
+                                  android:id="@+id/switchSurround"
+                                  android:layout_width="wrap_content"
+                                  android:layout_height="wrap_content"
+                                  android:checked="true"
+                                  android:thumbTint="@color/accent_purple"
+                                  android:trackTint="@color/track_color"/>
+                          </LinearLayout>
+
+                          <TextView
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:text="Creates a 3D spatial audio experience around you"
+                              android:textColor="@color/text_secondary"
+                              android:textSize="12sp"
+                              android:layout_marginTop="4dp"
+                              android:layout_marginBottom="12dp"/>
+
+                          <SeekBar
+                              android:id="@+id/seekSurround"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:progressTint="@color/accent_purple"
+                              android:thumbTint="@color/accent_purple"/>
+
+                          <TextView
+                              android:id="@+id/tvSurroundVal"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:text="50%"
+                              android:textColor="@color/accent_purple"
+                              android:textSize="14sp"
+                              android:textStyle="bold"
+                              android:gravity="end"
+                              android:layout_marginTop="4dp"/>
+                      </LinearLayout>
+                  </androidx.cardview.widget.CardView>
+
+                  <!-- REVERB CARD -->
+                  <androidx.cardview.widget.CardView
+                      xmlns:card="http://schemas.android.com/apk/res-auto"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginBottom="24dp"
+                      card:cardCornerRadius="16dp"
+                      card:cardBackgroundColor="@color/card_bg"
+                      card:cardElevation="6dp">
+
+                      <LinearLayout
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:orientation="vertical"
+                          android:padding="20dp">
+
+                          <LinearLayout
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:orientation="horizontal"
+                              android:gravity="center_vertical">
+
+                              <TextView
+                                  android:layout_width="0dp"
+                                  android:layout_height="wrap_content"
+                                  android:layout_weight="1"
+                                  android:text="🏛️  Reverb"
+                                  android:textColor="@color/text_primary"
+                                  android:textSize="18sp"
+                                  android:textStyle="bold"/>
+
+                              <Switch
+                                  android:id="@+id/switchReverb"
+                                  android:layout_width="wrap_content"
+                                  android:layout_height="wrap_content"
+                                  android:checked="true"
+                                  android:thumbTint="@color/accent_cyan"
+                                  android:trackTint="@color/track_color"/>
+                          </LinearLayout>
+
+                          <TextView
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:text="Simulates acoustic space: room, hall or open environment"
+                              android:textColor="@color/text_secondary"
+                              android:textSize="12sp"
+                              android:layout_marginTop="4dp"
+                              android:layout_marginBottom="12dp"/>
+
+                          <SeekBar
+                              android:id="@+id/seekReverb"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:progressTint="@color/accent_cyan"
+                              android:thumbTint="@color/accent_cyan"/>
+
+                          <TextView
+                              android:id="@+id/tvReverbVal"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:text="None"
+                              android:textColor="@color/accent_cyan"
+                              android:textSize="14sp"
+                              android:textStyle="bold"
+                              android:gravity="end"
+                              android:layout_marginTop="4dp"/>
+                      </LinearLayout>
+                  </androidx.cardview.widget.CardView>
+
+                  <!-- FOOTER -->
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="vertical"
+                      android:gravity="center"
+                      android:paddingBottom="16dp">
+
+                      <View
+                          android:layout_width="60dp"
+                          android:layout_height="1dp"
+                          android:background="@color/divider"
+                          android:layout_marginBottom="12dp"/>
+
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="Creator: Mohammod Abdul Awal"
+                          android:textColor="@color/text_secondary"
+                          android:textSize="12sp"
+                          android:textStyle="bold"/>
+
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="Dept. of English, National University"
+                          android:textColor="@color/text_hint"
+                          android:textSize="11sp"
+                          android:layout_marginTop="2dp"/>
+
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="awal.sorkar.144@gmail.com"
+                          android:textColor="@color/accent_orange"
+                          android:textSize="11sp"
+                          android:layout_marginTop="2dp"/>
+                  </LinearLayout>
+
+              </LinearLayout>
+          </ScrollView>
+          EOF
+
+      - name: Create colors.xml
+        run: |
+          cat > app/src/main/res/values/colors.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="bg_dark">#0F0F1A</color>
+              <color name="card_bg">#1A1A2E</color>
+              <color name="accent_orange">#FF6B35</color>
+              <color name="accent_purple">#A855F7</color>
+              <color name="accent_cyan">#06B6D4</color>
+              <color name="text_primary">#FFFFFF</color>
+              <color name="text_secondary">#9CA3AF</color>
+              <color name="text_hint">#6B7280</color>
+              <color name="track_color">#374151</color>
+              <color name="divider">#374151</color>
+          </resources>
+          EOF
+
+      - name: Create strings.xml
+        run: |
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Bass Booster</string>
+          </resources>
+          EOF
+
+      - name: Create themes.xml
+        run: |
+          cat > app/src/main/res/values/themes.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="Theme.BassBooster" parent="Theme.AppCompat.NoActionBar">
+                  <item name="colorPrimary">#FF6B35</item>
+                  <item name="colorPrimaryDark">#0F0F1A</item>
+                  <item name="colorAccent">#FF6B35</item>
+                  <item name="android:windowBackground">#0F0F1A</item>
+                  <item name="android:statusBarColor">#0F0F1A</item>
+                  <item name="android:navigationBarColor">#0F0F1A</item>
+              </style>
+          </resources>
+          EOF
+
+      - name: Create launcher icon (Python script)
+        run: |
+          python3 << 'PYEOF'
+          import struct, zlib, base64
+
+          def create_png(width, height, pixels_fn):
+              def chunk(name, data):
+                  c = zlib.crc32(name + data) & 0xffffffff
+                  return struct.pack('>I', len(data)) + name + data + struct.pack('>I', c)
+              sig = b'\x89PNG\r\n\x1a\n'
+              ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+              rows = b''
+              for y in range(height):
+                  rows += b'\x00'
+                  for x in range(width):
+                      rows += pixels_fn(x, y, width, height)
+              idat = chunk(b'IDAT', zlib.compress(rows, 9))
+              iend = chunk(b'IEND', b'')
+              return sig + ihdr + idat + iend
+
+          def bass_icon(x, y, w, h):
+              cx, cy = w/2, h/2
+              r = min(w,h)/2 - 2
+              dx, dy = x-cx, y-cy
+              dist = (dx**2+dy**2)**0.5
+              # Outer ring
+              if r-3 < dist <= r:
+                  return bytes([255,107,53])
+              # Inner circle
+              if dist <= r-3:
+                  # Dark bg
+                  bg = bytes([15,15,26])
+                  # Music note-like shape
+                  nx, ny = x - w*0.35, y - h*0.25
+                  note_r = min(w,h)*0.12
+                  if (nx**2 + ny**2)**0.5 < note_r:
+                      return bytes([255,107,53])
+                  nx2, ny2 = x - w*0.55, y - h*0.38
+                  if (nx2**2 + ny2**2)**0.5 < note_r*0.8:
+                      return bytes([168,85,247])
+                  # Stem
+                  if w*0.30 < x < w*0.36 and h*0.25 < y < h*0.55:
+                      return bytes([255,107,53])
+                  if w*0.50 < x < w*0.56 and h*0.12 < y < h*0.42:
+                      return bytes([168,85,247])
+                  # Sound waves
+                  for i, color in enumerate([(6,182,212),(255,107,53),(168,85,247)]):
+                      wave_r = r * (0.45 + i*0.12)
+                      if wave_r-2 < dist <= wave_r and x > cx:
+                          return bytes(color)
+                  return bg
+              return bytes([15,15,26])
+
+          sizes = {'hdpi':72,'mdpi':48,'xhdpi':96,'xxhdpi':144,'xxxhdpi':192}
+          for folder, size in sizes.items():
+              png = create_png(size, size, bass_icon)
+              path = f'app/src/main/res/mipmap-{folder}/ic_launcher.png'
+              with open(path, 'wb') as f:
+                  f.write(png)
+              with open(path.replace('ic_launcher','ic_launcher_round'), 'wb') as f:
+                  f.write(png)
+              print(f'Created {path} ({size}x{size})')
+          print('Icons done!')
+          PYEOF
+
+      - name: Add CardView dependency
+        run: |
+          sed -i 's/implementation '\''androidx.constraintlayout:constraintlayout:2.1.4'\''/implementation '\''androidx.constraintlayout:constraintlayout:2.1.4'\''\n    implementation '\''androidx.cardview:cardview:1.0.0'\''/' app/build.gradle
+
+      - name: Build APK
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: RetroLens-APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: BassBooster-Debug-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
