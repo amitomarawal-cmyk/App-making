@@ -71,6 +71,7 @@ jobs:
               implementation 'androidx.camera:camera-camera2:1.3.1'
               implementation 'androidx.camera:camera-lifecycle:1.3.1'
               implementation 'androidx.camera:camera-view:1.3.1'
+              implementation 'androidx.camera:camera-video:1.3.1'
               implementation 'com.google.guava:guava:31.1-android'
           }
           EOF
@@ -80,6 +81,7 @@ jobs:
 
               <uses-feature android:name="android.hardware.camera" android:required="false" />
               <uses-permission android:name="android.permission.CAMERA" />
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
               <uses-permission
                   android:name="android.permission.WRITE_EXTERNAL_STORAGE"
                   android:maxSdkVersion="28" />
@@ -328,6 +330,15 @@ jobs:
           import androidx.camera.core.Preview;
           import androidx.camera.core.ZoomState;
           import androidx.camera.lifecycle.ProcessCameraProvider;
+          import androidx.camera.video.FallbackStrategy;
+          import androidx.camera.video.MediaStoreOutputOptions;
+          import androidx.camera.video.PendingRecording;
+          import androidx.camera.video.Quality;
+          import androidx.camera.video.QualitySelector;
+          import androidx.camera.video.Recorder;
+          import androidx.camera.video.Recording;
+          import androidx.camera.video.VideoCapture;
+          import androidx.camera.video.VideoRecordEvent;
           import androidx.camera.view.PreviewView;
           import androidx.core.content.ContextCompat;
 
@@ -368,6 +379,15 @@ jobs:
               private ScaleGestureDetector scaleDetector;
               private int evIndex = 0;
               private Uri lastUri;
+              private boolean videoMode = false;
+              private VideoCapture<Recorder> videoCapture;
+              private Recording recording;
+              private int vq; // 0 SD, 1 HD, 2 FHD, 3 UHD
+              private TextView timerView, modePhoto, modeVideo;
+              private View shutterDot;
+              private static final Quality[] VQ = {Quality.SD, Quality.HD, Quality.FHD, Quality.UHD};
+              private static final String[] VQ_NAME = {"480p SD", "720p HD", "1080p Full HD", "4K Ultra HD"};
+              private static final int[] V_BPS = {2000000, 5000000, 10000000, 35000000};
               private final ExecutorService io = Executors.newSingleThreadExecutor();
               private final Random rnd = new Random();
 
@@ -391,6 +411,7 @@ jobs:
                   gridOn = prefs.getBoolean("grid", false);
                   mirrorOn = prefs.getBoolean("mirror", true);
                   quality = prefs.getInt("quality", 0);
+                  vq = prefs.getInt("vq", 2);
                   filters = Filter.all();
                   buildUi();
                   overlay.setGrid(gridOn);
@@ -469,6 +490,7 @@ jobs:
                   top.addView(settingsBtn, tl);
                   col.addView(top, new LinearLayout.LayoutParams(-1, -2));
                   switchBtn.setOnClickListener(v -> {
+                      if (recording != null) return;
                       lensFacing = lensFacing == CameraSelector.LENS_FACING_BACK
                               ? CameraSelector.LENS_FACING_FRONT : CameraSelector.LENS_FACING_BACK;
                       bindCamera();
@@ -512,6 +534,20 @@ jobs:
 
                   overlay = new OverlayView(this);
                   innerFrame.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
+
+                  timerView = new TextView(this);
+                  timerView.setText("\u25CF 00:00");
+                  timerView.setTextColor(0xFFFF3B30);
+                  timerView.setTextSize(14);
+                  timerView.setPadding(dp(10), dp(4), dp(10), dp(4));
+                  GradientDrawable tb = new GradientDrawable();
+                  tb.setColor(0x88000000);
+                  tb.setCornerRadius(dp(12));
+                  timerView.setBackground(tb);
+                  timerView.setVisibility(View.GONE);
+                  FrameLayout.LayoutParams tlp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+                  tlp.topMargin = dp(10);
+                  innerFrame.addView(timerView, tlp);
 
                   bezel.addView(innerFrame, new FrameLayout.LayoutParams(innerW, innerH));
                   frame.addView(bezel, new FrameLayout.LayoutParams(-2, -2));
@@ -560,6 +596,24 @@ jobs:
                   // ---- spacer
                   col.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
 
+                  // ---- mode switch
+                  LinearLayout modeRow = new LinearLayout(this);
+                  modeRow.setOrientation(LinearLayout.HORIZONTAL);
+                  modeRow.setGravity(Gravity.CENTER);
+                  modePhoto = new TextView(this);
+                  modePhoto.setText("PHOTO");
+                  modePhoto.setTextSize(14);
+                  modePhoto.setPadding(dp(18), dp(6), dp(18), dp(6));
+                  modeVideo = new TextView(this);
+                  modeVideo.setText("VIDEO");
+                  modeVideo.setTextSize(14);
+                  modeVideo.setPadding(dp(18), dp(6), dp(18), dp(6));
+                  modeRow.addView(modePhoto);
+                  modeRow.addView(modeVideo);
+                  col.addView(modeRow, new LinearLayout.LayoutParams(-2, -2));
+                  modePhoto.setOnClickListener(v -> setMode(false));
+                  modeVideo.setOnClickListener(v -> setMode(true));
+
                   // ---- bottom controls
                   LinearLayout bottom = new LinearLayout(this);
                   bottom.setOrientation(LinearLayout.HORIZONTAL);
@@ -575,6 +629,7 @@ jobs:
                   ringBg.setStroke(dp(3), 0xFF2C2C2C);
                   shutter.setBackground(ringBg);
                   View dot = new View(this);
+                  shutterDot = dot;
                   GradientDrawable od = new GradientDrawable();
                   od.setShape(GradientDrawable.OVAL);
                   od.setColor(0xFFFF6600);
@@ -605,6 +660,7 @@ jobs:
                   bp.bottomMargin = dp(24);
                   bp.topMargin = dp(6);
                   col.addView(bottom, bp);
+                  updateModeUi();
               }
 
               private void selectFilter(int i) {
@@ -751,6 +807,9 @@ jobs:
                       flashBtn.setTextColor(0xFF777777);
                   }
                   if (imageCapture != null) imageCapture.setFlashMode(flashMode);
+                  if (videoMode && camera != null) {
+                      camera.getCameraControl().enableTorch(flashMode == ImageCapture.FLASH_MODE_ON);
+                  }
                   Toast.makeText(this, label, Toast.LENGTH_SHORT).show();
               }
 
@@ -761,6 +820,10 @@ jobs:
                   if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                           != PackageManager.PERMISSION_GRANTED) {
                       need.add(Manifest.permission.CAMERA);
+                  }
+                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                          != PackageManager.PERMISSION_GRANTED) {
+                      need.add(Manifest.permission.RECORD_AUDIO);
                   }
                   if (Build.VERSION.SDK_INT <= 28 && ContextCompat.checkSelfPermission(this,
                           Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
@@ -786,29 +849,118 @@ jobs:
                   if (provider == null) return;
                   provider.unbindAll();
                   Preview preview = new Preview.Builder()
-                          .setTargetAspectRatio(AspectRatio.RATIO_4_3).build();
+                          .setTargetAspectRatio(videoMode ? AspectRatio.RATIO_16_9 : AspectRatio.RATIO_4_3).build();
                   preview.setSurfaceProvider(previewView.getSurfaceProvider());
-                  imageCapture = new ImageCapture.Builder()
-                          .setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                          .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                          .setFlashMode(flashMode)
-                          .build();
                   CameraSelector sel = new CameraSelector.Builder().requireLensFacing(lensFacing).build();
                   try {
-                      camera = provider.bindToLifecycle(this, sel, preview, imageCapture);
+                      if (videoMode) {
+                          Quality qv = VQ[vq];
+                          QualitySelector qs = QualitySelector.from(qv, FallbackStrategy.lowerQualityOrHigherThan(qv));
+                          Recorder rec = new Recorder.Builder()
+                                  .setQualitySelector(qs)
+                                  .setTargetVideoEncodingBitRate(V_BPS[vq])
+                                  .build();
+                          videoCapture = VideoCapture.withOutput(rec);
+                          imageCapture = null;
+                          camera = provider.bindToLifecycle(this, sel, preview, videoCapture);
+                          camera.getCameraControl().enableTorch(flashMode == ImageCapture.FLASH_MODE_ON);
+                      } else {
+                          imageCapture = new ImageCapture.Builder()
+                                  .setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                                  .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                                  .setFlashMode(flashMode)
+                                  .build();
+                          videoCapture = null;
+                          camera = provider.bindToLifecycle(this, sel, preview, imageCapture);
+                      }
                       evIndex = 0;
                       zoomBtn.setText("1.0x");
                   } catch (Exception e) {
-                      Toast.makeText(this, "Cannot open this camera", Toast.LENGTH_SHORT).show();
+                      Toast.makeText(this, "Cannot open this camera/mode", Toast.LENGTH_SHORT).show();
                       if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
                           lensFacing = CameraSelector.LENS_FACING_BACK;
                       }
                   }
               }
 
+              // ------------------------------------------------------------ photo / video mode + recording
+
+              private void updateModeUi() {
+                  modePhoto.setTextColor(videoMode ? 0xFF888888 : 0xFFFF9A2E);
+                  modeVideo.setTextColor(videoMode ? 0xFFFF9A2E : 0xFF888888);
+                  GradientDrawable od = new GradientDrawable();
+                  od.setShape(GradientDrawable.OVAL);
+                  od.setColor(videoMode ? 0xFFE53935 : 0xFFFF6600);
+                  shutterDot.setBackground(od);
+              }
+
+              private void setMode(boolean video) {
+                  if (recording != null || video == videoMode) return;
+                  videoMode = video;
+                  updateModeUi();
+                  bindCamera();
+                  if (video && filterIndex != 0) {
+                      Toast.makeText(this, "Video: filter shows in preview only, video is saved without filter",
+                              Toast.LENGTH_LONG).show();
+                  }
+              }
+
+              private String sizeText(int i) {
+                  double mb = (V_BPS[i] + 128000) * 600.0 / 8.0 / 1e6;
+                  if (mb >= 1000) return String.format(Locale.US, "%.1f GB", mb / 1000.0);
+                  return String.format(Locale.US, "%d MB", Math.round(mb));
+              }
+
+              private void toggleRecord() {
+                  if (recording != null) {
+                      recording.stop();
+                      return;
+                  }
+                  if (videoCapture == null) return;
+                  String name = "RetroLens_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+                  ContentValues cv = new ContentValues();
+                  cv.put(MediaStore.Video.Media.DISPLAY_NAME, name);
+                  cv.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
+                  if (Build.VERSION.SDK_INT >= 29) {
+                      cv.put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/RetroLens");
+                  }
+                  MediaStoreOutputOptions opt = new MediaStoreOutputOptions.Builder(
+                          getContentResolver(), MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
+                          .setContentValues(cv).build();
+                  PendingRecording pr = videoCapture.getOutput().prepareRecording(this, opt);
+                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                          == PackageManager.PERMISSION_GRANTED) {
+                      pr = pr.withAudioEnabled();
+                  }
+                  recording = pr.start(ContextCompat.getMainExecutor(this), ev -> {
+                      if (ev instanceof VideoRecordEvent.Start) {
+                          timerView.setText("\u25CF 00:00");
+                          timerView.setVisibility(View.VISIBLE);
+                      } else if (ev instanceof VideoRecordEvent.Status) {
+                          long sec = ((VideoRecordEvent.Status) ev).getRecordingStats()
+                                  .getRecordedDurationNanos() / 1000000000L;
+                          timerView.setText(String.format(Locale.US, "\u25CF %02d:%02d", sec / 60, sec % 60));
+                      } else if (ev instanceof VideoRecordEvent.Finalize) {
+                          VideoRecordEvent.Finalize fz = (VideoRecordEvent.Finalize) ev;
+                          recording = null;
+                          timerView.setVisibility(View.GONE);
+                          if (!fz.hasError()) {
+                              lastUri = fz.getOutputResults().getOutputUri();
+                              Toast.makeText(this, "Video saved \u2714  Movies/RetroLens", Toast.LENGTH_SHORT).show();
+                          } else {
+                              Toast.makeText(this, "Video error code " + fz.getError(), Toast.LENGTH_LONG).show();
+                          }
+                      }
+                  });
+              }
+
               // ------------------------------------------------------------ capture + processing
 
               private void capture() {
+                  if (videoMode) {
+                      toggleRecord();
+                      return;
+                  }
                   if (imageCapture == null) return;
                   innerFrame.animate().alpha(0.35f).setDuration(60).withEndAction(
                           () -> innerFrame.animate().alpha(1f).setDuration(140).start()).start();
@@ -923,7 +1075,7 @@ jobs:
                       Intent i;
                       if (lastUri != null) {
                           i = new Intent(Intent.ACTION_VIEW);
-                          i.setDataAndType(lastUri, "image/*");
+                          i.setDataAndType(lastUri, "*/*");
                           i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                       } else {
                           i = new Intent(Intent.ACTION_VIEW, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
@@ -992,6 +1144,33 @@ jobs:
                       }
                   });
                   box.addView(rg);
+
+                  TextView vt = new TextView(this);
+                  vt.setText("Video quality  (approx. size of a 10 minute video)");
+                  vt.setTextColor(0xFFFFB066);
+                  vt.setPadding(0, dp(14), 0, dp(4));
+                  box.addView(vt);
+                  final int[] vids = new int[4];
+                  RadioGroup vg = new RadioGroup(this);
+                  for (int i = 0; i < 4; i++) {
+                      RadioButton rb = new RadioButton(this);
+                      rb.setText(VQ_NAME[i] + "  \u2013  ~" + sizeText(i) + " / 10 min");
+                      rb.setTextColor(0xFFFFFFFF);
+                      vids[i] = View.generateViewId();
+                      rb.setId(vids[i]);
+                      vg.addView(rb);
+                  }
+                  vg.check(vids[Math.max(0, Math.min(3, vq))]);
+                  vg.setOnCheckedChangeListener((g, id) -> {
+                      for (int i = 0; i < 4; i++) {
+                          if (vids[i] == id && vq != i) {
+                              vq = i;
+                              prefs.edit().putInt("vq", i).apply();
+                              if (videoMode && recording == null) bindCamera();
+                          }
+                      }
+                  });
+                  box.addView(vg);
 
                   View line = new View(this);
                   line.setBackgroundColor(0x44FFFFFF);
