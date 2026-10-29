@@ -383,7 +383,9 @@ jobs:
               private VideoCapture<Recorder> videoCapture;
               private Recording recording;
               private int vq; // 0 SD, 1 HD, 2 FHD, 3 UHD
-              private TextView timerView, modePhoto, modeVideo;
+              private TextView timerView, modePhoto, modeVideo, pauseBtn;
+              private boolean paused = false;
+              private long lastSec = 0;
               private View shutterDot;
               private static final Quality[] VQ = {Quality.SD, Quality.HD, Quality.FHD, Quality.UHD};
               private static final String[] VQ_NAME = {"480p SD", "720p HD", "1080p Full HD", "4K Ultra HD"};
@@ -548,6 +550,14 @@ jobs:
                   FrameLayout.LayoutParams tlp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
                   tlp.topMargin = dp(10);
                   innerFrame.addView(timerView, tlp);
+
+                  pauseBtn = roundBtn("\u275A\u275A", 52, 0xFFFFFFFF, 18);
+                  pauseBtn.setVisibility(View.GONE);
+                  FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(dp(52), dp(52),
+                          Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+                  plp.bottomMargin = dp(14);
+                  innerFrame.addView(pauseBtn, plp);
+                  pauseBtn.setOnClickListener(v -> togglePause());
 
                   bezel.addView(innerFrame, new FrameLayout.LayoutParams(innerW, innerH));
                   frame.addView(bezel, new FrameLayout.LayoutParams(-2, -2));
@@ -934,16 +944,33 @@ jobs:
                   }
                   recording = pr.start(ContextCompat.getMainExecutor(this), ev -> {
                       if (ev instanceof VideoRecordEvent.Start) {
+                          paused = false;
+                          lastSec = 0;
+                          timerView.setTextColor(0xFFFF3B30);
                           timerView.setText("\u25CF 00:00");
                           timerView.setVisibility(View.VISIBLE);
+                          pauseBtn.setText("\u275A\u275A");
+                          pauseBtn.setVisibility(View.VISIBLE);
                       } else if (ev instanceof VideoRecordEvent.Status) {
-                          long sec = ((VideoRecordEvent.Status) ev).getRecordingStats()
+                          lastSec = ((VideoRecordEvent.Status) ev).getRecordingStats()
                                   .getRecordedDurationNanos() / 1000000000L;
-                          timerView.setText(String.format(Locale.US, "\u25CF %02d:%02d", sec / 60, sec % 60));
+                          showTimer();
+                      } else if (ev instanceof VideoRecordEvent.Pause) {
+                          paused = true;
+                          pauseBtn.setText("\u25B6");
+                          timerView.setTextColor(0xFFFFB22E);
+                          showTimer();
+                      } else if (ev instanceof VideoRecordEvent.Resume) {
+                          paused = false;
+                          pauseBtn.setText("\u275A\u275A");
+                          timerView.setTextColor(0xFFFF3B30);
+                          showTimer();
                       } else if (ev instanceof VideoRecordEvent.Finalize) {
                           VideoRecordEvent.Finalize fz = (VideoRecordEvent.Finalize) ev;
                           recording = null;
+                          paused = false;
                           timerView.setVisibility(View.GONE);
+                          pauseBtn.setVisibility(View.GONE);
                           if (!fz.hasError()) {
                               lastUri = fz.getOutputResults().getOutputUri();
                               Toast.makeText(this, "Video saved \u2714  Movies/RetroLens", Toast.LENGTH_SHORT).show();
@@ -952,6 +979,17 @@ jobs:
                           }
                       }
                   });
+              }
+
+              private void showTimer() {
+                  timerView.setText(String.format(Locale.US, "%s %02d:%02d",
+                          paused ? "\u275A\u275A" : "\u25CF", lastSec / 60, lastSec % 60));
+              }
+
+              private void togglePause() {
+                  if (recording == null) return;
+                  if (paused) recording.resume();
+                  else recording.pause();
               }
 
               // ------------------------------------------------------------ capture + processing
