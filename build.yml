@@ -1,0 +1,648 @@
+name: Build Bass Booster APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.4'
+
+      - name: Accept Android SDK Licenses
+        run: |
+          mkdir -p $ANDROID_HOME/licenses
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
+          echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_HOME/licenses/android-googletv-license
+
+      - name: Create Project Structure
+        run: |
+          mkdir -p app/src/main/java/com/awal/bassbooster
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+
+      - name: Create settings.gradle
+        run: |
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "BassBooster"
+          include ':app'
+          EOF
+
+      - name: Create root build.gradle
+        run: |
+          cat > build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.2.2' apply false
+          }
+          EOF
+
+      - name: Create app/build.gradle
+        run: |
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.awal.bassbooster'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.awal.bassbooster"
+                  minSdk 23
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  debug {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+              implementation 'androidx.cardview:cardview:1.0.0'
+          }
+          EOF
+
+      - name: Create gradle.properties
+        run: |
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF
+
+      - name: Create AndroidManifest.xml
+        run: |
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="@string/app_name"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.BassBooster">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+      - name: Create MainActivity.java
+        run: |
+          cat > app/src/main/java/com/awal/bassbooster/MainActivity.java << 'EOF'
+          package com.awal.bassbooster;
+
+          import android.media.audiofx.BassBoost;
+          import android.media.audiofx.PresetReverb;
+          import android.media.audiofx.Virtualizer;
+          import android.os.Bundle;
+          import android.widget.SeekBar;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import android.widget.Switch;
+          import androidx.appcompat.app.AppCompatActivity;
+
+          public class MainActivity extends AppCompatActivity {
+
+              private BassBoost bassBoost;
+              private Virtualizer virtualizer;
+              private PresetReverb presetReverb;
+
+              private SeekBar seekBass, seekSurround, seekReverb;
+              private TextView tvBassVal, tvSurroundVal, tvReverbVal;
+              private Switch switchBass, switchSurround, switchReverb;
+
+              private int audioSessionId = 0;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+
+                  int failed = 0;
+                  try {
+                      bassBoost = new BassBoost(0, audioSessionId);
+                      bassBoost.setEnabled(true);
+                  } catch (Exception e) { bassBoost = null; failed++; }
+                  try {
+                      virtualizer = new Virtualizer(0, audioSessionId);
+                      virtualizer.setEnabled(true);
+                  } catch (Exception e) { virtualizer = null; failed++; }
+                  try {
+                      presetReverb = new PresetReverb(0, audioSessionId);
+                      presetReverb.setEnabled(true);
+                  } catch (Exception e) { presetReverb = null; failed++; }
+                  if (failed > 0) {
+                      Toast.makeText(this, "Some audio effects are not supported on this device", Toast.LENGTH_LONG).show();
+                  }
+
+                  seekBass     = findViewById(R.id.seekBass);
+                  seekSurround = findViewById(R.id.seekSurround);
+                  seekReverb   = findViewById(R.id.seekReverb);
+                  tvBassVal     = findViewById(R.id.tvBassVal);
+                  tvSurroundVal = findViewById(R.id.tvSurroundVal);
+                  tvReverbVal   = findViewById(R.id.tvReverbVal);
+                  switchBass     = findViewById(R.id.switchBass);
+                  switchSurround = findViewById(R.id.switchSurround);
+                  switchReverb   = findViewById(R.id.switchReverb);
+
+                  seekBass.setMax(1000);
+                  seekSurround.setMax(1000);
+                  seekReverb.setMax(5);
+
+                  seekBass.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      public void onProgressChanged(SeekBar s, int p, boolean u) {
+                          tvBassVal.setText(p / 10 + "%");
+                          if (bassBoost != null) try { bassBoost.setStrength((short) p); } catch (Exception ignored) {}
+                      }
+                      public void onStartTrackingTouch(SeekBar s) {}
+                      public void onStopTrackingTouch(SeekBar s) {}
+                  });
+
+                  seekSurround.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      public void onProgressChanged(SeekBar s, int p, boolean u) {
+                          tvSurroundVal.setText(p / 10 + "%");
+                          if (virtualizer != null) try { virtualizer.setStrength((short) p); } catch (Exception ignored) {}
+                      }
+                      public void onStartTrackingTouch(SeekBar s) {}
+                      public void onStopTrackingTouch(SeekBar s) {}
+                  });
+
+                  seekReverb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      String[] labels  = {"None","Small Room","Med Room","Large Room","Med Hall","Large Hall"};
+                      short[]  presets = {
+                          PresetReverb.PRESET_NONE,
+                          PresetReverb.PRESET_SMALLROOM,
+                          PresetReverb.PRESET_MEDIUMROOM,
+                          PresetReverb.PRESET_LARGEROOM,
+                          PresetReverb.PRESET_MEDIUMHALL,
+                          PresetReverb.PRESET_LARGEHALL
+                      };
+                      public void onProgressChanged(SeekBar s, int p, boolean u) {
+                          tvReverbVal.setText(labels[p]);
+                          if (presetReverb != null) try { presetReverb.setPreset(presets[p]); } catch (Exception ignored) {}
+                      }
+                      public void onStartTrackingTouch(SeekBar s) {}
+                      public void onStopTrackingTouch(SeekBar s) {}
+                  });
+
+                  switchBass.setOnCheckedChangeListener((b, c) -> {
+                      if (bassBoost   != null) try { bassBoost.setEnabled(c);   } catch (Exception ignored) {}
+                  });
+                  switchSurround.setOnCheckedChangeListener((b, c) -> {
+                      if (virtualizer != null) try { virtualizer.setEnabled(c); } catch (Exception ignored) {}
+                  });
+                  switchReverb.setOnCheckedChangeListener((b, c) -> {
+                      if (presetReverb!= null) try { presetReverb.setEnabled(c);} catch (Exception ignored) {}
+                  });
+
+                  switchBass.setChecked(true);
+                  switchSurround.setChecked(true);
+                  switchReverb.setChecked(true);
+                  seekBass.setProgress(500);
+                  seekSurround.setProgress(500);
+                  seekReverb.setProgress(0);
+              }
+
+              @Override
+              protected void onDestroy() {
+                  super.onDestroy();
+                  if (bassBoost   != null) try { bassBoost.release();   } catch (Exception ignored) {}
+                  if (virtualizer != null) try { virtualizer.release(); } catch (Exception ignored) {}
+                  if (presetReverb!= null) try { presetReverb.release();} catch (Exception ignored) {}
+              }
+          }
+          EOF
+
+      - name: Create activity_main.xml layout
+        run: |
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@color/bg_dark">
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="vertical"
+                  android:padding="20dp">
+
+                  <!-- HEADER -->
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="vertical"
+                      android:gravity="center"
+                      android:paddingTop="24dp"
+                      android:paddingBottom="16dp">
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="&#127925;"
+                          android:textSize="48sp"/>
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="BASS BOOSTER"
+                          android:textColor="@color/accent_orange"
+                          android:textSize="28sp"
+                          android:textStyle="bold"
+                          android:letterSpacing="0.15"/>
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="Pro Audio Enhancer"
+                          android:textColor="@color/text_secondary"
+                          android:textSize="13sp"
+                          android:layout_marginTop="2dp"/>
+                  </LinearLayout>
+
+                  <!-- BASS BOOST CARD -->
+                  <androidx.cardview.widget.CardView
+                      xmlns:card="http://schemas.android.com/apk/res-auto"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginBottom="16dp"
+                      card:cardCornerRadius="16dp"
+                      card:cardBackgroundColor="@color/card_bg"
+                      card:cardElevation="6dp">
+                      <LinearLayout
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:orientation="vertical"
+                          android:padding="20dp">
+                          <LinearLayout
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:orientation="horizontal"
+                              android:gravity="center_vertical">
+                              <TextView
+                                  android:layout_width="0dp"
+                                  android:layout_height="wrap_content"
+                                  android:layout_weight="1"
+                                  android:text="&#128266;  Bass Boost"
+                                  android:textColor="@color/text_primary"
+                                  android:textSize="18sp"
+                                  android:textStyle="bold"/>
+                              <Switch
+                                  android:id="@+id/switchBass"
+                                  android:layout_width="wrap_content"
+                                  android:layout_height="wrap_content"
+                                  android:checked="true"
+                                  android:thumbTint="@color/accent_orange"
+                                  android:trackTint="@color/track_color"/>
+                          </LinearLayout>
+                          <TextView
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:text="Amplifies low-frequency sound for deeper bass"
+                              android:textColor="@color/text_secondary"
+                              android:textSize="12sp"
+                              android:layout_marginTop="4dp"
+                              android:layout_marginBottom="12dp"/>
+                          <SeekBar
+                              android:id="@+id/seekBass"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:progressTint="@color/accent_orange"
+                              android:thumbTint="@color/accent_orange"/>
+                          <TextView
+                              android:id="@+id/tvBassVal"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:text="50%"
+                              android:textColor="@color/accent_orange"
+                              android:textSize="14sp"
+                              android:textStyle="bold"
+                              android:gravity="end"
+                              android:layout_marginTop="4dp"/>
+                      </LinearLayout>
+                  </androidx.cardview.widget.CardView>
+
+                  <!-- SURROUND SOUND CARD -->
+                  <androidx.cardview.widget.CardView
+                      xmlns:card="http://schemas.android.com/apk/res-auto"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginBottom="16dp"
+                      card:cardCornerRadius="16dp"
+                      card:cardBackgroundColor="@color/card_bg"
+                      card:cardElevation="6dp">
+                      <LinearLayout
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:orientation="vertical"
+                          android:padding="20dp">
+                          <LinearLayout
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:orientation="horizontal"
+                              android:gravity="center_vertical">
+                              <TextView
+                                  android:layout_width="0dp"
+                                  android:layout_height="wrap_content"
+                                  android:layout_weight="1"
+                                  android:text="&#127911;  Surrounding Sound"
+                                  android:textColor="@color/text_primary"
+                                  android:textSize="18sp"
+                                  android:textStyle="bold"/>
+                              <Switch
+                                  android:id="@+id/switchSurround"
+                                  android:layout_width="wrap_content"
+                                  android:layout_height="wrap_content"
+                                  android:checked="true"
+                                  android:thumbTint="@color/accent_purple"
+                                  android:trackTint="@color/track_color"/>
+                          </LinearLayout>
+                          <TextView
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:text="Creates a 3D spatial audio experience around you"
+                              android:textColor="@color/text_secondary"
+                              android:textSize="12sp"
+                              android:layout_marginTop="4dp"
+                              android:layout_marginBottom="12dp"/>
+                          <SeekBar
+                              android:id="@+id/seekSurround"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:progressTint="@color/accent_purple"
+                              android:thumbTint="@color/accent_purple"/>
+                          <TextView
+                              android:id="@+id/tvSurroundVal"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:text="50%"
+                              android:textColor="@color/accent_purple"
+                              android:textSize="14sp"
+                              android:textStyle="bold"
+                              android:gravity="end"
+                              android:layout_marginTop="4dp"/>
+                      </LinearLayout>
+                  </androidx.cardview.widget.CardView>
+
+                  <!-- REVERB CARD -->
+                  <androidx.cardview.widget.CardView
+                      xmlns:card="http://schemas.android.com/apk/res-auto"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginBottom="24dp"
+                      card:cardCornerRadius="16dp"
+                      card:cardBackgroundColor="@color/card_bg"
+                      card:cardElevation="6dp">
+                      <LinearLayout
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:orientation="vertical"
+                          android:padding="20dp">
+                          <LinearLayout
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:orientation="horizontal"
+                              android:gravity="center_vertical">
+                              <TextView
+                                  android:layout_width="0dp"
+                                  android:layout_height="wrap_content"
+                                  android:layout_weight="1"
+                                  android:text="&#127963;  Reverb"
+                                  android:textColor="@color/text_primary"
+                                  android:textSize="18sp"
+                                  android:textStyle="bold"/>
+                              <Switch
+                                  android:id="@+id/switchReverb"
+                                  android:layout_width="wrap_content"
+                                  android:layout_height="wrap_content"
+                                  android:checked="true"
+                                  android:thumbTint="@color/accent_cyan"
+                                  android:trackTint="@color/track_color"/>
+                          </LinearLayout>
+                          <TextView
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:text="Simulates acoustic space: room, hall or open environment"
+                              android:textColor="@color/text_secondary"
+                              android:textSize="12sp"
+                              android:layout_marginTop="4dp"
+                              android:layout_marginBottom="12dp"/>
+                          <SeekBar
+                              android:id="@+id/seekReverb"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:progressTint="@color/accent_cyan"
+                              android:thumbTint="@color/accent_cyan"/>
+                          <TextView
+                              android:id="@+id/tvReverbVal"
+                              android:layout_width="match_parent"
+                              android:layout_height="wrap_content"
+                              android:text="None"
+                              android:textColor="@color/accent_cyan"
+                              android:textSize="14sp"
+                              android:textStyle="bold"
+                              android:gravity="end"
+                              android:layout_marginTop="4dp"/>
+                      </LinearLayout>
+                  </androidx.cardview.widget.CardView>
+
+                  <!-- FOOTER -->
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="vertical"
+                      android:gravity="center"
+                      android:paddingBottom="16dp">
+                      <View
+                          android:layout_width="60dp"
+                          android:layout_height="1dp"
+                          android:background="@color/divider"
+                          android:layout_marginBottom="12dp"/>
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="Creator: Mohammod Abdul Awal"
+                          android:textColor="@color/text_secondary"
+                          android:textSize="12sp"
+                          android:textStyle="bold"/>
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="Dept. of English, National University"
+                          android:textColor="@color/text_hint"
+                          android:textSize="11sp"
+                          android:layout_marginTop="2dp"/>
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="awal.sorkar.144@gmail.com"
+                          android:textColor="@color/accent_orange"
+                          android:textSize="11sp"
+                          android:layout_marginTop="2dp"/>
+                  </LinearLayout>
+
+              </LinearLayout>
+          </ScrollView>
+          EOF
+
+      - name: Create colors.xml
+        run: |
+          cat > app/src/main/res/values/colors.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="bg_dark">#0F0F1A</color>
+              <color name="card_bg">#1A1A2E</color>
+              <color name="accent_orange">#FF6B35</color>
+              <color name="accent_purple">#A855F7</color>
+              <color name="accent_cyan">#06B6D4</color>
+              <color name="text_primary">#FFFFFF</color>
+              <color name="text_secondary">#9CA3AF</color>
+              <color name="text_hint">#6B7280</color>
+              <color name="track_color">#374151</color>
+              <color name="divider">#374151</color>
+          </resources>
+          EOF
+
+      - name: Create strings.xml
+        run: |
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Bass Booster</string>
+          </resources>
+          EOF
+
+      - name: Create themes.xml
+        run: |
+          cat > app/src/main/res/values/themes.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="Theme.BassBooster" parent="Theme.AppCompat.NoActionBar">
+                  <item name="colorPrimary">#FF6B35</item>
+                  <item name="colorPrimaryDark">#0F0F1A</item>
+                  <item name="colorAccent">#FF6B35</item>
+                  <item name="android:windowBackground">#0F0F1A</item>
+                  <item name="android:statusBarColor">#0F0F1A</item>
+                  <item name="android:navigationBarColor">#0F0F1A</item>
+              </style>
+          </resources>
+          EOF
+
+      - name: Create launcher icons
+        run: |
+          python3 << 'PYEOF'
+          import struct, zlib
+
+          def create_png(width, height, pixels_fn):
+              def chunk(name, data):
+                  c = zlib.crc32(name + data) & 0xffffffff
+                  return struct.pack('>I', len(data)) + name + data + struct.pack('>I', c)
+              sig = b'\x89PNG\r\n\x1a\n'
+              ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+              rows = b''
+              for y in range(height):
+                  rows += b'\x00'
+                  for x in range(width):
+                      rows += pixels_fn(x, y, width, height)
+              idat = chunk(b'IDAT', zlib.compress(rows, 9))
+              iend = chunk(b'IEND', b'')
+              return sig + ihdr + idat + iend
+
+          def bass_icon(x, y, w, h):
+              cx, cy = w / 2, h / 2
+              r = min(w, h) / 2 - 2
+              dx, dy = x - cx, y - cy
+              dist = (dx ** 2 + dy ** 2) ** 0.5
+              if r - 3 < dist <= r:
+                  return bytes([255, 107, 53])
+              if dist <= r - 3:
+                  nx, ny = x - w * 0.35, y - h * 0.25
+                  note_r = min(w, h) * 0.12
+                  if (nx ** 2 + ny ** 2) ** 0.5 < note_r:
+                      return bytes([255, 107, 53])
+                  nx2, ny2 = x - w * 0.55, y - h * 0.38
+                  if (nx2 ** 2 + ny2 ** 2) ** 0.5 < note_r * 0.8:
+                      return bytes([168, 85, 247])
+                  if w * 0.30 < x < w * 0.36 and h * 0.25 < y < h * 0.55:
+                      return bytes([255, 107, 53])
+                  if w * 0.50 < x < w * 0.56 and h * 0.12 < y < h * 0.42:
+                      return bytes([168, 85, 247])
+                  for i, color in enumerate([(6, 182, 212), (255, 107, 53), (168, 85, 247)]):
+                      wave_r = r * (0.45 + i * 0.12)
+                      if wave_r - 2 < dist <= wave_r and x > cx:
+                          return bytes(color)
+                  return bytes([15, 15, 26])
+              return bytes([15, 15, 26])
+
+          sizes = {'hdpi': 72, 'mdpi': 48, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
+          for folder, size in sizes.items():
+              png = create_png(size, size, bass_icon)
+              for name in ['ic_launcher', 'ic_launcher_round']:
+                  path = f'app/src/main/res/mipmap-{folder}/{name}.png'
+                  with open(path, 'wb') as f:
+                      f.write(png)
+              print(f'Created {folder} ({size}x{size})')
+          print('All icons done!')
+          PYEOF
+
+      - name: Build APK
+        run: gradle assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BassBooster-Debug-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+          if-no-files-found: error
