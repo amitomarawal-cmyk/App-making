@@ -1,19 +1,17 @@
-# =====================================================
-#  দাবা গুরু (Daba Guru) - Android APK Builder
-#  Creator : Mohammod Abdul Awal
-#  Student : Department of English, National University
-#  Mail    : awal.sorkar.144@gmail.com
-#  Put this file at: .github/workflows/build.yml
-# =====================================================
-name: Build Daba Guru APK
+name: Build TenParts Downloader APK
 
 on:
   push:
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      LC_ALL: C.UTF-8
+      JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF-8
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,9 +30,13 @@ jobs:
           echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
           echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_HOME/licenses/android-googletv-license
 
-      - name: Create Gradle project files
+      - name: Create project files (Java, XML, drawable, gradle)
         run: |
-          mkdir -p app/src/main/java/com/awal/dabaguru app/src/main/res/layout app/src/main/res/values app/src/main/res/drawable app/src/main/assets gradle/wrapper
+          set -e
+          mkdir -p gradle/wrapper
+          mkdir -p app/src/main/java/com/awal/tenparts
+          mkdir -p app/src/main/res/layout app/src/main/res/values app/src/main/res/drawable
+
           cat > settings.gradle << 'EOF'
           pluginManagement {
               repositories {
@@ -50,1002 +52,22 @@ jobs:
                   mavenCentral()
               }
           }
-          rootProject.name = "DabaGuru"
+          rootProject.name = 'TenParts'
           include ':app'
           EOF
+
           cat > build.gradle << 'EOF'
           plugins {
               id 'com.android.application' version '8.1.4' apply false
           }
           EOF
+
           cat > gradle.properties << 'EOF'
-          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
+          android.useAndroidX=false
           android.nonTransitiveRClass=true
           EOF
-          cat > app/build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application'
-          }
-          android {
-              namespace 'com.awal.dabaguru'
-              compileSdk 34
-              defaultConfig {
-                  applicationId "com.awal.dabaguru"
-                  minSdk 21
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
-          EOF
 
-      - name: Create Android manifest, Java, layout, icon
-        run: |
-          cat > app/src/main/AndroidManifest.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <!-- Dabaguru | Creator: Mohammod Abdul Awal | Student, Dept. of English, National University | awal.sorkar.144@gmail.com -->
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application
-                  android:label="@string/app_name"
-                  android:icon="@drawable/ic_launcher"
-                  android:roundIcon="@drawable/ic_launcher"
-                  android:allowBackup="true"
-                  android:theme="@android:style/Theme.Material.Light.NoActionBar">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:screenOrientation="portrait"
-                      android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-          cat > app/src/main/java/com/awal/dabaguru/MainActivity.java << 'EOF'
-          package com.awal.dabaguru;
-
-          import android.app.Activity;
-          import android.content.Intent;
-          import android.graphics.Color;
-          import android.net.Uri;
-          import android.os.Bundle;
-          import android.webkit.WebChromeClient;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-
-          // Creator: Mohammod Abdul Awal
-          public class MainActivity extends Activity {
-              private WebView web;
-
-              @Override
-              protected void onCreate(Bundle b) {
-                  super.onCreate(b);
-                  getWindow().setStatusBarColor(Color.parseColor("#3E2723"));
-                  setContentView(R.layout.activity_main);
-                  web = (WebView) findViewById(R.id.webview);
-                  WebSettings s = web.getSettings();
-                  s.setJavaScriptEnabled(true);
-                  s.setDomStorageEnabled(true);
-                  s.setAllowFileAccess(true);
-                  s.setSupportZoom(false);
-                  web.setWebChromeClient(new WebChromeClient());
-                  web.setWebViewClient(new WebViewClient() {
-                      @SuppressWarnings("deprecation")
-                      @Override
-                      public boolean shouldOverrideUrlLoading(WebView v, String url) {
-                          if (url.startsWith("mailto:")) {
-                              try { startActivity(new Intent(Intent.ACTION_SENDTO, Uri.parse(url))); } catch (Exception e) { }
-                              return true;
-                          }
-                          return false;
-                      }
-                  });
-                  web.loadUrl("file:///android_asset/index.html");
-              }
-          }
-          EOF
-          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
-              android:background="#3E2723">
-              <WebView
-                  android:id="@+id/webview"
-                  android:layout_width="match_parent"
-                  android:layout_height="match_parent"/>
-          </FrameLayout>
-          EOF
-          cat > app/src/main/res/values/strings.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="app_name">দাবা গুরু</string>
-              <string name="creator">Mohammod Abdul Awal</string>
-          </resources>
-          EOF
-          cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="108dp"
-              android:height="108dp"
-              android:viewportWidth="108"
-              android:viewportHeight="108">
-              <path android:fillColor="#3E2723" android:pathData="M54,54m-54,0a54,54 0 1,1 108,0a54,54 0 1,1 -108,0"/>
-              <path android:fillColor="#FFCA28" android:pathData="M52,16h4v8h8v4h-8v8h-4v-8h-8v-4h8z"/>
-              <path android:fillColor="#FFCA28" android:pathData="M32,44L42,58L54,40L66,58L76,44L72,72L36,72z"/>
-              <path android:fillColor="#FFCA28" android:pathData="M32,76h44v8h-44z"/>
-          </vector>
-          EOF
-
-      - name: Create chess game (HTML/JS)
-        run: |
-          cat > app/src/main/assets/index.html << 'EOF'
-          <!DOCTYPE html>
-          <html lang="bn"><head><meta charset="utf-8">
-          <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-          <meta name="author" content="Mohammod Abdul Awal">
-          <title>দাবা গুরু</title>
-          <style>
-          :root{--bg:#f6efe6;--fg:#3e2723;--card:#fff;--lt:#f0d9b5;--dk:#b58863;--ac:#5d4037;--bd:#d7c4b0;--sz:40px}
-          body.dark{--bg:#1c1a19;--fg:#efe6dd;--card:#2a2625;--lt:#9c8a7b;--dk:#5a493f;--ac:#a1704a;--bd:#4a403a}
-          *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-          body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--fg);padding:8px;-webkit-user-select:none;user-select:none}
-          #app{max-width:520px;margin:0 auto}
-          #hd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-          .logo{width:38px;height:38px;border-radius:50%;background:#3e2723;color:#ffca28;font-size:26px;display:flex;align-items:center;justify-content:center;border:2px solid #ffca28}
-          .ttl{flex:1;font-weight:700;font-size:20px;line-height:1}
-          .ttl small{display:block;font-size:11px;font-weight:400;opacity:.7;margin-top:3px}
-          button,select{font:inherit}
-          .ib{border:0;background:var(--card);color:var(--fg);border-radius:10px;padding:6px 10px;font-size:18px}
-          #bot{display:flex;gap:8px;align-items:center;background:var(--card);border-radius:12px;padding:6px 10px;margin-bottom:6px;min-height:46px}
-          #av{font-size:28px}
-          #say{font-size:13px;flex:1}
-          .pl{display:flex;justify-content:space-between;align-items:center;padding:3px 4px;font-size:14px}
-          .clk{font-weight:700;background:var(--card);border-radius:8px;padding:2px 10px}
-          .clk.on{background:var(--ac);color:#fff}
-          #wrap{display:flex;justify-content:center;align-items:stretch}
-          #ev{width:14px;border-radius:7px;overflow:hidden;background:#222;position:relative;margin-right:6px}
-          #evw{position:absolute;left:0;right:0;background:#fff;transition:height .3s}
-          #board{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);border:2px solid var(--ac);border-radius:4px;overflow:hidden}
-          .sq{position:relative;display:flex;align-items:center;justify-content:center}
-          .lt{background-color:var(--lt)}
-          .dk{background-color:var(--dk)}
-          .sq[data-r]::before{content:attr(data-r);position:absolute;left:2px;top:0;font-size:9px;opacity:.65}
-          .sq[data-f]::after{content:attr(data-f);position:absolute;right:2px;bottom:0;font-size:9px;opacity:.65}
-          .pc{font-size:var(--sz);line-height:1;pointer-events:none;position:relative;z-index:2}
-          .pw{color:#fff;text-shadow:0 0 3px #000,0 0 2px #000,0 1px 1px #000}
-          .pb{color:#1b1b1b;text-shadow:0 0 2px rgba(255,255,255,.5)}
-          .rot{transform:rotate(180deg)}
-          .lm{box-shadow:inset 0 0 0 100px rgba(255,235,59,.35)}
-          .sel{box-shadow:inset 0 0 0 100px rgba(76,175,80,.5)}
-          .tg{background-image:radial-gradient(circle,rgba(0,0,0,.32) 22%,transparent 24%)}
-          .tc{box-shadow:inset 0 0 0 4px rgba(211,47,47,.75)}
-          .rv1{box-shadow:inset 0 0 0 100px rgba(46,125,50,.4)}
-          .rv2{box-shadow:inset 0 0 0 100px rgba(117,117,117,.4)}
-          .rv3{box-shadow:inset 0 0 0 100px rgba(239,108,0,.45)}
-          .rv4{box-shadow:inset 0 0 0 100px rgba(198,40,40,.5)}
-          #bw{position:relative}
-          #ov{position:absolute;left:2px;top:2px;width:calc(100% - 4px);height:calc(100% - 4px);pointer-events:none}
-          #rvp{display:none;margin:6px 0;background:var(--card);border-radius:12px;padding:8px}
-          #rvh{font-weight:700;margin-bottom:4px}
-          #rvt{font-size:14px;line-height:1.55}
-          .nv{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;margin-top:8px}
-          .nv button{border:0;border-radius:10px;padding:8px 12px;background:var(--ac);color:#fff}
-          #rvl{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;max-height:90px;overflow:auto}
-          .chip{border:2px solid var(--bd);background:var(--bg);color:var(--fg);border-radius:8px;padding:2px 6px;font-size:12px}
-          .chip.c1{border-color:#2e7d32}.chip.c2{border-color:#757575}.chip.c3{border-color:#ef6c00}.chip.c4{border-color:#c62828}
-          .chip.on{background:#ffca28;color:#000}
-          .hn{box-shadow:inset 0 0 0 4px #1e88e5,inset 0 0 0 100px rgba(30,136,229,.25)}
-          .chk{box-shadow:inset 0 0 0 100px rgba(244,67,54,.55)}
-          #st{text-align:center;font-weight:600;margin:6px 0 2px;min-height:22px}
-          #cm{text-align:center;font-size:14px;min-height:20px}
-          .g1{color:#2e7d32}.g2{color:#757575}.g3{color:#ef6c00}.g4{color:#c62828}
-          #evt{text-align:center;font-size:12px;opacity:.75;min-height:16px}
-          #bt,#rb{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:6px 0}
-          #bt button,#rb button,.bx button{border:0;border-radius:10px;padding:8px 12px;background:var(--ac);color:#fff}
-          button:disabled{opacity:.4}
-          #ml{font-size:13px;background:var(--card);border-radius:10px;padding:8px;max-height:90px;overflow:auto;line-height:1.7;min-height:36px}
-          .cur{background:#ffca28;color:#000;border-radius:4px;padding:0 3px}
-          #ft{text-align:center;font-size:11px;opacity:.6;margin:8px 0}
-          #mod{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;z-index:9;padding:14px}
-          .bx{background:var(--card);color:var(--fg);border-radius:16px;padding:16px;width:100%;max-width:380px;max-height:90vh;overflow:auto}
-          .bx h3{margin:0 0 8px}
-          .bx label{display:block;font-size:13px;margin-top:8px}
-          .bx select,.bx textarea{width:100%;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--fg)}
-          .bx textarea{height:110px;font-size:12px;-webkit-user-select:text;user-select:text}
-          .bx button{margin:8px 6px 0 0}
-          .sm{font-size:12px;opacity:.75}
-          .nb{background:#fff8e1;color:#5d4037;border-radius:10px;padding:8px;margin:8px 0}
-          .pr button{font-size:34px;padding:4px 14px;background:var(--lt);color:#222}
-          .hh #bot,.hh #ev,.hh #bHint,.hh #bUndo,.hh #cm,.hh #evt{display:none}
-          .hh #pTop{transform:rotate(180deg)}
-          </style></head><body>
-          <div id="app">
-          <div id="hd"><div class="logo">♚</div><div class="ttl">দাবা গুরু<small>বুদ্ধির খেলা</small></div><button class="ib" onclick="toggleDark()">🌓</button><button class="ib" onclick="about()">ℹ️</button></div>
-          <div id="bot"><span id="av">😺</span><div id="say"></div></div>
-          <div class="pl" id="pTop"><span id="nTop"></span><span class="clk" id="cTop"></span></div>
-          <div id="wrap"><div id="ev"><div id="evw"></div></div><div id="bw"><div id="board"></div><svg id="ov" viewBox="0 0 8 8"></svg></div></div>
-          <div class="pl"><span id="nBot"></span><span class="clk" id="cBot"></span></div>
-          <div id="st"></div><div id="cm"></div><div id="evt"></div>
-          <div id="rb" style="display:none"><button onclick="rp(-999)">⏮</button><button onclick="rp(-1)">◀ আগের</button><span id="rpi" style="align-self:center"></span><button onclick="rp(1)">পরের ▶</button><button onclick="rp(999)">⏭</button><button onclick="endReplay()">✖ বন্ধ</button></div>
-          <div id="rvp"><div id="rvh"></div><div id="rvt"></div><div class="nv"><button onclick="rvGo(-1)">◀ আগের</button><span id="rvi"></span><button onclick="rvGo(1)">পরের ▶</button><button onclick="endReview()">✖ বন্ধ</button></div><div id="rvl"></div></div>
-          <div id="bt"><button id="bUndo" onclick="undo()">↩ Undo</button><button id="bHint" onclick="hint()">💡 হিন্ট</button><button onclick="startReplay()">🔁 রিপ্লে</button><button onclick="showPgn()">📜 PGN</button><button onclick="startReview()">📊 রিভিউ</button><button onclick="badges()">🏅 ব্যাজ</button><button onclick="openNew(true)">🆕 নতুন খেলা</button></div>
-          <div id="ml"></div>
-          <div id="ft">দাবা গুরু • Creator: Mohammod Abdul Awal</div>
-          </div>
-          <div id="mod"></div>
-          <script>
-          //ENGINE_START
-          const VAL=[0,100,300,300,500,900,0];
-          const PST=[null,
-          [0,0,0,0,0,0,0,0,
-          50,50,50,50,50,50,50,50,
-          10,10,20,30,30,20,10,10,
-          5,5,10,25,25,10,5,5,
-          0,0,0,20,20,0,0,0,
-          5,-5,-10,0,0,-10,-5,5,
-          5,10,10,-20,-20,10,10,5,
-          0,0,0,0,0,0,0,0],
-          [-50,-40,-30,-30,-30,-30,-40,-50,
-          -40,-20,0,0,0,0,-20,-40,
-          -30,0,10,15,15,10,0,-30,
-          -30,5,15,20,20,15,5,-30,
-          -30,0,15,20,20,15,0,-30,
-          -30,5,10,15,15,10,5,-30,
-          -40,-20,0,5,5,0,-20,-40,
-          -50,-40,-30,-30,-30,-30,-40,-50],
-          [-20,-10,-10,-10,-10,-10,-10,-20,
-          -10,0,0,0,0,0,0,-10,
-          -10,0,5,10,10,5,0,-10,
-          -10,5,5,10,10,5,5,-10,
-          -10,0,10,10,10,10,0,-10,
-          -10,10,10,10,10,10,10,-10,
-          -10,5,0,0,0,0,5,-10,
-          -20,-10,-10,-10,-10,-10,-10,-20],
-          [0,0,0,0,0,0,0,0,
-          5,10,10,10,10,10,10,5,
-          -5,0,0,0,0,0,0,-5,
-          -5,0,0,0,0,0,0,-5,
-          -5,0,0,0,0,0,0,-5,
-          -5,0,0,0,0,0,0,-5,
-          -5,0,0,0,0,0,0,-5,
-          0,0,0,5,5,0,0,0],
-          [-20,-10,-10,-5,-5,-10,-10,-20,
-          -10,0,0,0,0,0,0,-10,
-          -10,0,5,5,5,5,0,-10,
-          -5,0,5,5,5,5,0,-5,
-          0,0,5,5,5,5,0,-5,
-          -10,5,5,5,5,5,0,-10,
-          -10,0,5,0,0,0,0,-10,
-          -20,-10,-10,-5,-5,-10,-10,-20],
-          [-30,-40,-40,-50,-50,-40,-40,-30,
-          -30,-40,-40,-50,-50,-40,-40,-30,
-          -30,-40,-40,-50,-50,-40,-40,-30,
-          -30,-40,-40,-50,-50,-40,-40,-30,
-          -20,-30,-30,-40,-40,-30,-30,-20,
-          -10,-20,-20,-20,-20,-20,-20,-10,
-          20,20,0,0,0,0,20,20,
-          20,30,10,0,0,10,30,20]];
-          const ND=[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
-          const KD=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
-          const BD=[[-1,-1],[-1,1],[1,-1],[1,1]];
-          const RD=[[-1,0],[1,0],[0,-1],[0,1]];
-          const FL='abcdefgh',PL=['','','N','B','R','Q','K'],PRL={5:'Q',4:'R',3:'B',2:'N'};
-          let B=new Array(64).fill(0),CR=15,EP=-1,HALF=0,KS=[60,4];
-          const CM=new Array(64).fill(0);CM[63]=1;CM[60]=3;CM[56]=2;CM[7]=4;CM[4]=12;CM[0]=8;
-          function setup(){
-           const bk=[4,2,3,5,6,3,2,4];
-           B=new Array(64).fill(0);
-           for(let c=0;c<8;c++){B[c]=-bk[c];B[8+c]=-1;B[48+c]=1;B[56+c]=bk[c];}
-           CR=15;EP=-1;HALF=0;KS=[60,4];
-          }
-          function att(s,by){
-           const r=s>>3,c=s&7,pr=r+(by===1?1:-1);
-           if(pr>=0&&pr<8){if(c>0&&B[pr*8+c-1]===by)return true;if(c<7&&B[pr*8+c+1]===by)return true;}
-           for(const d of ND){const rr=r+d[0],cc=c+d[1];if(rr>=0&&rr<8&&cc>=0&&cc<8&&B[rr*8+cc]===by*2)return true;}
-           for(const d of KD){const rr=r+d[0],cc=c+d[1];if(rr>=0&&rr<8&&cc>=0&&cc<8&&B[rr*8+cc]===by*6)return true;}
-           for(const d of BD){let rr=r+d[0],cc=c+d[1];while(rr>=0&&rr<8&&cc>=0&&cc<8){const q=B[rr*8+cc];if(q){if(q===by*3||q===by*5)return true;break;}rr+=d[0];cc+=d[1];}}
-           for(const d of RD){let rr=r+d[0],cc=c+d[1];while(rr>=0&&rr<8&&cc>=0&&cc<8){const q=B[rr*8+cc];if(q){if(q===by*4||q===by*5)return true;break;}rr+=d[0];cc+=d[1];}}
-           return false;
-          }
-          function pm(mv,f,t,p,q,promo){
-           if(promo){for(const x of [5,4,3,2])mv.push({f:f,t:t,p:p,c:q,pr:x});}
-           else mv.push({f:f,t:t,p:p,c:q,pr:0});
-          }
-          function gen(side,caps){
-           const mv=[];
-           for(let s=0;s<64;s++){
-            const p=B[s];if(p*side<=0)continue;
-            const t=p*side,r=s>>3,c=s&7;
-            if(t===1){
-             const dir=-side,r1=r+dir,last=side===1?0:7,st=side===1?6:1;
-             if(r1<0||r1>7)continue;
-             const f1=r1*8+c;
-             if(B[f1]===0&&(!caps||r1===last)){
-              pm(mv,s,f1,p,0,r1===last);
-              if(!caps&&r===st&&B[f1+dir*8]===0)mv.push({f:s,t:f1+dir*8,p:p,c:0,pr:0,dp:1});
-             }
-             for(let dc=-1;dc<=1;dc+=2){
-              const cc=c+dc;if(cc<0||cc>7)continue;
-              const to=r1*8+cc,q=B[to];
-              if(q*side<0)pm(mv,s,to,p,q,r1===last);
-              else if(q===0&&to===EP)mv.push({f:s,t:to,p:p,c:-side,pr:0,e:1});
-             }
-            }else if(t===2||t===6){
-             const D=t===2?ND:KD;
-             for(const d of D){
-              const rr=r+d[0],cc=c+d[1];if(rr<0||rr>7||cc<0||cc>7)continue;
-              const to=rr*8+cc,q=B[to];if(q*side>0)continue;if(caps&&!q)continue;
-              mv.push({f:s,t:to,p:p,c:q,pr:0});
-             }
-            }else{
-             const D=t===3?BD:t===4?RD:BD.concat(RD);
-             for(const d of D){
-              let rr=r+d[0],cc=c+d[1];
-              while(rr>=0&&rr<8&&cc>=0&&cc<8){
-               const to=rr*8+cc,q=B[to];if(q*side>0)break;
-               if(!(caps&&!q))mv.push({f:s,t:to,p:p,c:q,pr:0});
-               if(q)break;rr+=d[0];cc+=d[1];
-              }
-             }
-            }
-           }
-           if(!caps){
-            const ks=side===1?60:4,bK=side===1?1:4,bQ=side===1?2:8;
-            if(B[ks]===side*6&&!att(ks,-side)){
-             if((CR&bK)&&B[ks+1]===0&&B[ks+2]===0&&B[ks+3]===side*4&&!att(ks+1,-side)&&!att(ks+2,-side))mv.push({f:ks,t:ks+2,p:side*6,c:0,pr:0,cs:1});
-             if((CR&bQ)&&B[ks-1]===0&&B[ks-2]===0&&B[ks-3]===0&&B[ks-4]===side*4&&!att(ks-1,-side)&&!att(ks-2,-side))mv.push({f:ks,t:ks-2,p:side*6,c:0,pr:0,cs:2});
-            }
-           }
-           return mv;
-          }
-          function make(m){
-           const u={cr:CR,ep:EP,hf:HALF},side=m.p>0?1:-1;
-           B[m.f]=0;
-           if(m.e)B[m.t+(side===1?8:-8)]=0;
-           B[m.t]=m.pr?side*m.pr:m.p;
-           if(m.cs===1){B[m.f+1]=B[m.f+3];B[m.f+3]=0;}
-           else if(m.cs===2){B[m.f-1]=B[m.f-4];B[m.f-4]=0;}
-           if(m.p*side===6)KS[side===1?0:1]=m.t;
-           CR&=~(CM[m.f]|CM[m.t]);
-           EP=m.dp?(m.f+m.t)>>1:-1;
-           HALF=(m.p*side===1||m.c)?0:HALF+1;
-           return u;
-          }
-          function unmake(m,u){
-           const side=m.p>0?1:-1;
-           B[m.f]=m.p;
-           if(m.e){B[m.t]=0;B[m.t+(side===1?8:-8)]=-side;}else B[m.t]=m.c;
-           if(m.cs===1){B[m.f+3]=B[m.f+1];B[m.f+1]=0;}
-           else if(m.cs===2){B[m.f-4]=B[m.f-1];B[m.f-1]=0;}
-           if(m.p*side===6)KS[side===1?0:1]=m.f;
-           CR=u.cr;EP=u.ep;HALF=u.hf;
-          }
-          function inCheck(side){return att(KS[side===1?0:1],-side);}
-          function legal(side){
-           const ms=gen(side),out=[],ki=side===1?0:1;
-           for(const m of ms){const u=make(m);if(!att(KS[ki],-side))out.push(m);unmake(m,u);}
-           return out;
-          }
-          function evaluate(){
-           let sc=0;
-           for(let s=0;s<64;s++){
-            const p=B[s];if(!p)continue;
-            if(p>0)sc+=VAL[p]+PST[p][s];else sc-=VAL[-p]+PST[-p][s^56];
-           }
-           return sc;
-          }
-          function order(ms){
-           for(const m of ms)m.o=(m.c?1000+VAL[Math.abs(m.c)]-VAL[Math.abs(m.p)]/10:0)+(m.pr?VAL[m.pr]:0);
-           ms.sort((a,b)=>b.o-a.o);
-          }
-          let NODES=0,DL=0,ABORT=false;
-          const MATE=100000;
-          function qs(alpha,beta,side,d){
-           const st=side*evaluate();
-           if(d===0)return st;
-           if(st>=beta)return st;
-           if(st>alpha)alpha=st;
-           const ms=gen(side,true),ki=side===1?0:1;order(ms);
-           for(const m of ms){
-            const u=make(m);
-            if(att(KS[ki],-side)){unmake(m,u);continue;}
-            const v=-qs(-beta,-alpha,-side,d-1);
-            unmake(m,u);
-            if(v>=beta)return v;
-            if(v>alpha)alpha=v;
-           }
-           return alpha;
-          }
-          function srch(d,alpha,beta,side){
-           if(++NODES%2048===0&&Date.now()>DL)ABORT=true;
-           if(ABORT)return 0;
-           if(d<=0)return qs(alpha,beta,side,2);
-           const ms=gen(side),ki=side===1?0:1;order(ms);
-           let n=0,bst=-1e9;
-           for(const m of ms){
-            const u=make(m);
-            if(att(KS[ki],-side)){unmake(m,u);continue;}
-            n++;
-            const v=-srch(d-1,-beta,-alpha,-side);
-            unmake(m,u);
-            if(ABORT)return 0;
-            if(v>bst)bst=v;
-            if(v>alpha)alpha=v;
-            if(alpha>=beta)break;
-           }
-           if(!n)return att(KS[ki],-side)?-MATE-d:0;
-           return bst;
-          }
-          function best(side,depth,lim){
-           const ms=legal(side);
-           if(!ms.length)return null;
-           for(let i=ms.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const x=ms[i];ms[i]=ms[j];ms[j]=x;}
-           order(ms);
-           let bm=ms[0],bs=0;
-           NODES=0;ABORT=false;DL=Date.now()+lim;
-           if(ms.length===1)return {m:bm,s:0};
-           for(let d=1;d<=depth;d++){
-            let cb=null,cs=-1e9,alpha=-1e9;
-            const i=ms.indexOf(bm);if(i>0){ms.splice(i,1);ms.unshift(bm);}
-            for(const m of ms){
-             const u=make(m);
-             const v=-srch(d-1,-1e9,-alpha,-side);
-             unmake(m,u);
-             if(ABORT)break;
-             if(v>cs){cs=v;cb=m;}
-             if(v>alpha)alpha=v;
-            }
-            if(ABORT)break;
-            bm=cb;bs=cs;
-           }
-           return {m:bm,s:bs};
-          }
-          function analyze(side){
-           const ms=legal(side),out=[];
-           NODES=0;ABORT=false;DL=Date.now()+4000;
-           for(const m of ms){const u=make(m);const v=-srch(2,-1e9,1e9,-side);unmake(m,u);out.push({m:m,s:v});}
-           return out;
-          }
-          function sq(s){return FL[s&7]+(8-(s>>3));}
-          function san(m,ls){
-           if(m.cs)return m.cs===1?'O-O':'O-O-O';
-           const t=Math.abs(m.p);let s='';
-           if(t===1){
-            if(m.c)s=FL[m.f&7]+'x';
-            s+=sq(m.t);
-            if(m.pr)s+='='+PRL[m.pr];
-            return s;
-           }
-           s=PL[t];
-           const o=ls.filter(x=>x!==m&&x.p===m.p&&x.t===m.t);
-           if(o.length){
-            if(!o.some(x=>(x.f&7)===(m.f&7)))s+=FL[m.f&7];
-            else if(!o.some(x=>(x.f>>3)===(m.f>>3)))s+=(8-(m.f>>3));
-            else s+=sq(m.f);
-           }
-           if(m.c)s+='x';
-           return s+sq(m.t);
-          }
-          //ENGINE_END
-          const $=id=>document.getElementById(id);
-          const bn=n=>String(n).replace(/\d/g,d=>'০১২৩৪৫৬৭৮৯'[d]);
-          const GL=['','\u265F\uFE0E','\u265E\uFE0E','\u265D\uFE0E','\u265C\uFE0E','\u265B\uFE0E','\u265A\uFE0E'];
-          const D=[
-          {n:'গম্ভীর দাদু',a:'👴',
-           start:['বসো দাদু ভাই, আজ তোমাকে দাবার পাঠ শেখাব।','চাল ভেবেচিন্তে দিও, তাড়াহুড়া করলে গজও পালায়।'],
-           move:['হুম... এই চালটা আমার ষাট বছরের অভিজ্ঞতার ফল।','আমাদের সময়ে এমন চাল দিলে চা ঠাণ্ডা হয়ে যেত।','ধীরে চলো, বোড়েও একদিন মন্ত্রী হয়।'],
-           check:['কিস্তি! রাজাকে সামলাও দাদু ভাই!'],
-           mistake:['ছিঃ ছিঃ! এই ভুল চাল দেখে আমার চশমা খুলে পড়ে গেল!','আহা, এ কী করলে! আমার ব্লাডপ্রেশার বাড়ছে।'],
-           good:['বাহ্! চালটা মন্দ নয়, বংশের ছেলে বটে।'],
-           lose:['হুম... হেরে গেলাম। লাঠিটা আবার কোথায় রাখলাম...'],
-           win:['জিতলাম বটে, তবে অহংকার করব না। আরেক হাত হবে?'],
-           draw:['ড্র! মানে দুজনেই সমান জেদি।']},
-          {n:'ফাজিল বন্ধু',a:'😜',
-           start:['কী রে দোস্ত, রেডি? আজ তোর বারোটা বাজাব!','চল চল, দেখি তোর দৌড় কতদূর!'],
-           move:['এইটা দেখ, একদম মাস্টারস্ট্রোক!','ভাই রে ভাই, আমি তো জিনিয়াস!','তুই তো ঘামতে শুরু করেছিস রে!'],
-           check:['কিস্তি দোস্ত! রাজা সাহেব দৌড় দাও!'],
-           mistake:['হাহা! এটা কী চাল দিলি রে ভাই! 😂','আরে বাপরে! ঘুঁটি তো উপহার দিয়ে দিলি!'],
-           good:['উরেব্বাস! চালটা তো দারুণ দিলি, চমকে গেলাম!'],
-           lose:['ধুর! তুই নিশ্চয়ই চিট করেছিস! রিম্যাচ চাই!'],
-           win:['হাহাহা! চা-নাশতা তোর খরচে, কথা ছিল না?'],
-           draw:['ড্র? যাহ, মজাটাই মাটি!']},
-          {n:'ঘুমকাতুরে বিড়াল',a:'😺',
-           start:['মিউউউ... এসেছ? একটু আড়মোড়া ভেঙে নিই...','হাই... ঘুঁটি সাজাও, আমি জেগে আছি... প্রায়।'],
-           move:['মিউ... চাল দিলাম... জ্জ্জ...','ঘুমের মধ্যেও এর চেয়ে ভালো চাল দিই... জ্জ্জ','এই চালটা মাছের কথা ভাবতে ভাবতে দিলাম... মিউ।'],
-           check:['মিউ! কিস্তি... এবার একটু ঘুমাই?'],
-           mistake:['মিউ?! ভুল করলে... ইঁদুরও হাসবে।','এই ভুলের জন্য এক বাটি দুধ পাওনা... মিউ!'],
-           good:['মিউ! চালটা আরামদায়ক... গরগর করছি।'],
-           lose:['মিউ... হেরে গেলাম... একটু ঘুমাই...'],
-           win:['জিতেছি... এবার পুরস্কার হিসেবে মাছ চাই... মিউ!'],
-           draw:['ড্র... জ্জ্জ... সমান সমান... ঘুম পাচ্ছে।']}
-          ];
-          let anim=null,rvC=null,rvK=-2;
-          let S={mode:'ai',lv:2,ps:0,tc:600,hc:1};
-          let turn=1,moves=[],sans=[],snaps=[],tms=[],keys=[],T=[600,600],over=null,hints=0,busy=false,rep=-1,sel=-1,selMoves=[],hintMove=null,cmt=null,curEval=0,started=false,GID=0,lastTick=Date.now(),sv=0;
-          function key(){return B.join(',')+'|'+turn+'|'+CR+'|'+EP;}
-          function insuf(){let n=0;for(let s=0;s<64;s++){const t=Math.abs(B[s]);if(t&&t!==6){if(t===1||t===4||t===5)return false;n++;}}return n<=1;}
-          function fl(){return S.mode==='ai'&&S.hc===-1;}
-          function canHuman(){return S.mode==='hh'||turn===S.hc;}
-          function apply(m){
-           const side=turn,ls=legal(side),sn=san(m,ls);
-           make(m);turn=-side;
-           const ck=inCheck(turn),nl=legal(turn).length;
-           let suf='',res=null;
-           if(nl===0){if(ck){suf='#';res={w:side,why:'কিস্তিমাত'};}else res={w:0,why:'স্টেলমেট (চাল নেই)'};}
-           else if(ck)suf='+';
-           moves.push([m.f,m.t,m.pr||0]);sans.push(sn+suf);
-           snaps.push({b:B.slice(),f:m.f,t:m.t});tms.push([T[0],T[1]]);
-           const k=key();keys.push(k);
-           if(!res){
-            if(HALF>=100)res={w:0,why:'৫০ চালের নিয়ম'};
-            else if(insuf())res={w:0,why:'ঘুঁটি অপর্যাপ্ত'};
-            else if(keys.filter(x=>x===k).length>=3)res={w:0,why:'একই অবস্থান তিনবার'};
-           }
-           if(res)over=res;
-           return {ck:ck,res:res};
-          }
-          function sameMove(a,b){return a.f===b.f&&a.t===b.t&&(a.pr||0)===(b.pr||0);}
-          function updEval(){
-           if(over)curEval=over.w*9999;
-           else curEval=qs(-1e9,1e9,turn,2)*turn;
-          }
-          function say(ev){
-           if(S.mode!=='ai')return;
-           const P=D[S.ps],L=P[ev];if(!L)return;
-           $('av').textContent=P.a;
-           $('say').textContent=P.n+': '+L[Math.floor(Math.random()*L.length)];
-          }
-          function play(m,ai){
-           hintMove=null;sel=-1;selMoves=[];
-           const r=apply(m);
-           anim=pairsFor(moves.length-1,false);
-           if(S.mode==='ai')updEval();
-           if(r.res)finish(r.res);
-           else if(S.mode==='ai'&&ai){if(r.ck)say('check');else if(Math.random()<.6)say('move');}
-           save();render();
-           if(!r.res&&S.mode==='ai'&&!ai)aiMove();
-          }
-          function humanMove(m){
-           if(S.mode==='ai'){
-            const an=analyze(turn);let bs=-1e9,ms=null;
-            for(const x of an){if(x.s>bs)bs=x.s;if(sameMove(x.m,m))ms=x.s;}
-            if(ms===null)ms=bs;
-            const loss=Math.min(bs-ms,3000);
-            if(loss<=25)cmt={t:'✅ ভালো চাল',c:'g1'};
-            else if(loss<=90)cmt={t:'👌 ঠিকঠাক',c:'g2'};
-            else if(loss<=280)cmt={t:'❓ ভুল',c:'g3'};
-            else cmt={t:'❌ বিশাল ভুল',c:'g4'};
-            if(loss>90)say('mistake');else if(loss<=25&&Math.random()<.4)say('good');
-           }
-           play(m,false);
-          }
-          function aiMove(){
-           if(over||rep>=0||busy)return;
-           busy=true;const g=GID;
-           $('st').textContent=stTxt();$('bUndo').disabled=true;$('bHint').disabled=true;
-           setTimeout(()=>{
-            if(g!==GID)return;
-            const ls=legal(turn);let m=null;
-            if(ls.length){
-             if(S.lv===1&&Math.random()<.3)m=ls[Math.floor(Math.random()*ls.length)];
-             else{const r=best(turn,S.lv,S.lv>=4?6000:S.lv===3?3500:2500);m=r&&r.m;}
-            }
-            busy=false;
-            if(m)play(m,true);else render();
-           },320);
-          }
-          function hint(){
-           if(S.mode!=='ai'||over||busy||rep>=0||turn!==S.hc)return;
-           if(hints>=3){cmt={t:'💡 এই খেলায় হিন্ট শেষ!',c:'g2'};render();return;}
-           const r=best(turn,3,3000);
-           if(r&&r.m){hintMove=r.m;hints++;sel=-1;selMoves=[];save();render();}
-          }
-          function clickSq(s){
-           if(over||rep>=0||busy||!canHuman())return;
-           if(sel>=0){
-            const ms=selMoves.filter(m=>m.t===s);
-            if(ms.length){
-             if(ms[0].pr){promo(ms);return;}
-             humanMove(ms[0]);return;
-            }
-           }
-           if(B[s]*turn>0){sel=s;selMoves=legal(turn).filter(m=>m.f===s);}
-           else{sel=-1;selMoves=[];}
-           render();
-          }
-          function promo(ms){
-           const c=turn===1?'pw':'pb';
-           let h='<h3>বোড়ে উন্নীত করুন</h3><div class="pr">';
-           for(const x of [5,4,3,2])h+='<button onclick="pickPromo('+x+')"><span class="'+c+'">'+GL[x]+'</span></button>';
-           modal(h+'</div>');
-           window._pm=ms;
-          }
-          function pickPromo(x){
-           const m=window._pm.find(y=>y.pr===x);closeMod();
-           if(m)humanMove(m);
-          }
-          function finish(r){
-           over=r;let extra='';
-           if(S.mode==='ai'){
-            if(r.w===S.hc){extra=ach();say('lose');}
-            else if(r.w===0)say('draw');
-            else say('win');
-           }
-           save();
-           setTimeout(()=>showResult(extra),700);
-          }
-          function ach(){
-           let a={};try{a=JSON.parse(localStorage.getItem('daba_ach')||'{}');}catch(e){}
-           const g=[],hm=moves.filter((_,i)=>(i%2===0)===(S.hc===1)).length;
-           if(!a.first){a.first=1;g.push('🥇 প্রথম জয়');}
-           if(!a.queen&&B.some(x=>x===S.hc*5)){a.queen=1;g.push('👑 মন্ত্রী বাঁচানোর ওস্তাদ');}
-           if(!a.ten&&hm<=10){a.ten=1;g.push('⚡ ১০ চালে জয়');}
-           try{localStorage.setItem('daba_ach',JSON.stringify(a));}catch(e){}
-           return g.length?'<div class="nb">🏅 নতুন ব্যাজ পেয়েছেন!<br>'+g.join('<br>')+'</div>':'';
-          }
-          function badges(){
-           let a={};try{a=JSON.parse(localStorage.getItem('daba_ach')||'{}');}catch(e){}
-           const L=[['first','🥇 প্রথম জয়','কম্পিউটারকে প্রথমবার হারান'],['queen','👑 মন্ত্রী বাঁচানোর ওস্তাদ','মন্ত্রী না হারিয়ে জিতুন'],['ten','⚡ ১০ চালে জয়','নিজের ১০ চালের মধ্যে জিতুন']];
-           let h='<h3>🏅 ব্যাজ</h3>';
-           for(const x of L)h+='<p>'+(a[x[0]]?x[1]:'🔒 '+x[1].slice(3))+'<br><span class="sm">'+x[2]+'</span></p>';
-           modal(h+'<button onclick="closeMod()">বন্ধ</button>');
-          }
-          function pgn(){
-           const d=new Date(),ds=d.getFullYear()+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getDate()).padStart(2,'0');
-           const wn=S.mode==='ai'?(S.hc===1?'Human':'Computer'):'Player1',bk=S.mode==='ai'?(S.hc===1?'Computer':'Human'):'Player2';
-           const res=over?(over.w===1?'1-0':over.w===-1?'0-1':'1/2-1/2'):'*';
-           let t='[Event "Daba Guru"]\n[Site "Android"]\n[Date "'+ds+'"]\n[White "'+wn+'"]\n[Black "'+bk+'"]\n[Result "'+res+'"]\n\n';
-           for(let i=0;i<sans.length;i++){if(i%2===0)t+=(i/2+1)+'. ';t+=sans[i]+' ';}
-           return t+res;
-          }
-          function resTxt(){
-           const w=over.w,y=over.why;
-           if(w===0)return '🤝 ড্র — '+y;
-           if(S.mode==='ai')return (w===S.hc?'🎉 আপনি জিতেছেন! — ':'😅 কম্পিউটার জিতেছে — ')+y;
-           return (w===1?'⚪ সাদা':'⚫ কালো')+' জিতেছে 🎉 — '+y;
-          }
-          function stTxt(){
-           if(rvK>=-1)return '📊 খেলার রিভিউ';
-           if(over)return resTxt();
-           if(rep>=0)return '🔁 রিপ্লে মোড';
-           if(busy)return '🤔 ভাবছি...';
-           const ck=inCheck(turn)?' — ⚠️ কিস্তি!':'';
-           if(S.mode==='ai')return (turn===S.hc?'আপনার চাল ('+(turn===1?'সাদা':'কালো')+')':'কম্পিউটারের চাল')+ck;
-           return (turn===1?'⚪ সাদার চাল':'⚫ কালোর চাল')+ck;
-          }
-          function pname(s){
-           if(S.mode==='ai')return (s===S.hc?'👤 আপনি':'🤖 '+D[S.ps].n)+' ('+(s===1?'সাদা':'কালো')+')';
-           return s===1?'⚪ খেলোয়াড় ১ (সাদা)':'⚫ খেলোয়াড় ২ (কালো)';
-          }
-          function fmtT(t){t=Math.max(0,Math.ceil(t));return bn(String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'));}
-          function updClocks(){
-           const f=fl(),topS=f?1:-1,botS=-topS;
-           $('cTop').textContent=fmtT(T[topS===1?0:1]);$('cBot').textContent=fmtT(T[botS===1?0:1]);
-           $('cTop').className='clk'+(!over&&turn===topS?' on':'');
-           $('cBot').className='clk'+(!over&&turn===botS?' on':'');
-          }
-          function render(){
-           const inRv=rvK>=-1&&!!rvC,rvx=inRv&&rvK>=0?rvC.list[rvK]:null,live=rep<0&&!inRv;
-           const idx=rvx?rvx.i:(rep>=0?rep:snaps.length-1),sn=snaps[idx],b=sn.b,f=fl();
-           let chk=-1;if(live&&!over&&inCheck(turn))chk=KS[turn===1?0:1];
-           let h='';
-           for(let i=0;i<8;i++)for(let j=0;j<8;j++){
-            const r=f?7-i:i,c=f?7-j:j,s=r*8+c,p=b[s];
-            let cl='sq '+((r+c)%2?'dk':'lt');
-            if(!rvx&&(s===sn.f||s===sn.t))cl+=' lm';
-            if(rvx){if(s===rvx.pt)cl+=' rv'+rvx.c;if(!rvx.same&&(s===rvx.bf||s===rvx.bt))cl+=' hn';}
-            if(live){
-             if(s===sel)cl+=' sel';
-             const tm=selMoves.find(m=>m.t===s);
-             if(tm)cl+=(p||tm.e)?' tc':' tg';
-             if(hintMove&&(s===hintMove.f||s===hintMove.t))cl+=' hn';
-             if(s===chk)cl+=' chk';
-            }
-            h+='<div class="'+cl+'" data-s="'+s+'"'+(i===7?' data-f="'+FL[c]+'"':'')+(j===0?' data-r="'+(8-r)+'"':'')+'>'+(p?'<span class="pc '+(p>0?'pw':'pb')+(S.mode==='hh'&&p<0?' rot':'')+'">'+GL[Math.abs(p)]+'</span>':'')+'</div>';
-           }
-           $('board').innerHTML=h;
-           if(anim){runAnim(anim);anim=null;}
-           drawOv(rvx,f);
-           const topS=f?1:-1;
-           $('nTop').textContent=pname(topS);$('nBot').textContent=pname(-topS);
-           updClocks();
-           $('st').textContent=stTxt();
-           $('cm').innerHTML=cmt?'<span class="'+cmt.c+'">'+cmt.t+'</span>':'';
-           const pct=50+50*Math.tanh(curEval/500),ew=$('evw');
-           ew.style.height=pct+'%';
-           if(f){ew.style.top='0';ew.style.bottom='';}else{ew.style.bottom='0';ew.style.top='';}
-           const ev=Math.abs(curEval/100);
-           $('evt').textContent=Math.abs(curEval)>=9000?'কিস্তিমাত':(Math.abs(curEval)<15?'⚖️ সমান সমান':(curEval>0?'সাদা':'কালো')+' এগিয়ে (+'+bn(ev.toFixed(1))+')');
-           $('bHint').textContent='💡 হিন্ট ('+bn(3-hints)+')';
-           $('bUndo').disabled=busy||rep>=0||!moves.length;
-           $('bHint').disabled=busy||rep>=0||!!over||S.mode!=='ai'||turn!==S.hc;
-           $('rb').style.display=rep>=0?'flex':'none';
-           $('bt').style.display=inRv?'none':'flex';$('rvp').style.display=inRv?'block':'none';
-           if(inRv)rvUpdate();
-           $('rpi').textContent=bn(rep)+'/'+bn(moves.length);
-           let l='';
-           for(let i=0;i<sans.length;i++){
-            if(i%2===0)l+=bn(i/2+1)+'. ';
-            l+='<span class="'+(rep>0&&i===rep-1?'cur':'')+'">'+sans[i]+'</span> ';
-           }
-           $('ml').innerHTML=l||'<span class="sm">এখনো কোনো চাল হয়নি</span>';
-           if(rep<0)$('ml').scrollTop=$('ml').scrollHeight;
-          }
-
-          const PN=['','বোড়ে','ঘোড়া','গজ','নৌকা','মন্ত্রী','রাজা'];
-          const R=[
-          {intro:{w:['জিতেছ ঠিকই, তবে চলো দেখি কোথায় কোথায় হাত কাঁপল।'],l:['হেরেছ বলে মন খারাপ কোরো না দাদু ভাই, ভুল থেকেই শেখা হয়।'],d:['ড্র হয়েছে। দেখি কোথায় আরও এগোনো যেত।']},
-           best:['বাহ্! {p} একদম সেরা চাল, আমার মতোই ভেবেছ।','{p} চালটাই ঠিক ছিল, বংশের নাম রাখলে।'],
-           good:['{p} ভালোই চাল, প্রায় সেরার কাছাকাছি।'],
-           ok:['{p} চলনসই। তবে {b} দিলে আরও জোরালো হতো।'],
-           bad:['{p} দিয়ে ভুল করলে দাদু ভাই! {b} দিলে অবস্থা ভালো থাকত।'],
-           blun:['আহা! {p} মারাত্মক ভুল! এখানে {b} দেওয়াই ছিল বুদ্ধিমানের কাজ।'],
-           tail:['একটাও বড় ভুল নেই! তোমার দাদু গর্বিত।'],
-           worst:'সবচেয়ে বড় ভুলটা ছিল {n} নম্বর চালে —'},
-          {intro:{w:['জিতে গেলি! তবে চল দেখি কোথায় ফাঁকি দিয়েছিস 😏'],l:['হেরে গেলি দোস্ত! চল দেখি ভুলটা কোথায় করলি 😜'],d:['ড্র! চল দেখি কে কোথায় ফসকাল।']},
-           best:['কেয়া বাত! {p} একদম সেরা চাল! 🔥','{p} দিয়ে তো আমার মাথা ঘুরিয়ে দিলি!'],
-           good:['{p} ভালো চাল দোস্ত, ফাটাফাটি না হলেও চলে।'],
-           ok:['{p} চলে, কিন্তু {b} দিলে আরও জমত।'],
-           bad:['এই {p} কী করলি রে! {b} দিলে তো ভালো হতো 😅'],
-           blun:['হায় হায়! {p} দিয়ে নিজের পায়েই কুড়াল মারলি! {b} দিতে পারতি 🤦'],
-           tail:['প্রায় নিখুঁত খেলেছিস, রিম্যাচ দিতেই হবে!'],
-           worst:'সবচেয়ে বড় গণ্ডগোলটা হয়েছিল {n} নম্বর চালে —'},
-          {intro:{w:['জ্জ্জ... মিউ, জিতেছ... এবার দেখি কোথায় ঘুমিয়ে পড়েছিলে...'],l:['মিউ... হেরেছ, তবে চিন্তা নেই, ভুলগুলো দেখি...'],d:['মিউ... ড্র... চলো দেখি কোথায় ফসকে গেল...']},
-           best:['মিউ! {p} একদম আরামদায়ক সেরা চাল, গরগর...','{p}... মিউ, আমার চেয়েও ভালো ভেবেছ।'],
-           good:['মিউ, {p} ভালো... একটু দুধ পাওনা।'],
-           ok:['{p} ঠিকঠাক... {b} হলে আরও আরাম হতো, মিউ।'],
-           bad:['মিউ?! {p} ভুল... {b} দিলে মাছ পেতে।'],
-           blun:['মিউউউ!! {p} বিশাল ভুল! {b} দিলে ইঁদুরও খুশি হতো।'],
-           tail:['মিউ... কোনো বড় ভুল নেই... আমি ঘুমাতে গেলাম।'],
-           worst:'সবচেয়ে বড় ভুলটা ছিল {n} নম্বর চালে... মিউ —'},
-          {intro:{w:['খেলার বিশ্লেষণ:'],l:['খেলার বিশ্লেষণ:'],d:['খেলার বিশ্লেষণ:']},
-           best:['{p} — সেরা চাল।'],good:['{p} — ভালো চাল।'],
-           ok:['{p} — ঠিকঠাক। {b} আরও ভালো হতো।'],
-           bad:['{p} — ভুল। {b} খেলা উচিত ছিল।'],
-           blun:['{p} — বিশাল ভুল! {b} খেলা উচিত ছিল।'],
-           tail:['কোনো বড় ভুল হয়নি।'],
-           worst:'সবচেয়ে বড় ভুল ছিল {n} নম্বর চালে —'}
-          ];
-          function startReview(){
-           if(busy||rvK>=-1)return;
-           if(!over||!moves.length){cmt={t:'📊 রিভিউ দেখতে আগে খেলা শেষ করুন',c:'g2'};render();return;}
-           rep=-1;
-           if(rvC&&rvC.gid===GID&&rvC.n===moves.length){rvK=-1;render();return;}
-           modal('<h3>📊 বিশ্লেষণ চলছে...</h3><p class="sm" id="rvprog">একটু অপেক্ষা করুন</p>');
-           const g=GID,sv={b:B.slice(),cr:CR,ep:EP,h:HALF,ks:KS.slice()},ML=moves.slice(),SN=sans.slice(),list=[];
-           setup();let sd=1,i=0;
-           const done=()=>{B=sv.b;CR=sv.cr;EP=sv.ep;HALF=sv.h;KS=sv.ks;};
-           const stp=()=>{
-            if(i>=ML.length){done();finRv(list,g);return;}
-            const ls=legal(sd),m=ls.find(x=>x.f===ML[i][0]&&x.t===ML[i][1]&&(x.pr||0)===(ML[i][2]||0));
-            if(!m){done();finRv(list,g);return;}
-            if(S.mode==='hh'||sd===S.hc){
-             const an=analyze(sd);let bs=-1e9,bm=null,ps=null;
-             for(const x of an){if(x.s>bs){bs=x.s;bm=x.m;}if(sameMove(x.m,m))ps=x.s;}
-             if(ps===null)ps=bs;
-             const b2=ls.find(x=>sameMove(x,bm))||m,same=sameMove(b2,m);
-             let why='';
-             if(!same){
-              const u=make(b2),gc=inCheck(-sd);unmake(b2,u);
-              if(bs>90000)why='কিস্তিমাত করা যেত!';
-              else if(b2.c)why=PN[Math.abs(b2.c)]+' ধরা যেত';
-              else if(gc)why='কিস্তি দিয়ে চাপ বাড়ানো যেত';
-              else if(b2.pr)why='বোড়ে উন্নীত করা যেত';
-              else if(b2.cs)why='castling করে রাজাকে নিরাপদ করা যেত';
-             }
-             const loss=Math.min(bs-ps,3000);
-             list.push({i:i,side:sd,p:SN[i],b:san(b2,ls),bf:b2.f,bt:b2.t,pf:m.f,pt:m.t,loss:loss,same:same,why:why,c:(same||loss<=25)?1:loss<=90?2:loss<=280?3:4});
-            }
-            make(m);sd=-sd;i++;
-            const e=$('rvprog');if(e)e.textContent=bn(i)+' / '+bn(ML.length);
-            setTimeout(stp,12);
-           };
-           setTimeout(stp,80);
-          }
-          function finRv(list,g){
-           if(g!==GID){closeMod();return;}
-           const cnt=[0,0,0,0,0];let w=null;
-           for(const x of list){cnt[x.c]++;if(x.c>=3&&(!w||x.loss>w.loss))w=x;}
-           rvC={gid:g,n:moves.length,list:list,cnt:cnt,worst:w};
-           closeMod();rvK=-1;render();
-          }
-          function rvGo(d){if(rvK<-1||!rvC)return;rvK=Math.max(-1,Math.min(rvC.list.length-1,rvK+d));render();}
-          function rvTo(k){rvK=k;render();}
-          function endReview(){rvK=-2;render();}
-          function rvUpdate(){
-           const ai=S.mode==='ai',P=ai?R[S.ps]:R[3],av=ai?D[S.ps].a:'🧐',nm=ai?D[S.ps].n:'বিশ্লেষক',L=rvC.list;
-           const mn=x=>bn(Math.floor(x.i/2)+1)+(x.i%2?'... ':'. ')+x.p;
-           let h,t;
-           if(rvK<0){
-            const c=rvC.cnt,rs=over.w===0?'d':(ai?(over.w===S.hc?'w':'l'):'w'),w=rvC.worst;
-            h='📊 খেলার সারাংশ';
-            t=P.intro[rs][0]+'<br>✅ ভালো '+bn(c[1])+' • 👌 ঠিকঠাক '+bn(c[2])+' • ❓ ভুল '+bn(c[3])+' • ❌ বিশাল ভুল '+bn(c[4]);
-            t+='<br>'+(w?P.worst.replace('{n}',bn(Math.floor(w.i/2)+1))+' <b>'+w.p+'</b> না দিয়ে <b>'+w.b+'</b> দিলে ভালো হতো।':P.tail[0]);
-            t+='<br><span class="sm">নীল তীর = সেরা চাল, রঙিন তীর = খেলা চাল। নিচ থেকে চাল বেছে দেখুন।</span>';
-           }else{
-            const x=L[rvK],A=P[x.same?'best':['','good','ok','bad','blun'][x.c]];
-            h=mn(x)+' '+['','✅','👌','❓','❌'][x.c]+(ai?'':(x.side===1?' (সাদা)':' (কালো)'));
-            t=A[x.i%A.length].replace(/\{p\}/g,'<b>'+x.p+'</b>').replace(/\{b\}/g,'<b>'+x.b+'</b>');
-            if(!x.same&&x.c>=2&&x.why)t+=' ('+x.why+')';
-            if(x.c>=3)t+=' <span class="sm">[ক্ষতি ≈ '+bn((x.loss/100).toFixed(1))+' বোড়ার সমান]</span>';
-           }
-           $('rvh').textContent=h;
-           $('rvt').innerHTML='<b>'+av+' '+nm+':</b> '+t;
-           $('rvi').textContent=rvK<0?'সারাংশ':bn(rvK+1)+'/'+bn(L.length);
-           let s='<button class="chip'+(rvK<0?' on':'')+'" onclick="rvTo(-1)">📊</button>';
-           L.forEach((x,k)=>{s+='<button class="chip c'+x.c+(k===rvK?' on':'')+'" onclick="rvTo('+k+')">'+mn(x).replace('... ','…')+'</button>';});
-           $('rvl').innerHTML=s;
-          }
-          function drawOv(x,f){
-           const o=$('ov');
-           if(!x){o.innerHTML='';return;}
-           const pos=q=>{const r=q>>3,c=q&7;return [(f?7-c:c)+.5,(f?7-r:r)+.5];};
-           const ar=(a,b,cl,w)=>{
-            const p=pos(a),q=pos(b),dx=q[0]-p[0],dy=q[1]-p[1],L=Math.hypot(dx,dy),ux=dx/L,uy=dy/L,hl=.34,hw=.22,ex=q[0]-ux*hl,ey=q[1]-uy*hl;
-            return '<line x1="'+p[0]+'" y1="'+p[1]+'" x2="'+ex+'" y2="'+ey+'" stroke="'+cl+'" stroke-width="'+w+'" stroke-linecap="round" opacity=".85"/><polygon points="'+q[0]+','+q[1]+' '+(ex-uy*hw)+','+(ey+ux*hw)+' '+(ex+uy*hw)+','+(ey-ux*hw)+'" fill="'+cl+'" opacity=".85"/>';
-           };
-           const col=['','#2e7d32','#757575','#ef6c00','#c62828'][x.c];
-           let h='';
-           if(!x.same)h+=ar(x.bf,x.bt,'#1e88e5',.16);
-           h+=ar(x.pf,x.pt,col,.12);
-           const q=pos(x.pt),sym=x.same?'★':['','✓','~','?','??'][x.c];
-           h+='<circle cx="'+(q[0]+.3)+'" cy="'+(q[1]-.3)+'" r=".24" fill="'+(x.same?'#f9a825':col)+'"/><text x="'+(q[0]+.3)+'" y="'+(q[1]-.2)+'" font-size=".3" font-weight="bold" fill="#fff" text-anchor="middle">'+sym+'</text>';
-           o.innerHTML=h;
-          }
-          function startReplay(){if(busy||rvK>=-1)return;if(!moves.length){cmt={t:'এখনো কোনো চাল নেই',c:'g2'};render();return;}rep=moves.length;render();}
-          function pairsFor(i,rev){
-           const m=moves[i],f=m[0],t=m[1],b=snaps[i+1].b;
-           const p=[[f,t]];
-           if(Math.abs(b[t])===6&&Math.abs(t-f)===2)p.push(t>f?[f+3,f+1]:[f-4,f-1]);
-           return rev?p.map(x=>[x[1],x[0]]):p;
-          }
-          function runAnim(list){
-           const bd=$('board');
-           for(const a of list){
-            const e1=bd.querySelector('[data-s="'+a[0]+'"]'),e2=bd.querySelector('[data-s="'+a[1]+'"]');
-            const pc=e2&&e2.querySelector('.pc');
-            if(!e1||!pc)continue;
-            const r1=e1.getBoundingClientRect(),r2=e2.getBoundingClientRect();
-            const base=pc.classList.contains('rot')?' rotate(180deg)':'';
-            pc.style.transition='none';
-            pc.style.zIndex=9;
-            pc.style.transform='translate('+(r1.left-r2.left)+'px,'+(r1.top-r2.top)+'px)'+base;
-            pc.getBoundingClientRect();
-            pc.style.transition='transform .25s ease-out';
-            pc.style.transform=base||'none';
-           }
-          }
-          function rp(d){
-           if(rep<0)return;
-           const o=rep;rep=Math.max(0,Math.min(moves.length,rep+d));
-           if(rep-o===1)anim=pairsFor(o,false);else if(rep-o===-1)anim=pairsFor(rep,true);
-           render();
-          }
-          function endReplay(){rep=-1;lastTick=Date.now();render();}
-          function undo(){
-           if(busy||rep>=0||!moves.length||S.mode==='hh')return;
-           let k=(S.mode==='ai'&&turn===S.hc)?2:1;k=Math.min(k,moves.length);
-           const n=moves.length-k;
-           rebuild(moves.slice(0,n),tms.slice(0,n+1),tms[n]);
-           save();render();
-           if(S.mode==='ai'&&turn!==S.hc)aiMove();
-          }
-          function rebuild(list,tl,T0){
-           GID++;busy=false;setup();turn=1;moves=[];sans=[];snaps=[{b:B.slice(),f:-1,t:-1}];tms=[tl[0].slice()];keys=[key()];over=null;rvC=null;rvK=-2;rep=-1;sel=-1;selMoves=[];hintMove=null;cmt=null;
-           for(let i=0;i<list.length;i++){
-            const f=list[i][0],t=list[i][1],pr=list[i][2]||0;
-            const m=legal(turn).find(x=>x.f===f&&x.t===t&&(x.pr||0)===pr);
-            if(!m)break;
-            T=tl[i+1]?tl[i+1].slice():[T[0],T[1]];
-            apply(m);
-           }
-           T=T0.slice();
-           if(S.mode==='ai')updEval();else curEval=0;
-          }
-          function newGame(){
-           GID++;
-           S.hc=S.mode==='ai'?(Math.random()<.5?1:-1):1;
-           setup();turn=1;moves=[];sans=[];snaps=[{b:B.slice(),f:-1,t:-1}];T=[S.tc,S.tc];tms=[[S.tc,S.tc]];keys=[key()];
-           over=null;rvC=null;rvK=-2;hints=0;busy=false;rep=-1;sel=-1;selMoves=[];hintMove=null;cmt=null;curEval=0;started=true;lastTick=Date.now();
-           document.body.classList.toggle('hh',S.mode==='hh');
-           save();render();say('start');
-           if(S.mode==='ai'&&S.hc===-1)aiMove();
-          }
-          function save(){
-           try{localStorage.setItem('daba_game',JSON.stringify({S:S,m:moves,tm:tms,T:T,h:hints,o:over}));}catch(e){}
-          }
-          function load(){
-           try{
-            const d=JSON.parse(localStorage.getItem('daba_game')||'null');
-            if(!d||!d.m||!d.tm)return false;
-            S=Object.assign(S,d.S);
-            document.body.classList.toggle('hh',S.mode==='hh');
-            rebuild(d.m,d.tm,d.T);
-            hints=d.h||0;if(d.o)over=d.o;
-            started=true;return true;
-           }catch(e){return false;}
-          }
-          function modal(h){$('mod').innerHTML='<div class="bx">'+h+'</div>';$('mod').style.display='flex';}
-          function closeMod(){$('mod').style.display='none';}
-          function openNew(cc){
-           modal('<h3>🆕 নতুন খেলা</h3><label>খেলার ধরন</label><select id="mMode" onchange="mm()"><option value="ai">🤖 কম্পিউটারের সাথে</option><option value="hh">👥 বন্ধুর সাথে (একই ফোনে)</option></select>'+
-           '<div id="aiOpt"><label>কঠিনতা</label><select id="mLv"><option value="1">শিশু</option><option value="2">সহজ</option><option value="3">মাঝারি</option><option value="4">কঠিন</option></select>'+
-           '<label>রোবটের চরিত্র</label><select id="mPs"><option value="0">👴 গম্ভীর দাদু</option><option value="1">😜 ফাজিল বন্ধু</option><option value="2">😺 ঘুমকাতুরে বিড়াল</option></select></div>'+
-           '<label>প্রত্যেকের সময়</label><select id="mTc"><option value="300">৫ মিনিট</option><option value="600">১০ মিনিট</option><option value="900">১৫ মিনিট</option></select>'+
-           '<p class="sm" id="mNote"></p><button onclick="startNew()">▶ খেলা শুরু</button>'+(cc?'<button onclick="closeMod()">বাতিল</button>':''));
-           $('mMode').value=S.mode;$('mLv').value=S.lv;$('mPs').value=S.ps;$('mTc').value=S.tc;mm();
-          }
-          function mm(){
-           const ai=$('mMode').value==='ai';
-           $('aiOpt').style.display=ai?'block':'none';
-           $('mNote').textContent=ai?'সাদা না কালো — সেটা এলোমেলোভাবে ঠিক হবে।':'দুজন একই ফোনে খেলবেন। ওপরের খেলোয়াড়ের ঘুঁটি উল্টো দেখাবে। কোনো সাহায্য থাকবে না, শুধু ঘড়ি।';
-          }
-          function startNew(){
-           S.mode=$('mMode').value;S.lv=+$('mLv').value;S.ps=+$('mPs').value;S.tc=+$('mTc').value;
-           try{localStorage.setItem('daba_set',JSON.stringify(S));}catch(e){}
-           closeMod();newGame();
-          }
-          function showResult(extra){
-           if(!over)return;
-           modal('<h3>'+resTxt()+'</h3>'+(extra||'')+'<p class="sm">চালের তালিকা (PGN):</p><textarea id="pg" readonly>'+pgn()+'</textarea><button onclick="cp()">📋 কপি</button><button onclick="closeMod();startReview()">📊 রিভিউ</button><button onclick="closeMod();startReplay()">🔁 রিপ্লে</button><button onclick="openNew(true)">🆕 নতুন খেলা</button><button onclick="closeMod()">বন্ধ</button><p class="sm" id="cpm"></p>');
-          }
-          function showPgn(){
-           modal('<h3>📜 চালের তালিকা (PGN)</h3><textarea id="pg" readonly>'+pgn()+'</textarea><button onclick="cp()">📋 কপি</button><button onclick="closeMod()">বন্ধ</button><p class="sm" id="cpm"></p>');
-          }
-          function cp(){
-           const t=$('pg');t.select();
-           let ok=false;try{ok=document.execCommand('copy');}catch(e){}
-           $('cpm').textContent=ok?'কপি হয়েছে ✔':'লেখাটি চেপে ধরে কপি করুন';
-          }
-          function about(){
-           modal('<div style="text-align:center"><div class="logo" style="margin:0 auto 8px;width:64px;height:64px;font-size:44px">♚</div><h3>দাবা গুরু</h3><p class="sm">বাংলায় দাবা খেলার অ্যাপ</p></div><p><b>নির্মাতা (Creator):</b><br>Mohammod Abdul Awal</p><p><b>Student:</b><br>Department of English,<br>National University</p><p><b>Mail:</b><br><a href="mailto:awal.sorkar.144@gmail.com">awal.sorkar.144@gmail.com</a></p><button onclick="closeMod()">বন্ধ</button>');
-          }
-          function toggleDark(){
-           const d=document.body.classList.toggle('dark');
-           try{localStorage.setItem('daba_dark',d?'1':'0');}catch(e){}
-          }
-          function fit(){
-           const w=Math.floor(Math.min(innerWidth-56,innerHeight*0.56,480));
-           $('board').style.width=w+'px';$('board').style.height=w+'px';$('ev').style.height=w+'px';
-           document.documentElement.style.setProperty('--sz',(w/8*0.8)+'px');
-          }
-          setInterval(()=>{
-           const now=Date.now(),dt=Math.min((now-lastTick)/1000,1);lastTick=now;
-           if(!started||over||rep>=0)return;
-           const i=turn===1?0:1;
-           T[i]-=dt;
-           if(T[i]<=0){T[i]=0;updClocks();finish({w:-turn,why:'সময় শেষ'});render();return;}
-           updClocks();
-           if(++sv%20===0)save();
-          },250);
-          window.addEventListener('resize',fit);
-          window.onload=()=>{
-           $('board').onclick=e=>{const el=e.target.closest('.sq');if(el)clickSq(+el.dataset.s);};
-           try{
-            if(localStorage.getItem('daba_dark')==='1')document.body.classList.add('dark');
-            const s=JSON.parse(localStorage.getItem('daba_set')||'null');if(s)S=Object.assign(S,s);
-           }catch(e){}
-           setup();snaps=[{b:B.slice(),f:-1,t:-1}];
-           fit();
-           if(load()){render();if(S.mode==='ai'&&!over&&turn!==S.hc)aiMove();}
-           else{render();openNew(false);}
-           lastTick=Date.now();
-          };
-          </script></body></html>
-          EOF
-
-      - name: Create Gradle wrapper
-        run: |
-          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
           cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
@@ -1053,19 +75,921 @@ jobs:
           zipStoreBase=GRADLE_USER_HOME
           zipStorePath=wrapper/dists
           EOF
+
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.awal.tenparts'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.awal.tenparts"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          tasks.withType(JavaCompile).configureEach {
+              options.encoding = 'UTF-8'
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission
+                  android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+                  android:maxSdkVersion="28" />
+
+              <application
+                  android:allowBackup="false"
+                  android:icon="@drawable/ic_launcher"
+                  android:label="@string/app_name"
+                  android:theme="@style/AppTheme"
+                  android:usesCleartextTraffic="true">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:configChanges="orientation|screenSize|keyboardHidden"
+                      android:exported="true"
+                      android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.intent.action.SEND" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <data android:mimeType="text/plain" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">TenParts Downloader</string>
+              <string name="subtitle">প্রতিটি ফাইল ১০ টুকরায়, ১০ থ্রেডে</string>
+              <string name="hint_urls">এক বা একাধিক লিংক দিন (প্রতি লাইনে একটা)</string>
+              <string name="btn_add">ডাউনলোড শুরু করুন</string>
+              <string name="about">Creator: Mohammod Abdul Awal\nStudent: Department of English, National University\nMail: awal.sorkar.144@gmail.com</string>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/values/styles.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+                  <item name="android:colorPrimary">#1565C0</item>
+                  <item name="android:colorPrimaryDark">#0D47A1</item>
+                  <item name="android:colorAccent">#1565C0</item>
+                  <item name="android:statusBarColor">#0D47A1</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="96dp"
+              android:height="96dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path
+                  android:fillColor="#1565C0"
+                  android:pathData="M54,54m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0" />
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M46,20 L62,20 L62,44 L76,44 L54,68 L32,44 L46,44 Z" />
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M24,76 h16 v8 h-16 z M46,76 h16 v8 h-16 z M68,76 h16 v8 h-16 z" />
+          </vector>
+          EOF
+
+          cat > app/src/main/res/drawable/btn_bg.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#1565C0" />
+              <corners android:radius="10dp" />
+          </shape>
+          EOF
+
+          cat > app/src/main/res/drawable/btn_small_bg.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#E3F2FD" />
+              <stroke android:width="1dp" android:color="#1565C0" />
+              <corners android:radius="8dp" />
+          </shape>
+          EOF
+
+          cat > app/src/main/res/drawable/card_bg.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#FFFFFF" />
+              <stroke android:width="1dp" android:color="#D0D7E2" />
+              <corners android:radius="12dp" />
+          </shape>
+          EOF
+
+          cat > app/src/main/res/drawable/input_bg.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#FFFFFF" />
+              <stroke android:width="1dp" android:color="#90A4AE" />
+              <corners android:radius="10dp" />
+          </shape>
+          EOF
+
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="#F2F5FA"
+              android:orientation="vertical">
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:background="#FFFFFF"
+                  android:elevation="4dp"
+                  android:gravity="center_vertical"
+                  android:orientation="horizontal"
+                  android:padding="12dp">
+
+                  <ImageView
+                      android:layout_width="48dp"
+                      android:layout_height="48dp"
+                      android:contentDescription="logo"
+                      android:src="@drawable/ic_launcher" />
+
+                  <LinearLayout
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_marginLeft="12dp"
+                      android:layout_weight="1"
+                      android:orientation="vertical">
+
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="@string/app_name"
+                          android:textColor="#0D47A1"
+                          android:textSize="20sp"
+                          android:textStyle="bold" />
+
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="@string/subtitle"
+                          android:textColor="#546E7A"
+                          android:textSize="12sp" />
+                  </LinearLayout>
+              </LinearLayout>
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="vertical"
+                  android:padding="12dp">
+
+                  <EditText
+                      android:id="@+id/etUrls"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:background="@drawable/input_bg"
+                      android:gravity="top"
+                      android:hint="@string/hint_urls"
+                      android:inputType="textMultiLine"
+                      android:maxLines="5"
+                      android:minLines="2"
+                      android:padding="10dp"
+                      android:textSize="14sp" />
+
+                  <Button
+                      android:id="@+id/btnAdd"
+                      android:layout_width="match_parent"
+                      android:layout_height="48dp"
+                      android:layout_marginTop="8dp"
+                      android:background="@drawable/btn_bg"
+                      android:text="@string/btn_add"
+                      android:textColor="#FFFFFF"
+                      android:textStyle="bold" />
+              </LinearLayout>
+
+              <ListView
+                  android:id="@+id/lvTasks"
+                  android:layout_width="match_parent"
+                  android:layout_height="0dp"
+                  android:layout_weight="1"
+                  android:clipToPadding="false"
+                  android:divider="@android:color/transparent"
+                  android:dividerHeight="0dp"
+                  android:paddingLeft="12dp"
+                  android:paddingRight="12dp" />
+
+              <TextView
+                  android:id="@+id/tvAbout"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:background="#FFFFFF"
+                  android:gravity="center"
+                  android:padding="8dp"
+                  android:text="@string/about"
+                  android:textColor="#607D8B"
+                  android:textSize="11sp" />
+          </LinearLayout>
+          EOF
+
+          cat > app/src/main/res/layout/item_download.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:paddingBottom="8dp">
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:background="@drawable/card_bg"
+                  android:orientation="vertical"
+                  android:padding="12dp">
+
+                  <TextView
+                      android:id="@+id/tvName"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:ellipsize="middle"
+                      android:singleLine="true"
+                      android:textColor="#0D1B2A"
+                      android:textSize="15sp"
+                      android:textStyle="bold" />
+
+                  <ProgressBar
+                      android:id="@+id/pb"
+                      style="?android:attr/progressBarStyleHorizontal"
+                      android:layout_width="match_parent"
+                      android:layout_height="8dp"
+                      android:layout_marginTop="8dp"
+                      android:max="100" />
+
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="6dp"
+                      android:gravity="center_vertical"
+                      android:orientation="horizontal">
+
+                      <TextView
+                          android:id="@+id/tvStatus"
+                          android:layout_width="0dp"
+                          android:layout_height="wrap_content"
+                          android:layout_weight="1"
+                          android:textColor="#455A64"
+                          android:textSize="12sp" />
+
+                      <Button
+                          android:id="@+id/btnAction"
+                          android:layout_width="wrap_content"
+                          android:layout_height="36dp"
+                          android:layout_marginLeft="8dp"
+                          android:background="@drawable/btn_small_bg"
+                          android:minWidth="72dp"
+                          android:textColor="#1565C0"
+                          android:textSize="12sp" />
+                  </LinearLayout>
+              </LinearLayout>
+          </FrameLayout>
+          EOF
+
+          cat > app/src/main/java/com/awal/tenparts/DownloadTask.java << 'EOF'
+          package com.awal.tenparts;
+
+          import android.content.ContentValues;
+          import android.content.Context;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Environment;
+          import android.provider.MediaStore;
+
+          import java.io.File;
+          import java.io.FileInputStream;
+          import java.io.FileOutputStream;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.net.URLDecoder;
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.concurrent.ExecutionException;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+          import java.util.concurrent.Future;
+          import java.util.concurrent.atomic.AtomicInteger;
+          import java.util.concurrent.atomic.AtomicLong;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
+
+          public class DownloadTask {
+              public static final int PARTS = 10;
+              public static final int QUEUED = 0, CONNECTING = 1, DOWNLOADING = 2, MERGING = 3,
+                      DONE = 4, FAILED = 5, CANCELED = 6;
+
+              // একসাথে সর্বোচ্চ ৩টা ফাইল চলবে, বাকিগুলো লাইনে দাঁড়াবে
+              private static final ExecutorService FILES = Executors.newFixedThreadPool(3);
+              // টুকরা-থ্রেডগুলো এখানে চলবে
+              private static final ExecutorService SEGMENTS = Executors.newCachedThreadPool();
+              private static final AtomicInteger IDS = new AtomicInteger(1);
+
+              public final int id = IDS.getAndIncrement();
+              public final String url;
+              public volatile String name = "লিংক পরীক্ষা হচ্ছে...";
+              public volatile long total = -1;
+              public final AtomicLong downloaded = new AtomicLong(0);
+              public final AtomicInteger partsDone = new AtomicInteger(0);
+              public volatile int totalParts = PARTS;
+              public volatile int state = QUEUED;
+              public volatile String error = "";
+              public volatile String savedTo = "";
+              public volatile long speed = 0;
+
+              private volatile boolean cancelled = false;
+              private volatile boolean abort = false;
+              private volatile boolean rangeOk = false;
+              private volatile String resolved;
+              private long lastBytes = 0;
+              private final Context ctx;
+              private File dir;
+
+              public DownloadTask(Context context, String url) {
+                  this.ctx = context.getApplicationContext();
+                  this.url = url;
+                  this.resolved = url;
+              }
+
+              public void start() {
+                  FILES.execute(this::run);
+              }
+
+              public void cancel() {
+                  cancelled = true;
+                  state = CANCELED;
+              }
+
+              public void retry() {
+                  if (state != FAILED) return;
+                  cancelled = false;
+                  abort = false;
+                  error = "";
+                  state = QUEUED;
+                  FILES.execute(this::run);
+              }
+
+              public void tick(long ms) {
+                  long d = downloaded.get();
+                  long s = (d - lastBytes) * 1000 / ms;
+                  speed = s < 0 ? 0 : s;
+                  lastBytes = d;
+              }
+
+              private boolean stopped() {
+                  return cancelled || abort;
+              }
+
+              private void set(int s) {
+                  if (!cancelled) state = s;
+              }
+
+              private void run() {
+                  try {
+                      set(CONNECTING);
+                      probe();
+                      if (cancelled) {
+                          cleanup();
+                          return;
+                      }
+                      File base = ctx.getExternalFilesDir(null);
+                      if (base == null) base = ctx.getFilesDir();
+                      dir = new File(base, "parts_" + id);
+                      if (!dir.exists() && !dir.mkdirs()) throw new IOException("টেম্প ফোল্ডার তৈরি করা যায়নি");
+
+                      final boolean ranged = rangeOk;
+                      final int n = (ranged && total >= PARTS * 1024L) ? PARTS : 1;
+                      totalParts = n;
+                      final long size = ranged ? total / n : 0;
+                      File[] parts = new File[n];
+                      long have = 0;
+                      for (int i = 0; i < n; i++) {
+                          parts[i] = new File(dir, "part" + i);
+                          if (parts[i].exists()) have += parts[i].length();
+                      }
+                      downloaded.set(have);
+                      lastBytes = have;
+                      partsDone.set(0);
+                      set(DOWNLOADING);
+
+                      List<Future<?>> fs = new ArrayList<>();
+                      for (int i = 0; i < n; i++) {
+                          final File pf = parts[i];
+                          final long s = ranged ? i * size : 0;
+                          final long e = ranged ? (i == n - 1 ? total - 1 : s + size - 1) : -1;
+                          fs.add(SEGMENTS.submit(() -> {
+                              downloadPart(pf, s, e, ranged);
+                              if (!stopped()) partsDone.incrementAndGet();
+                              return null;
+                          }));
+                      }
+
+                      try {
+                          for (Future<?> f : fs) f.get();
+                      } catch (ExecutionException ex) {
+                          abort = true;
+                          for (Future<?> f : fs) {
+                              try { f.get(); } catch (Exception ignore) { }
+                          }
+                          Throwable c = ex.getCause();
+                          throw (c instanceof Exception) ? (Exception) c : ex;
+                      }
+
+                      if (cancelled) {
+                          cleanup();
+                          return;
+                      }
+
+                      long sum = 0;
+                      for (File p : parts) sum += p.exists() ? p.length() : 0;
+                      if (total > 0 && sum != total) throw new IOException("ফাইল অসম্পূর্ণ (" + sum + "/" + total + ")");
+
+                      set(MERGING);
+                      merge(parts);
+                      cleanup();
+                      set(DONE);
+                  } catch (Exception e) {
+                      if (cancelled) {
+                          cleanup();
+                      } else {
+                          String m = e.getMessage();
+                          error = (m == null || m.isEmpty()) ? e.getClass().getSimpleName() : m;
+                          state = FAILED;
+                      }
+                  }
+              }
+
+              // ---------- সার্ভার পরীক্ষা: সাইজ আর Range সাপোর্ট আছে কিনা ----------
+              private void probe() throws IOException {
+                  HttpURLConnection c = open(url, 0, 0);
+                  try {
+                      resolved = c.getURL().toString();
+                      int code = c.getResponseCode();
+                      String cd = c.getHeaderField("Content-Disposition");
+                      if (code == 206) {
+                          long t = -1;
+                          String cr = c.getHeaderField("Content-Range");
+                          if (cr != null && cr.contains("/")) {
+                              try {
+                                  t = Long.parseLong(cr.substring(cr.lastIndexOf('/') + 1).trim());
+                              } catch (NumberFormatException ignore) { }
+                          }
+                          total = t;
+                          rangeOk = t > 0;
+                      } else if (code == 200) {
+                          total = c.getContentLengthLong();
+                          rangeOk = false;
+                      } else if (code == 416) {
+                          total = 0;
+                          rangeOk = false;
+                      } else {
+                          throw new IOException("সার্ভার থেকে HTTP " + code + " এসেছে");
+                      }
+                      name = pickName(cd, resolved);
+                  } finally {
+                      c.disconnect();
+                  }
+              }
+
+              private String pickName(String cd, String u) {
+                  String n = null;
+                  if (cd != null) {
+                      Matcher m = Pattern.compile("filename\\*?=(?:UTF-8'')?\"?([^\";]+)\"?",
+                              Pattern.CASE_INSENSITIVE).matcher(cd);
+                      if (m.find()) n = m.group(1).trim();
+                  }
+                  if (n == null) {
+                      try {
+                          String p = new URL(u).getPath();
+                          n = p.substring(p.lastIndexOf('/') + 1);
+                      } catch (Exception ignore) { }
+                  }
+                  if (n != null) {
+                      try { n = URLDecoder.decode(n, "UTF-8"); } catch (Exception ignore) { }
+                  }
+                  if (n == null || n.trim().isEmpty()) n = "download_" + System.currentTimeMillis();
+                  n = n.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+                  return n;
+              }
+
+              // ---------- redirect নিজে ফলো করে কানেকশন খোলা ----------
+              private HttpURLConnection open(String u, long from, long to) throws IOException {
+                  for (int i = 0; i < 8; i++) {
+                      HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
+                      c.setInstanceFollowRedirects(false);
+                      c.setConnectTimeout(15000);
+                      c.setReadTimeout(20000);
+                      c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) TenPartsDM/1.0");
+                      c.setRequestProperty("Accept-Encoding", "identity");
+                      if (from >= 0) {
+                          c.setRequestProperty("Range", "bytes=" + from + "-" + (to >= 0 ? String.valueOf(to) : ""));
+                      }
+                      int code = c.getResponseCode();
+                      if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
+                          String loc = c.getHeaderField("Location");
+                          c.disconnect();
+                          if (loc == null) throw new IOException("Redirect এর Location নেই");
+                          u = new URL(new URL(u), loc).toString();
+                          continue;
+                      }
+                      return c;
+                  }
+                  throw new IOException("অনেক বেশি redirect");
+              }
+
+              // ---------- একটা টুকরা ডাউনলোড (ব্যর্থ হলে ৫ বার পর্যন্ত, যেখানে থেমেছিল সেখান থেকে) ----------
+              private void downloadPart(File f, long start, long end, boolean ranged) throws Exception {
+                  int attempt = 0;
+                  byte[] buf = new byte[32768];
+                  while (true) {
+                      if (stopped()) return;
+                      long have = f.exists() ? f.length() : 0;
+                      if (!ranged && have > 0) {
+                          downloaded.addAndGet(-have);
+                          f.delete();
+                          have = 0;
+                      }
+                      long partLen = ranged ? end - start + 1 : -1;
+                      if (ranged && have >= partLen) return;
+
+                      HttpURLConnection c = null;
+                      try {
+                          c = ranged ? open(resolved, start + have, end) : open(resolved, -1, -1);
+                          int code = c.getResponseCode();
+                          if (ranged && code != 206) throw new IOException("সার্ভার Range সাপোর্ট করেনি (HTTP " + code + ")");
+                          if (!ranged && code != 200) throw new IOException("HTTP " + code);
+
+                          long got = 0;
+                          try (InputStream in = c.getInputStream();
+                               FileOutputStream out = new FileOutputStream(f, ranged)) {
+                              int r;
+                              while (!stopped() && (r = in.read(buf)) > 0) {
+                                  if (ranged) {
+                                      long remaining = partLen - have - got;
+                                      if (r > remaining) r = (int) remaining;
+                                  }
+                                  out.write(buf, 0, r);
+                                  got += r;
+                                  downloaded.addAndGet(r);
+                                  if (ranged && have + got >= partLen) break;
+                              }
+                          }
+                          if (stopped()) return;
+                          if (ranged && have + got < partLen) throw new IOException("টুকরা অসম্পূর্ণ");
+                          return;
+                      } catch (IOException e) {
+                          if (stopped()) return;
+                          if (++attempt >= 5) throw e;
+                          Thread.sleep(1000L * attempt);
+                      } finally {
+                          if (c != null) c.disconnect();
+                      }
+                  }
+              }
+
+              // ---------- ১০ টুকরা জোড়া লাগানো ----------
+              private void merge(File[] parts) throws Exception {
+                  OutputStream out;
+                  Uri uri = null;
+                  File outFile = null;
+                  if (Build.VERSION.SDK_INT >= 29) {
+                      ContentValues v = new ContentValues();
+                      v.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                      v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/TenParts");
+                      v.put(MediaStore.Downloads.IS_PENDING, 1);
+                      uri = ctx.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                      if (uri == null) throw new IOException("আউটপুট ফাইল তৈরি করা যায়নি");
+                      out = ctx.getContentResolver().openOutputStream(uri);
+                      if (out == null) throw new IOException("আউটপুট ফাইল খোলা যায়নি");
+                      savedTo = "Downloads/TenParts/" + name;
+                  } else {
+                      File d = new File(Environment.getExternalStoragePublicDirectory(
+                              Environment.DIRECTORY_DOWNLOADS), "TenParts");
+                      if (!d.exists() && !d.mkdirs()) throw new IOException("Downloads ফোল্ডারে লেখা যাচ্ছে না (পারমিশন দিন)");
+                      outFile = unique(d, name);
+                      out = new FileOutputStream(outFile);
+                      savedTo = "Download/TenParts/" + outFile.getName();
+                  }
+
+                  byte[] buf = new byte[65536];
+                  try {
+                      for (File p : parts) {
+                          if (!p.exists()) continue;
+                          try (InputStream in = new FileInputStream(p)) {
+                              int r;
+                              while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
+                          }
+                      }
+                      out.flush();
+                      out.close();
+                  } catch (IOException e) {
+                      try { out.close(); } catch (Exception ignore) { }
+                      if (uri != null) ctx.getContentResolver().delete(uri, null, null);
+                      else if (outFile != null) outFile.delete();
+                      throw e;
+                  }
+
+                  if (uri != null) {
+                      ContentValues v = new ContentValues();
+                      v.put(MediaStore.Downloads.IS_PENDING, 0);
+                      ctx.getContentResolver().update(uri, v, null, null);
+                  }
+              }
+
+              private File unique(File d, String n) {
+                  File f = new File(d, n);
+                  String base = n, ext = "";
+                  int dot = n.lastIndexOf('.');
+                  if (dot > 0) {
+                      base = n.substring(0, dot);
+                      ext = n.substring(dot);
+                  }
+                  int i = 1;
+                  while (f.exists()) f = new File(d, base + " (" + (i++) + ")" + ext);
+                  return f;
+              }
+
+              private void cleanup() {
+                  if (dir == null) return;
+                  File[] fs = dir.listFiles();
+                  if (fs != null) for (File f : fs) f.delete();
+                  dir.delete();
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/awal/tenparts/MainActivity.java << 'EOF'
+          package com.awal.tenparts;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.BaseAdapter;
+          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.ListView;
+          import android.widget.ProgressBar;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.Locale;
+
+          public class MainActivity extends Activity {
+
+              private static final List<DownloadTask> TASKS = new ArrayList<>();
+              private final Handler handler = new Handler(Looper.getMainLooper());
+              private TaskAdapter adapter;
+              private EditText etUrls;
+
+              private final Runnable ticker = new Runnable() {
+                  @Override
+                  public void run() {
+                      for (DownloadTask t : TASKS) t.tick(500);
+                      adapter.notifyDataSetChanged();
+                      handler.postDelayed(this, 500);
+                  }
+              };
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+
+                  etUrls = (EditText) findViewById(R.id.etUrls);
+                  Button btnAdd = (Button) findViewById(R.id.btnAdd);
+                  ListView lv = (ListView) findViewById(R.id.lvTasks);
+                  adapter = new TaskAdapter();
+                  lv.setAdapter(adapter);
+
+                  if (Build.VERSION.SDK_INT < 29 && Build.VERSION.SDK_INT >= 23
+                          && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                          != PackageManager.PERMISSION_GRANTED) {
+                      requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
+                  }
+
+                  Intent in = getIntent();
+                  if (in != null && Intent.ACTION_SEND.equals(in.getAction())) {
+                      String shared = in.getStringExtra(Intent.EXTRA_TEXT);
+                      if (shared != null) etUrls.setText(shared);
+                  }
+
+                  btnAdd.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          addLinks();
+                      }
+                  });
+              }
+
+              private void addLinks() {
+                  String[] parts = etUrls.getText().toString().trim().split("\\s+");
+                  int count = 0;
+                  for (String p : parts) {
+                      String u = p.trim();
+                      if (u.startsWith("http://") || u.startsWith("https://")) {
+                          DownloadTask t = new DownloadTask(this, u);
+                          TASKS.add(0, t);
+                          t.start();
+                          count++;
+                      }
+                  }
+                  if (count == 0) {
+                      Toast.makeText(this, "সঠিক লিংক দিন (http:// বা https:// দিয়ে শুরু)", Toast.LENGTH_SHORT).show();
+                  } else {
+                      etUrls.setText("");
+                      adapter.notifyDataSetChanged();
+                  }
+              }
+
+              @Override
+              protected void onStart() {
+                  super.onStart();
+                  handler.post(ticker);
+              }
+
+              @Override
+              protected void onStop() {
+                  super.onStop();
+                  handler.removeCallbacks(ticker);
+              }
+
+              private static String fmt(long b) {
+                  if (b < 1024) return b + " B";
+                  double k = b / 1024.0;
+                  if (k < 1024) return String.format(Locale.US, "%.1f KB", k);
+                  double m = k / 1024.0;
+                  if (m < 1024) return String.format(Locale.US, "%.1f MB", m);
+                  return String.format(Locale.US, "%.2f GB", m / 1024.0);
+              }
+
+              private static String statusText(DownloadTask t) {
+                  switch (t.state) {
+                      case DownloadTask.QUEUED:
+                          return "লাইনে অপেক্ষা করছে...";
+                      case DownloadTask.CONNECTING:
+                          return "সার্ভারের সাথে যোগাযোগ হচ্ছে...";
+                      case DownloadTask.DOWNLOADING: {
+                          long d = t.downloaded.get();
+                          String head;
+                          if (t.total > 0) {
+                              head = (d * 100 / t.total) + "% • " + fmt(d) + " / " + fmt(t.total);
+                          } else {
+                              head = fmt(d);
+                          }
+                          return head + " • " + fmt(t.speed) + "/s\nটুকরা " + t.partsDone.get() + "/" + t.totalParts
+                                  + " সম্পন্ন (" + t.totalParts + " থ্রেড)";
+                      }
+                      case DownloadTask.MERGING:
+                          return "টুকরাগুলো জোড়া লাগানো হচ্ছে...";
+                      case DownloadTask.DONE:
+                          return "✔ সম্পন্ন • " + fmt(t.downloaded.get()) + "\n" + t.savedTo;
+                      case DownloadTask.FAILED:
+                          return "✖ ব্যর্থ: " + t.error;
+                      default:
+                          return "বাতিল করা হয়েছে";
+                  }
+              }
+
+              private class TaskAdapter extends BaseAdapter {
+                  @Override
+                  public int getCount() {
+                      return TASKS.size();
+                  }
+
+                  @Override
+                  public Object getItem(int i) {
+                      return TASKS.get(i);
+                  }
+
+                  @Override
+                  public long getItemId(int i) {
+                      return TASKS.get(i).id;
+                  }
+
+                  @Override
+                  public View getView(int pos, View v, ViewGroup parent) {
+                      if (v == null) v = getLayoutInflater().inflate(R.layout.item_download, parent, false);
+                      final DownloadTask t = TASKS.get(pos);
+                      TextView tvName = (TextView) v.findViewById(R.id.tvName);
+                      TextView tvStatus = (TextView) v.findViewById(R.id.tvStatus);
+                      ProgressBar pb = (ProgressBar) v.findViewById(R.id.pb);
+                      Button btn = (Button) v.findViewById(R.id.btnAction);
+
+                      tvName.setText(t.name);
+                      tvStatus.setText(statusText(t));
+
+                      if (t.state == DownloadTask.DONE) {
+                          pb.setIndeterminate(false);
+                          pb.setProgress(100);
+                      } else if (t.state == DownloadTask.DOWNLOADING && t.total > 0) {
+                          pb.setIndeterminate(false);
+                          pb.setProgress((int) (t.downloaded.get() * 100 / t.total));
+                      } else if (t.state == DownloadTask.DOWNLOADING || t.state == DownloadTask.CONNECTING
+                              || t.state == DownloadTask.MERGING) {
+                          pb.setIndeterminate(true);
+                      } else {
+                          pb.setIndeterminate(false);
+                          pb.setProgress(0);
+                      }
+
+                      btn.setEnabled(t.state != DownloadTask.MERGING);
+                      if (t.state == DownloadTask.FAILED) {
+                          btn.setText("আবার");
+                      } else if (t.state == DownloadTask.DONE || t.state == DownloadTask.CANCELED) {
+                          btn.setText("সরান");
+                      } else {
+                          btn.setText("বাতিল");
+                      }
+                      btn.setOnClickListener(new View.OnClickListener() {
+                          @Override
+                          public void onClick(View view) {
+                              if (t.state == DownloadTask.FAILED) {
+                                  t.retry();
+                              } else if (t.state == DownloadTask.DONE || t.state == DownloadTask.CANCELED) {
+                                  TASKS.remove(t);
+                              } else {
+                                  t.cancel();
+                              }
+                              notifyDataSetChanged();
+                          }
+                      });
+                      return v;
+                  }
+              }
+          }
+          EOF
+
+          echo "সব ফাইল তৈরি হয়েছে"
+          find . -type f -not -path "./.git/*" | sort
+
+      - name: Download Gradle wrapper jar
+        run: |
+          mkdir -p gradle/wrapper
+          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
+          ls -l gradle/wrapper/gradle-wrapper.jar
+
+      - name: Create gradlew
+        run: |
           cat > gradlew << 'EOF'
           #!/bin/sh
           APP_HOME=$(cd "$(dirname "$0")" && pwd -P)
-          exec java -Dorg.gradle.appname=gradlew -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
+          if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+            JAVACMD="$JAVA_HOME/bin/java"
+          else
+            JAVACMD=java
+          fi
+          exec "$JAVACMD" -Dorg.gradle.appname=gradlew -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
           EOF
           chmod +x gradlew
-          ls -la gradle/wrapper
 
-      - name: Build APK
+      - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: DabaGuru-APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: TenParts-Downloader-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
