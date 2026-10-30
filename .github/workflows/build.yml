@@ -1,12 +1,14 @@
-name: Build RetroLens APK
-
-# Creator: Mohammod Abdul Awal
-# Student: Department of English, National University
-# Mail: awal.sorkar.144@gmail.com
+# =====================================================
+#  দাবা গুরু (Daba Guru) - Android APK Builder
+#  Creator : Mohammod Abdul Awal
+#  Student : Department of English, National University
+#  Mail    : awal.sorkar.144@gmail.com
+#  Put this file at: .github/workflows/build.yml
+# =====================================================
+name: Build Daba Guru APK
 
 on:
   push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -24,1908 +26,15 @@ jobs:
 
       - name: Accept Android SDK licenses
         run: |
-          sudo mkdir -p $ANDROID_HOME/licenses
-          sudo chmod -R a+rwX $ANDROID_HOME || true
           mkdir -p $ANDROID_HOME/licenses
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
           echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
           echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_HOME/licenses/android-googletv-license
 
-      - name: Create project files (all code lives in this one file)
+      - name: Create Gradle project files
         run: |
-          mkdir -p app app/src/main app/src/main/java/com/awal/retrolens app/src/main/res/drawable app/src/main/res/values gradle/wrapper
-          cat > app/build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application'
-          }
-
-          android {
-              namespace 'com.awal.retrolens'
-              compileSdk 34
-
-              defaultConfig {
-                  applicationId "com.awal.retrolens"
-                  minSdk 24
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-              }
-
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                  }
-              }
-
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
-
-          dependencies {
-              implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'androidx.camera:camera-core:1.3.1'
-              implementation 'androidx.camera:camera-camera2:1.3.1'
-              implementation 'androidx.camera:camera-lifecycle:1.3.1'
-              implementation 'androidx.camera:camera-view:1.3.1'
-              implementation 'androidx.camera:camera-video:1.3.1'
-              implementation 'com.google.guava:guava:31.1-android'
-          }
-          EOF
-          cat > app/src/main/AndroidManifest.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-              <uses-feature android:name="android.hardware.camera" android:required="false" />
-              <uses-permission android:name="android.permission.CAMERA" />
-              <uses-permission android:name="android.permission.RECORD_AUDIO" />
-              <uses-permission
-                  android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-                  android:maxSdkVersion="28" />
-
-              <application
-                  android:allowBackup="true"
-                  android:icon="@drawable/ic_logo"
-                  android:label="RetroLens"
-                  android:largeHeap="true"
-                  android:theme="@style/AppTheme">
-
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:screenOrientation="portrait">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
-          cat > app/src/main/java/com/awal/retrolens/Filter.java << 'EOF'
-          package com.awal.retrolens;
-
-          import android.graphics.ColorMatrix;
-
-          import java.util.ArrayList;
-          import java.util.List;
-          import java.util.Random;
-
-          public class Filter {
-              public final String name;
-              public float sat = 1f, con = 1f, bri = 0f, r = 1f, g = 1f, b = 1f;
-              public float fade = 0f, vig = 0f, grain = 0f;
-              public int leakColor = 0, leakSide = 0;
-
-              public Filter(String name) {
-                  this.name = name;
-              }
-
-              public Filter set(float sat, float con, float bri, float r, float g, float b,
-                                float fade, float vig, float grain) {
-                  this.sat = sat; this.con = con; this.bri = bri;
-                  this.r = r; this.g = g; this.b = b;
-                  this.fade = fade; this.vig = vig; this.grain = grain;
-                  return this;
-              }
-
-              public Filter leak(int color, int side) {
-                  this.leakColor = color;
-                  this.leakSide = side;
-                  return this;
-              }
-
-              public ColorMatrix matrix() {
-                  ColorMatrix m = new ColorMatrix();
-                  m.setSaturation(sat);
-                  float s = con * (1f - fade * 0.25f);
-                  float t = (1f - con) * 128f + bri * 255f + fade * 45f;
-                  ColorMatrix c = new ColorMatrix(new float[]{
-                          s * r, 0, 0, 0, t,
-                          0, s * g, 0, 0, t,
-                          0, 0, s * b, 0, t,
-                          0, 0, 0, 1, 0});
-                  m.postConcat(c);
-                  return m;
-              }
-
-              private static float rf(Random q, float a, float b) {
-                  return a + q.nextFloat() * (b - a);
-              }
-
-              private static final int[] LEAKS = {
-                      0x66FF5A1E, 0x665A78FF, 0x66C83CFF, 0x66FFC832, 0x66FF3C6E, 0x6628C8B4
-              };
-
-              // p: sat, con, bri, warm, fade, vig, grain  (min,max pairs)
-              private static void grp(List<Filter> l, String pre, int n, int seed, float[] p, float leakChance) {
-                  for (int i = 1; i <= n; i++) {
-                      Random q = new Random(seed * 131L + i);
-                      float warm = rf(q, p[6], p[7]);
-                      float gt = rf(q, -.04f, .04f);
-                      Filter f = new Filter(pre + i).set(
-                              rf(q, p[0], p[1]), rf(q, p[2], p[3]), rf(q, p[4], p[5]),
-                              1f + warm, 1f + gt, 1f - warm,
-                              rf(q, p[8], p[9]), rf(q, p[10], p[11]), rf(q, p[12], p[13]));
-                      if (q.nextFloat() < leakChance) {
-                          f.leak(LEAKS[q.nextInt(LEAKS.length)], q.nextInt(4));
-                      }
-                      l.add(f);
-                  }
-              }
-
-              public static List<Filter> all() {
-                  List<Filter> l = new ArrayList<>();
-                  l.add(new Filter("Original"));
-                  grp(l, "F", 5, 1, new float[]{.9f, 1.2f, 1.0f, 1.15f, -.02f, .03f, .02f, .10f, .02f, .10f, .2f, .4f, .15f, .3f}, .2f);
-                  grp(l, "C", 8, 2, new float[]{1.0f, 1.5f, 1.05f, 1.25f, -.03f, .03f, -.10f, .08f, 0f, .06f, .1f, .3f, .1f, .25f}, .5f);
-                  grp(l, "K", 8, 3, new float[]{1.1f, 1.4f, 1.05f, 1.2f, 0f, .05f, .04f, .12f, 0f, .05f, .15f, .35f, .1f, .25f}, .3f);
-                  grp(l, "P", 11, 4, new float[]{.7f, 1.0f, .85f, 1.0f, .03f, .10f, -.04f, .06f, .06f, .16f, .05f, .2f, .05f, .15f}, .5f);
-                  grp(l, "H", 15, 5, new float[]{.9f, 1.3f, 1.1f, 1.3f, -.05f, .03f, -.06f, .10f, 0f, .08f, .25f, .5f, .15f, .3f}, .45f);
-                  grp(l, "M", 15, 6, new float[]{.6f, 1.0f, .95f, 1.15f, -.08f, 0f, -.08f, .08f, .05f, .18f, .3f, .55f, .15f, .3f}, .5f);
-                  grp(l, "bw", 8, 7, new float[]{0f, 0f, .95f, 1.4f, -.05f, .05f, -.02f, .10f, 0f, .12f, .2f, .5f, .2f, .4f}, 0f);
-                  l.add(new Filter("FJ-Provia-400").set(1.10f, 1.10f, 0f, 1.00f, 1.02f, 1.05f, .02f, .20f, .20f));
-                  l.add(new Filter("FJ-C200").set(1.15f, 1.05f, 0f, 1.05f, 1.03f, .96f, .03f, .20f, .20f));
-                  l.add(new Filter("FJ-A100C").set(1.25f, 1.15f, 0f, 1.00f, 1.04f, 1.00f, 0f, .15f, .15f));
-                  l.add(new Filter("BB-White").set(.60f, .95f, .08f, 1.00f, 1.00f, 1.05f, .10f, .10f, .10f));
-                  l.add(new Filter("BB-Wedding").set(.85f, .92f, .06f, 1.06f, 1.00f, 1.02f, .12f, .15f, .12f).leak(0x66FF3C6E, 0));
-                  l.add(new Filter("AG-O100W").set(.90f, 1.00f, 0f, 1.08f, 1.00f, .90f, .08f, .30f, .20f));
-                  l.add(new Filter("AG-400C").set(1.10f, 1.10f, 0f, 1.05f, 1.00f, .95f, .04f, .25f, .35f));
-                  l.add(new Filter("FJ-V100C").set(1.40f, 1.20f, 0f, 1.00f, 1.05f, 1.00f, 0f, .25f, .15f));
-                  return l;
-              }
-          }
-          EOF
-          cat > app/src/main/java/com/awal/retrolens/Fx.java << 'EOF'
-          package com.awal.retrolens;
-
-          import android.graphics.Bitmap;
-          import android.graphics.BitmapShader;
-          import android.graphics.Canvas;
-          import android.graphics.LinearGradient;
-          import android.graphics.Matrix;
-          import android.graphics.Paint;
-          import android.graphics.RadialGradient;
-          import android.graphics.Shader;
-
-          import java.util.Random;
-
-          /** Draws leak / vignette / grain effects. Used for live preview and saved photo. */
-          public class Fx {
-              private static Bitmap noise;
-
-              private static Bitmap noise() {
-                  if (noise == null) {
-                      int n = 160;
-                      int[] px = new int[n * n];
-                      Random q = new Random(7);
-                      for (int i = 0; i < px.length; i++) {
-                          int v = q.nextInt(256);
-                          px[i] = 0xFF000000 | (v << 16) | (v << 8) | v;
-                      }
-                      noise = Bitmap.createBitmap(px, n, n, Bitmap.Config.ARGB_8888);
-                  }
-                  return noise;
-              }
-
-              public static void draw(Canvas c, int w, int h, Filter f, float grainScale) {
-                  if (w <= 0 || h <= 0) return;
-                  Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-                  if (f.leakColor != 0) {
-                      float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
-                      switch (f.leakSide) {
-                          case 0: x0 = 0; x1 = w * .6f; break;
-                          case 1: x0 = w; x1 = w * .4f; break;
-                          case 2: y0 = 0; y1 = h * .5f; break;
-                          default: y0 = h; y1 = h * .5f; break;
-                      }
-                      p.setShader(new LinearGradient(x0, y0, x1, y1, f.leakColor,
-                              f.leakColor & 0x00FFFFFF, Shader.TileMode.CLAMP));
-                      c.drawRect(0, 0, w, h, p);
-                      p.setShader(null);
-                  }
-
-                  if (f.vig > 0f) {
-                      float rad = (float) Math.hypot(w, h) / 2f;
-                      int a = (int) (Math.min(1f, f.vig) * 255f);
-                      p.setShader(new RadialGradient(w / 2f, h / 2f, rad,
-                              new int[]{0x00000000, 0x00000000, (a << 24)},
-                              new float[]{0f, .5f, 1f}, Shader.TileMode.CLAMP));
-                      c.drawRect(0, 0, w, h, p);
-                      p.setShader(null);
-                  }
-
-                  if (f.grain > 0f) {
-                      BitmapShader s = new BitmapShader(noise(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT);
-                      Matrix m = new Matrix();
-                      m.setScale(grainScale, grainScale);
-                      s.setLocalMatrix(m);
-                      p.setShader(s);
-                      p.setAlpha((int) (f.grain * 0.45f * 255f));
-                      c.drawRect(0, 0, w, h, p);
-                      p.setShader(null);
-                  }
-              }
-          }
-          EOF
-          cat > app/src/main/java/com/awal/retrolens/MainActivity.java << 'EOF'
-          package com.awal.retrolens;
-
-          import android.Manifest;
-          import android.content.ContentValues;
-          import android.content.Intent;
-          import android.content.SharedPreferences;
-          import android.content.pm.PackageManager;
-          import android.graphics.Bitmap;
-          import android.graphics.BitmapFactory;
-          import android.graphics.Canvas;
-          import android.graphics.ColorMatrix;
-          import android.graphics.ColorMatrixColorFilter;
-          import android.graphics.Matrix;
-          import android.graphics.Outline;
-          import android.graphics.Paint;
-          import android.graphics.drawable.GradientDrawable;
-          import android.media.ExifInterface;
-          import android.media.MediaScannerConnection;
-          import android.net.Uri;
-          import android.os.Build;
-          import android.os.Environment;
-          import android.provider.MediaStore;
-          import android.text.util.Linkify;
-          import android.util.DisplayMetrics;
-          import android.util.Range;
-          import android.view.Gravity;
-          import android.view.MotionEvent;
-          import android.view.ScaleGestureDetector;
-          import android.view.View;
-          import android.view.ViewGroup;
-          import android.view.ViewOutlineProvider;
-          import android.view.WindowManager;
-          import android.widget.FrameLayout;
-          import android.widget.HorizontalScrollView;
-          import android.widget.ImageView;
-          import android.widget.LinearLayout;
-          import android.widget.RadioButton;
-          import android.widget.RadioGroup;
-          import android.widget.ScrollView;
-          import android.widget.TextView;
-          import android.widget.Toast;
-
-          import androidx.activity.result.ActivityResultLauncher;
-          import androidx.activity.result.contract.ActivityResultContracts;
-          import androidx.appcompat.app.AlertDialog;
-          import androidx.appcompat.app.AppCompatActivity;
-          import androidx.appcompat.widget.SwitchCompat;
-          import androidx.camera.core.AspectRatio;
-          import androidx.camera.core.Camera;
-          import androidx.camera.core.CameraSelector;
-          import androidx.camera.core.ExposureState;
-          import androidx.camera.core.FocusMeteringAction;
-          import androidx.camera.core.ImageCapture;
-          import androidx.camera.core.ImageCaptureException;
-          import androidx.camera.core.MeteringPoint;
-          import androidx.camera.core.Preview;
-          import androidx.camera.core.UseCaseGroup;
-          import androidx.camera.core.ZoomState;
-          import androidx.camera.lifecycle.ProcessCameraProvider;
-          import androidx.camera.video.FallbackStrategy;
-          import androidx.camera.video.MediaStoreOutputOptions;
-          import androidx.camera.video.PendingRecording;
-          import androidx.camera.video.Quality;
-          import androidx.camera.video.QualitySelector;
-          import androidx.camera.video.Recorder;
-          import androidx.camera.video.Recording;
-          import androidx.camera.video.VideoCapture;
-          import androidx.camera.video.VideoRecordEvent;
-          import androidx.camera.view.PreviewView;
-          import androidx.core.content.ContextCompat;
-
-          import com.google.common.util.concurrent.ListenableFuture;
-
-          import java.io.File;
-          import java.io.FileOutputStream;
-          import java.io.OutputStream;
-          import java.text.SimpleDateFormat;
-          import java.util.ArrayList;
-          import java.util.Date;
-          import java.util.List;
-          import java.util.Locale;
-          import java.util.Random;
-          import java.util.concurrent.ExecutorService;
-          import java.util.concurrent.Executors;
-          import java.util.concurrent.TimeUnit;
-
-          public class MainActivity extends AppCompatActivity {
-
-              private PreviewView previewView;
-              private OverlayView overlay;
-              private FrameLayout innerFrame;
-              private ProcessCameraProvider provider;
-              private Camera camera;
-              private ImageCapture imageCapture;
-              private int lensFacing = CameraSelector.LENS_FACING_BACK;
-              private int flashMode = ImageCapture.FLASH_MODE_OFF;
-              private List<Filter> filters;
-              private int filterIndex = 0;
-              private final List<TextView> keys = new ArrayList<>();
-              private HorizontalScrollView strip;
-              private SharedPreferences prefs;
-              private boolean gridOn, mirrorOn;
-              private int quality; // 0 = High, 1 = Medium, 2 = Low
-              private TextView zoomBtn, flashBtn;
-              private ImageView thumb;
-              private ScaleGestureDetector scaleDetector;
-              private int evIndex = 0;
-              private Uri lastUri;
-              private boolean videoMode = false;
-              private VideoCapture<Recorder> videoCapture;
-              private Recording recording;
-              private int vq; // 0 SD, 1 HD, 2 FHD, 3 UHD
-              private TextView timerView, modePhoto, modeVideo, pauseBtn;
-              private boolean paused = false;
-              private VideoFx videoFx;
-              private boolean vfxOn = true;
-              private boolean abrOn = true;
-              private float previewGain = 1f;
-              private long lastSec = 0;
-              private View shutterDot;
-              private static final Quality[] VQ = {Quality.SD, Quality.HD, Quality.FHD, Quality.UHD};
-              private static final String[] VQ_NAME = {"480p SD", "720p HD", "1080p Full HD", "4K Ultra HD"};
-              private static final int[] V_BPS = {2000000, 5000000, 10000000, 35000000};
-              private final ExecutorService io = Executors.newSingleThreadExecutor();
-              private final Random rnd = new Random();
-
-              private final ActivityResultLauncher<String[]> permLauncher =
-                      registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), res -> {
-                          if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                                  == PackageManager.PERMISSION_GRANTED) {
-                              startCamera();
-                          } else {
-                              Toast.makeText(this, "Camera permission is required", Toast.LENGTH_LONG).show();
-                          }
-                      });
-
-              @Override
-              protected void onCreate(android.os.Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                  getWindow().setStatusBarColor(0xFF000000);
-                  getWindow().setNavigationBarColor(0xFF000000);
-                  prefs = getSharedPreferences("retrolens", MODE_PRIVATE);
-                  gridOn = prefs.getBoolean("grid", false);
-                  mirrorOn = prefs.getBoolean("mirror", true);
-                  quality = prefs.getInt("quality", 0);
-                  vq = prefs.getInt("vq", 2);
-                  vfxOn = prefs.getBoolean("vfx", true);
-                  abrOn = prefs.getBoolean("abr", true);
-                  filters = Filter.all();
-                  buildUi();
-                  overlay.setGrid(gridOn);
-                  selectFilter(0);
-                  ensurePermissions();
-              }
-
-              @Override
-              protected void onDestroy() {
-                  super.onDestroy();
-                  io.shutdown();
-                  if (videoFx != null) videoFx.close();
-              }
-
-              // ------------------------------------------------------------ UI
-
-              private int dp(float v) {
-                  return Math.round(v * getResources().getDisplayMetrics().density);
-              }
-
-              private TextView roundBtn(String t, int sizeDp, int color, float textSp) {
-                  TextView v = new TextView(this);
-                  v.setText(t);
-                  v.setTextColor(color);
-                  v.setTextSize(textSp);
-                  v.setGravity(Gravity.CENTER);
-                  GradientDrawable g = new GradientDrawable();
-                  g.setShape(GradientDrawable.OVAL);
-                  g.setColor(0xFF262626);
-                  g.setStroke(dp(3), 0xFF0E0E0E);
-                  v.setBackground(g);
-                  v.setLayoutParams(new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)));
-                  return v;
-              }
-
-              private FrameLayout cell(View v, int sizeDp) {
-                  FrameLayout f = new FrameLayout(this);
-                  f.addView(v, new FrameLayout.LayoutParams(dp(sizeDp), dp(sizeDp), Gravity.CENTER));
-                  f.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-                  return f;
-              }
-
-              private GradientDrawable keyBg(boolean sel) {
-                  GradientDrawable g = new GradientDrawable();
-                  g.setColor(0xFF353535);
-                  g.setCornerRadius(dp(4));
-                  if (sel) g.setStroke(dp(2), 0xFFFF9F2E);
-                  return g;
-              }
-
-              private void buildUi() {
-                  DisplayMetrics dm = getResources().getDisplayMetrics();
-                  int sw = dm.widthPixels, sh = dm.heightPixels;
-
-                  FrameLayout root = new FrameLayout(this);
-                  root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                          new int[]{0xFF262626, 0xFF0C0C0C, 0xFF000000}));
-                  setContentView(root);
-
-                  LinearLayout col = new LinearLayout(this);
-                  col.setOrientation(LinearLayout.VERTICAL);
-                  col.setGravity(Gravity.CENTER_HORIZONTAL);
-                  root.addView(col, new FrameLayout.LayoutParams(-1, -1));
-
-                  // ---- top bar
-                  LinearLayout top = new LinearLayout(this);
-                  top.setOrientation(LinearLayout.HORIZONTAL);
-                  top.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-                  top.setPadding(dp(12), dp(8), dp(18), dp(8));
-                  TextView switchBtn = roundBtn("\u27F3", 46, 0xFFB06CFF, 22);
-                  flashBtn = roundBtn("\u26A1", 46, 0xFF777777, 20);
-                  TextView settingsBtn = roundBtn("\u2699", 46, 0xFF7B5CFF, 22);
-                  LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(dp(46), dp(46));
-                  tl.leftMargin = dp(12);
-                  top.addView(switchBtn, tl);
-                  top.addView(flashBtn, tl);
-                  top.addView(settingsBtn, tl);
-                  col.addView(top, new LinearLayout.LayoutParams(-1, -2));
-                  switchBtn.setOnClickListener(v -> {
-                      if (recording != null) return;
-                      lensFacing = lensFacing == CameraSelector.LENS_FACING_BACK
-                              ? CameraSelector.LENS_FACING_FRONT : CameraSelector.LENS_FACING_BACK;
-                      bindCamera();
-                  });
-                  flashBtn.setOnClickListener(v -> cycleFlash());
-                  settingsBtn.setOnClickListener(v -> showSettings());
-
-                  // ---- preview frame
-                  int innerH = Math.min((int) ((sw * 0.8f - dp(24)) * 4f / 3f), sh - dp(400));
-                  int innerW = innerH * 3 / 4;
-
-                  FrameLayout frame = new FrameLayout(this);
-                  GradientDrawable fg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                          new int[]{0xFFEDEDED, 0xFF9A9A9A, 0xFF3C3538, 0xFF5B5156});
-                  fg.setCornerRadius(dp(30));
-                  frame.setBackground(fg);
-                  frame.setPadding(dp(12), dp(12), dp(12), dp(12));
-
-                  FrameLayout bezel = new FrameLayout(this);
-                  GradientDrawable bz = new GradientDrawable();
-                  bz.setColor(0xFF2A2327);
-                  bz.setCornerRadius(dp(22));
-                  bezel.setBackground(bz);
-                  bezel.setPadding(dp(6), dp(6), dp(6), dp(6));
-
-                  innerFrame = new FrameLayout(this);
-                  innerFrame.setBackgroundColor(0xFF000000);
-                  innerFrame.setOutlineProvider(new ViewOutlineProvider() {
-                      @Override
-                      public void getOutline(View view, Outline o) {
-                          o.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(16));
-                      }
-                  });
-                  innerFrame.setClipToOutline(true);
-
-                  previewView = new PreviewView(this);
-                  previewView.setImplementationMode(PreviewView.ImplementationMode.COMPATIBLE);
-                  previewView.setScaleType(PreviewView.ScaleType.FILL_CENTER);
-                  previewView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-                  innerFrame.addView(previewView, new FrameLayout.LayoutParams(-1, -1));
-
-                  overlay = new OverlayView(this);
-                  innerFrame.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
-
-                  timerView = new TextView(this);
-                  timerView.setText("\u25CF 00:00");
-                  timerView.setTextColor(0xFFFF3B30);
-                  timerView.setTextSize(14);
-                  timerView.setPadding(dp(10), dp(4), dp(10), dp(4));
-                  GradientDrawable tb = new GradientDrawable();
-                  tb.setColor(0x88000000);
-                  tb.setCornerRadius(dp(12));
-                  timerView.setBackground(tb);
-                  timerView.setVisibility(View.GONE);
-                  FrameLayout.LayoutParams tlp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-                  tlp.topMargin = dp(10);
-                  innerFrame.addView(timerView, tlp);
-
-                  pauseBtn = roundBtn("\u275A\u275A", 52, 0xFFFFFFFF, 18);
-                  pauseBtn.setVisibility(View.GONE);
-                  FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(dp(52), dp(52),
-                          Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-                  plp.bottomMargin = dp(14);
-                  innerFrame.addView(pauseBtn, plp);
-                  pauseBtn.setOnClickListener(v -> togglePause());
-
-                  bezel.addView(innerFrame, new FrameLayout.LayoutParams(innerW, innerH));
-                  frame.addView(bezel, new FrameLayout.LayoutParams(-2, -2));
-                  LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-2, -2);
-                  fl.topMargin = dp(4);
-                  col.addView(frame, fl);
-
-                  setupTouch();
-
-                  // ---- dice
-                  TextView dice = roundBtn("\uD83C\uDFB2", 56, 0xFFDDBBFF, 22);
-                  LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(56), dp(56));
-                  dl.topMargin = dp(14);
-                  col.addView(dice, dl);
-                  dice.setOnClickListener(v -> selectFilter(1 + rnd.nextInt(filters.size() - 1)));
-
-                  // ---- filter strip
-                  strip = new HorizontalScrollView(this);
-                  strip.setHorizontalScrollBarEnabled(false);
-                  LinearLayout row = new LinearLayout(this);
-                  row.setOrientation(LinearLayout.HORIZONTAL);
-                  int sidePad = sw / 2 - dp(42);
-                  row.setPadding(sidePad, dp(4), sidePad, dp(4));
-                  for (int i = 0; i < filters.size(); i++) {
-                      final int idx = i;
-                      String name = filters.get(i).name;
-                      TextView k = new TextView(this);
-                      k.setText(name);
-                      k.setTextColor(0xFFEEEEEE);
-                      k.setTextSize(name.length() > 6 ? 11 : 14);
-                      k.setGravity(Gravity.CENTER);
-                      k.setMaxLines(2);
-                      k.setPadding(dp(3), 0, dp(3), 0);
-                      k.setBackground(keyBg(false));
-                      LinearLayout.LayoutParams kp = new LinearLayout.LayoutParams(dp(76), dp(52));
-                      kp.setMargins(dp(4), 0, dp(4), 0);
-                      k.setOnClickListener(v -> selectFilter(idx));
-                      row.addView(k, kp);
-                      keys.add(k);
-                  }
-                  strip.addView(row);
-                  LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, dp(64));
-                  sp.topMargin = dp(16);
-                  col.addView(strip, sp);
-
-                  // ---- spacer
-                  col.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
-
-                  // ---- mode switch
-                  LinearLayout modeRow = new LinearLayout(this);
-                  modeRow.setOrientation(LinearLayout.HORIZONTAL);
-                  modeRow.setGravity(Gravity.CENTER);
-                  modePhoto = new TextView(this);
-                  modePhoto.setText("PHOTO");
-                  modePhoto.setTextSize(14);
-                  modePhoto.setPadding(dp(18), dp(6), dp(18), dp(6));
-                  modeVideo = new TextView(this);
-                  modeVideo.setText("VIDEO");
-                  modeVideo.setTextSize(14);
-                  modeVideo.setPadding(dp(18), dp(6), dp(18), dp(6));
-                  modeRow.addView(modePhoto);
-                  modeRow.addView(modeVideo);
-                  col.addView(modeRow, new LinearLayout.LayoutParams(-2, -2));
-                  modePhoto.setOnClickListener(v -> setMode(false));
-                  modeVideo.setOnClickListener(v -> setMode(true));
-
-                  // ---- bottom controls
-                  LinearLayout bottom = new LinearLayout(this);
-                  bottom.setOrientation(LinearLayout.HORIZONTAL);
-                  bottom.setGravity(Gravity.CENTER_VERTICAL);
-
-                  zoomBtn = roundBtn("1.0x", 58, 0xFFFF9A2E, 14);
-                  zoomBtn.setOnClickListener(v -> cycleZoom());
-
-                  FrameLayout shutter = new FrameLayout(this);
-                  GradientDrawable ringBg = new GradientDrawable();
-                  ringBg.setShape(GradientDrawable.OVAL);
-                  ringBg.setColor(0xFF0F0F0F);
-                  ringBg.setStroke(dp(3), 0xFF2C2C2C);
-                  shutter.setBackground(ringBg);
-                  View dot = new View(this);
-                  shutterDot = dot;
-                  GradientDrawable od = new GradientDrawable();
-                  od.setShape(GradientDrawable.OVAL);
-                  od.setColor(0xFFFF6600);
-                  dot.setBackground(od);
-                  shutter.addView(dot, new FrameLayout.LayoutParams(dp(74), dp(74), Gravity.CENTER));
-                  shutter.setOnClickListener(v -> capture());
-
-                  thumb = new ImageView(this);
-                  thumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                  GradientDrawable td = new GradientDrawable();
-                  td.setShape(GradientDrawable.OVAL);
-                  td.setColor(0xFF333333);
-                  td.setStroke(dp(3), 0xFF111111);
-                  thumb.setBackground(td);
-                  thumb.setOutlineProvider(new ViewOutlineProvider() {
-                      @Override
-                      public void getOutline(View view, Outline o) {
-                          o.setOval(0, 0, view.getWidth(), view.getHeight());
-                      }
-                  });
-                  thumb.setClipToOutline(true);
-                  thumb.setOnClickListener(v -> openGallery());
-
-                  bottom.addView(cell(zoomBtn, 58));
-                  bottom.addView(cell(shutter, 94));
-                  bottom.addView(cell(thumb, 58));
-                  LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
-                  bp.bottomMargin = dp(24);
-                  bp.topMargin = dp(6);
-                  col.addView(bottom, bp);
-                  updateModeUi();
-              }
-
-              private void selectFilter(int i) {
-                  filterIndex = i;
-                  for (int k = 0; k < keys.size(); k++) {
-                      keys.get(k).setBackground(keyBg(k == i));
-                      keys.get(k).setTextColor(k == i ? 0xFFFFC27A : 0xFFEEEEEE);
-                  }
-                  Filter f = filters.get(i);
-                  updatePreviewPaint();
-                  overlay.setFilter(f);
-                  if (videoFx != null) videoFx.setFilter(f);
-                  final TextView key = keys.get(i);
-                  strip.post(() -> strip.smoothScrollTo(key.getLeft() + key.getWidth() / 2 - strip.getWidth() / 2, 0));
-              }
-
-              private void updatePreviewPaint() {
-                  ColorMatrix m = new ColorMatrix(filters.get(filterIndex).matrix());
-                  if (previewGain > 1.01f) {
-                      ColorMatrix gm = new ColorMatrix();
-                      gm.setScale(previewGain, previewGain, previewGain, 1f);
-                      m.preConcat(gm);
-                  }
-                  Paint p = new Paint();
-                  p.setColorFilter(new ColorMatrixColorFilter(m));
-                  previewView.setLayerPaint(p);
-              }
-
-              // ------------------------------------------------------------ touch: focus / exposure / pinch zoom
-
-              private void setupTouch() {
-                  scaleDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                      @Override
-                      public boolean onScale(ScaleGestureDetector d) {
-                          if (camera == null) return true;
-                          ZoomState zs = camera.getCameraInfo().getZoomState().getValue();
-                          if (zs == null) return true;
-                          float r = zs.getZoomRatio() * d.getScaleFactor();
-                          r = Math.max(zs.getMinZoomRatio(), Math.min(zs.getMaxZoomRatio(), r));
-                          setZoom(r);
-                          return true;
-                      }
-                  });
-
-                  overlay.setOnTouchListener(new View.OnTouchListener() {
-                      float dx, dy;
-                      boolean moved, scaled;
-                      int baseEv;
-
-                      @Override
-                      public boolean onTouch(View v, MotionEvent e) {
-                          scaleDetector.onTouchEvent(e);
-                          switch (e.getActionMasked()) {
-                              case MotionEvent.ACTION_DOWN:
-                                  dx = e.getX();
-                                  dy = e.getY();
-                                  moved = false;
-                                  scaled = false;
-                                  baseEv = evIndex;
-                                  break;
-                              case MotionEvent.ACTION_POINTER_DOWN:
-                                  scaled = true;
-                                  break;
-                              case MotionEvent.ACTION_MOVE:
-                                  if (scaleDetector.isInProgress()) {
-                                      scaled = true;
-                                      break;
-                                  }
-                                  if (!scaled && e.getPointerCount() == 1) {
-                                      float d = dy - e.getY();
-                                      if (moved || Math.abs(d) > dp(12)) {
-                                          if (!moved) {
-                                              moved = true;
-                                              focusAt(dx, dy);
-                                          }
-                                          setEv(baseEv + Math.round(d / dp(14)));
-                                      }
-                                  }
-                                  break;
-                              case MotionEvent.ACTION_UP:
-                                  if (!moved && !scaled) focusAt(e.getX(), e.getY());
-                                  v.performClick();
-                                  break;
-                              default:
-                                  break;
-                          }
-                          return true;
-                      }
-                  });
-              }
-
-              private void focusAt(float x, float y) {
-                  if (camera == null) return;
-                  try {
-                      MeteringPoint pt = previewView.getMeteringPointFactory().createPoint(x, y);
-                      FocusMeteringAction a = new FocusMeteringAction.Builder(pt,
-                              FocusMeteringAction.FLAG_AF | FocusMeteringAction.FLAG_AE)
-                              .setAutoCancelDuration(4, TimeUnit.SECONDS).build();
-                      camera.getCameraControl().startFocusAndMetering(a);
-                  } catch (Exception ignored) {
-                  }
-                  overlay.showFocus(x, y);
-              }
-
-              private void setEv(int index) {
-                  if (camera == null) return;
-                  ExposureState es = camera.getCameraInfo().getExposureState();
-                  if (!es.isExposureCompensationSupported()) return;
-                  Range<Integer> range = es.getExposureCompensationRange();
-                  int idx = Math.max(range.getLower(), Math.min(range.getUpper(), index));
-                  evIndex = idx;
-                  camera.getCameraControl().setExposureCompensationIndex(idx);
-                  float ev = idx * es.getExposureCompensationStep().floatValue();
-                  overlay.showEv(String.format(Locale.US, "\u2600 EV %+.1f", ev));
-              }
-
-              // ------------------------------------------------------------ zoom / flash
-
-              private void setZoom(float r) {
-                  if (camera == null) return;
-                  camera.getCameraControl().setZoomRatio(r);
-                  zoomBtn.setText(String.format(Locale.US, "%.1fx", r));
-              }
-
-              private void cycleZoom() {
-                  if (camera == null) return;
-                  ZoomState zs = camera.getCameraInfo().getZoomState().getValue();
-                  if (zs == null) return;
-                  float cur = zs.getZoomRatio();
-                  float[] levels = {1f, 2f, 3f, 5f};
-                  float next = 1f;
-                  for (float z : levels) {
-                      if (z > cur + 0.05f && z <= zs.getMaxZoomRatio()) {
-                          next = z;
-                          break;
-                      }
-                  }
-                  next = Math.max(zs.getMinZoomRatio(), next);
-                  setZoom(next);
-              }
-
-              private void cycleFlash() {
-                  String label;
-                  if (flashMode == ImageCapture.FLASH_MODE_OFF) {
-                      flashMode = ImageCapture.FLASH_MODE_AUTO;
-                      label = "Flash: Auto";
-                      flashBtn.setTextColor(0xFFFFD54F);
-                  } else if (flashMode == ImageCapture.FLASH_MODE_AUTO) {
-                      flashMode = ImageCapture.FLASH_MODE_ON;
-                      label = "Flash: On";
-                      flashBtn.setTextColor(0xFFFF7A00);
-                  } else {
-                      flashMode = ImageCapture.FLASH_MODE_OFF;
-                      label = "Flash: Off";
-                      flashBtn.setTextColor(0xFF777777);
-                  }
-                  if (imageCapture != null) imageCapture.setFlashMode(flashMode);
-                  if (videoMode && camera != null) {
-                      camera.getCameraControl().enableTorch(flashMode == ImageCapture.FLASH_MODE_ON);
-                  }
-                  Toast.makeText(this, label, Toast.LENGTH_SHORT).show();
-              }
-
-              // ------------------------------------------------------------ camera
-
-              private void ensurePermissions() {
-                  List<String> need = new ArrayList<>();
-                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                          != PackageManager.PERMISSION_GRANTED) {
-                      need.add(Manifest.permission.CAMERA);
-                  }
-                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-                          != PackageManager.PERMISSION_GRANTED) {
-                      need.add(Manifest.permission.RECORD_AUDIO);
-                  }
-                  if (Build.VERSION.SDK_INT <= 28 && ContextCompat.checkSelfPermission(this,
-                          Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                      need.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
-                  }
-                  if (need.isEmpty()) startCamera();
-                  else permLauncher.launch(need.toArray(new String[0]));
-              }
-
-              private void startCamera() {
-                  final ListenableFuture<ProcessCameraProvider> f = ProcessCameraProvider.getInstance(this);
-                  f.addListener(() -> {
-                      try {
-                          provider = f.get();
-                          bindCamera();
-                      } catch (Exception e) {
-                          Toast.makeText(this, "Camera error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                      }
-                  }, ContextCompat.getMainExecutor(this));
-              }
-
-              private void bindCamera() {
-                  if (provider == null) return;
-                  provider.unbindAll();
-                  if (videoFx != null) {
-                      videoFx.close();
-                      videoFx = null;
-                  }
-                  previewGain = 1f;
-                  updatePreviewPaint();
-                  Preview preview = new Preview.Builder()
-                          .setTargetAspectRatio(videoMode ? AspectRatio.RATIO_16_9 : AspectRatio.RATIO_4_3).build();
-                  preview.setSurfaceProvider(previewView.getSurfaceProvider());
-                  CameraSelector sel = new CameraSelector.Builder().requireLensFacing(lensFacing).build();
-                  try {
-                      if (videoMode) {
-                          Quality qv = VQ[vq];
-                          QualitySelector qs = QualitySelector.from(qv, FallbackStrategy.lowerQualityOrHigherThan(qv));
-                          Recorder rec = new Recorder.Builder()
-                                  .setQualitySelector(qs)
-                                  .setTargetVideoEncodingBitRate(V_BPS[vq])
-                                  .build();
-                          videoCapture = VideoCapture.withOutput(rec);
-                          imageCapture = null;
-                          UseCaseGroup.Builder gb = new UseCaseGroup.Builder()
-                                  .addUseCase(preview).addUseCase(videoCapture);
-                          if (vfxOn) {
-                              videoFx = new VideoFx(t -> runOnUiThread(() -> Toast.makeText(this,
-                                      "Video filter error: " + t.getMessage(), Toast.LENGTH_LONG).show()));
-                              videoFx.setFilter(filters.get(filterIndex));
-                              videoFx.setAutoBrighten(abrOn);
-                              videoFx.setGainListener(g -> runOnUiThread(() -> {
-                                  previewGain = g;
-                                  updatePreviewPaint();
-                              }));
-                              gb.addEffect(new VideoFx.Effect(videoFx.executor, videoFx, t -> runOnUiThread(
-                                      () -> Toast.makeText(this, "Video filter error: " + t.getMessage(),
-                                              Toast.LENGTH_LONG).show())));
-                          }
-                          camera = provider.bindToLifecycle(this, sel, gb.build());
-                          camera.getCameraControl().enableTorch(flashMode == ImageCapture.FLASH_MODE_ON);
-                      } else {
-                          imageCapture = new ImageCapture.Builder()
-                                  .setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                                  .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                                  .setFlashMode(flashMode)
-                                  .build();
-                          videoCapture = null;
-                          camera = provider.bindToLifecycle(this, sel, preview, imageCapture);
-                      }
-                      evIndex = 0;
-                      zoomBtn.setText("1.0x");
-                  } catch (Exception e) {
-                      Toast.makeText(this, "Cannot open this camera/mode", Toast.LENGTH_SHORT).show();
-                      if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
-                          lensFacing = CameraSelector.LENS_FACING_BACK;
-                      }
-                  }
-              }
-
-              // ------------------------------------------------------------ photo / video mode + recording
-
-              private void updateModeUi() {
-                  modePhoto.setTextColor(videoMode ? 0xFF888888 : 0xFFFF9A2E);
-                  modeVideo.setTextColor(videoMode ? 0xFFFF9A2E : 0xFF888888);
-                  GradientDrawable od = new GradientDrawable();
-                  od.setShape(GradientDrawable.OVAL);
-                  od.setColor(videoMode ? 0xFFE53935 : 0xFFFF6600);
-                  shutterDot.setBackground(od);
-              }
-
-              private void setMode(boolean video) {
-                  if (recording != null || video == videoMode) return;
-                  videoMode = video;
-                  updateModeUi();
-                  bindCamera();
-                  if (video && filterIndex != 0 && !vfxOn) {
-                      Toast.makeText(this, "Video filter is OFF (Settings), video is saved without filter",
-                              Toast.LENGTH_LONG).show();
-                  }
-              }
-
-              private String sizeText(int i) {
-                  double mb = (V_BPS[i] + 128000) * 600.0 / 8.0 / 1e6;
-                  if (mb >= 1000) return String.format(Locale.US, "%.1f GB", mb / 1000.0);
-                  return String.format(Locale.US, "%d MB", Math.round(mb));
-              }
-
-              private void toggleRecord() {
-                  if (recording != null) {
-                      recording.stop();
-                      return;
-                  }
-                  if (videoCapture == null) return;
-                  String name = "RetroLens_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
-                  ContentValues cv = new ContentValues();
-                  cv.put(MediaStore.Video.Media.DISPLAY_NAME, name);
-                  cv.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
-                  if (Build.VERSION.SDK_INT >= 29) {
-                      cv.put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/RetroLens");
-                  }
-                  MediaStoreOutputOptions opt = new MediaStoreOutputOptions.Builder(
-                          getContentResolver(), MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
-                          .setContentValues(cv).build();
-                  PendingRecording pr = videoCapture.getOutput().prepareRecording(this, opt);
-                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-                          == PackageManager.PERMISSION_GRANTED) {
-                      pr = pr.withAudioEnabled();
-                  }
-                  recording = pr.start(ContextCompat.getMainExecutor(this), ev -> {
-                      if (ev instanceof VideoRecordEvent.Start) {
-                          paused = false;
-                          lastSec = 0;
-                          timerView.setTextColor(0xFFFF3B30);
-                          timerView.setText("\u25CF 00:00");
-                          timerView.setVisibility(View.VISIBLE);
-                          pauseBtn.setText("\u275A\u275A");
-                          pauseBtn.setVisibility(View.VISIBLE);
-                      } else if (ev instanceof VideoRecordEvent.Status) {
-                          lastSec = ((VideoRecordEvent.Status) ev).getRecordingStats()
-                                  .getRecordedDurationNanos() / 1000000000L;
-                          showTimer();
-                      } else if (ev instanceof VideoRecordEvent.Pause) {
-                          paused = true;
-                          pauseBtn.setText("\u25B6");
-                          timerView.setTextColor(0xFFFFB22E);
-                          showTimer();
-                      } else if (ev instanceof VideoRecordEvent.Resume) {
-                          paused = false;
-                          pauseBtn.setText("\u275A\u275A");
-                          timerView.setTextColor(0xFFFF3B30);
-                          showTimer();
-                      } else if (ev instanceof VideoRecordEvent.Finalize) {
-                          VideoRecordEvent.Finalize fz = (VideoRecordEvent.Finalize) ev;
-                          recording = null;
-                          paused = false;
-                          timerView.setVisibility(View.GONE);
-                          pauseBtn.setVisibility(View.GONE);
-                          if (!fz.hasError()) {
-                              lastUri = fz.getOutputResults().getOutputUri();
-                              Toast.makeText(this, "Video saved \u2714  Movies/RetroLens", Toast.LENGTH_SHORT).show();
-                          } else {
-                              Toast.makeText(this, "Video error code " + fz.getError(), Toast.LENGTH_LONG).show();
-                          }
-                      }
-                  });
-              }
-
-              private void showTimer() {
-                  timerView.setText(String.format(Locale.US, "%s %02d:%02d",
-                          paused ? "\u275A\u275A" : "\u25CF", lastSec / 60, lastSec % 60));
-              }
-
-              private void togglePause() {
-                  if (recording == null) return;
-                  if (paused) recording.resume();
-                  else recording.pause();
-              }
-
-              // ------------------------------------------------------------ capture + processing
-
-              private void capture() {
-                  if (videoMode) {
-                      toggleRecord();
-                      return;
-                  }
-                  if (imageCapture == null) return;
-                  innerFrame.animate().alpha(0.35f).setDuration(60).withEndAction(
-                          () -> innerFrame.animate().alpha(1f).setDuration(140).start()).start();
-
-                  final File tmp = new File(getCacheDir(), "cap_" + System.currentTimeMillis() + ".jpg");
-                  ImageCapture.OutputFileOptions opt = new ImageCapture.OutputFileOptions.Builder(tmp).build();
-                  final boolean mir = lensFacing == CameraSelector.LENS_FACING_FRONT && mirrorOn;
-                  final Filter f = filters.get(filterIndex);
-                  final int q = quality;
-                  imageCapture.takePicture(opt, ContextCompat.getMainExecutor(this),
-                          new ImageCapture.OnImageSavedCallback() {
-                              @Override
-                              public void onImageSaved(ImageCapture.OutputFileResults r) {
-                                  io.execute(() -> process(tmp, mir, f, q));
-                              }
-
-                              @Override
-                              public void onError(ImageCaptureException e) {
-                                  Toast.makeText(MainActivity.this, "Capture failed: " + e.getMessage(),
-                                          Toast.LENGTH_LONG).show();
-                              }
-                          });
-              }
-
-              private void process(File tmp, boolean mir, Filter f, int q) {
-                  Bitmap src = null, rot = null, out = null;
-                  try {
-                      int maxSide = q == 0 ? 4096 : (q == 1 ? 2048 : 1280);
-                      int jq = q == 0 ? 95 : (q == 1 ? 85 : 70);
-                      String path = tmp.getAbsolutePath();
-
-                      BitmapFactory.Options o = new BitmapFactory.Options();
-                      o.inJustDecodeBounds = true;
-                      BitmapFactory.decodeFile(path, o);
-                      int big = Math.max(o.outWidth, o.outHeight);
-                      int sample = 1;
-                      while (big / (sample * 2) >= maxSide) sample *= 2;
-                      o = new BitmapFactory.Options();
-                      o.inSampleSize = sample;
-                      src = BitmapFactory.decodeFile(path, o);
-                      if (src == null) throw new RuntimeException("decode failed");
-
-                      int orient = new ExifInterface(path).getAttributeInt(
-                              ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
-                      Matrix m = new Matrix();
-                      if (orient == ExifInterface.ORIENTATION_ROTATE_90) m.postRotate(90);
-                      else if (orient == ExifInterface.ORIENTATION_ROTATE_180) m.postRotate(180);
-                      else if (orient == ExifInterface.ORIENTATION_ROTATE_270) m.postRotate(270);
-                      if (mir) m.postScale(-1f, 1f);
-                      float sc = Math.min(1f, (float) maxSide / Math.max(src.getWidth(), src.getHeight()));
-                      if (sc < 1f) m.postScale(sc, sc);
-                      rot = Bitmap.createBitmap(src, 0, 0, src.getWidth(), src.getHeight(), m, true);
-
-                      out = Bitmap.createBitmap(rot.getWidth(), rot.getHeight(), Bitmap.Config.ARGB_8888);
-                      Canvas c = new Canvas(out);
-                      Paint p = new Paint(Paint.FILTER_BITMAP_FLAG);
-                      p.setColorFilter(new ColorMatrixColorFilter(f.matrix()));
-                      c.drawBitmap(rot, 0, 0, p);
-                      Fx.draw(c, out.getWidth(), out.getHeight(), f, Math.max(1f, out.getWidth() / 900f));
-
-                      final Uri uri = saveBitmap(out, jq);
-
-                      int s = Math.min(out.getWidth(), out.getHeight());
-                      Bitmap sq = Bitmap.createBitmap(out, (out.getWidth() - s) / 2, (out.getHeight() - s) / 2, s, s);
-                      final Bitmap th = Bitmap.createScaledBitmap(sq, 160, 160, true);
-                      runOnUiThread(() -> {
-                          lastUri = uri;
-                          thumb.setImageBitmap(th);
-                          Toast.makeText(this, "Saved \u2714  Pictures/RetroLens", Toast.LENGTH_SHORT).show();
-                      });
-                  } catch (Exception e) {
-                      final String msg = String.valueOf(e.getMessage());
-                      runOnUiThread(() -> Toast.makeText(this, "Save failed: " + msg, Toast.LENGTH_LONG).show());
-                  } finally {
-                      tmp.delete();
-                  }
-              }
-
-              private Uri saveBitmap(Bitmap bmp, int jq) throws Exception {
-                  String name = "RetroLens_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".jpg";
-                  if (Build.VERSION.SDK_INT >= 29) {
-                      ContentValues v = new ContentValues();
-                      v.put(MediaStore.Images.Media.DISPLAY_NAME, name);
-                      v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-                      v.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/RetroLens");
-                      v.put(MediaStore.Images.Media.IS_PENDING, 1);
-                      Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
-                      if (uri == null) throw new RuntimeException("MediaStore insert failed");
-                      OutputStream os = getContentResolver().openOutputStream(uri);
-                      bmp.compress(Bitmap.CompressFormat.JPEG, jq, os);
-                      os.close();
-                      ContentValues done = new ContentValues();
-                      done.put(MediaStore.Images.Media.IS_PENDING, 0);
-                      getContentResolver().update(uri, done, null, null);
-                      return uri;
-                  } else {
-                      File dir = new File(Environment.getExternalStoragePublicDirectory(
-                              Environment.DIRECTORY_PICTURES), "RetroLens");
-                      dir.mkdirs();
-                      File file = new File(dir, name);
-                      FileOutputStream fo = new FileOutputStream(file);
-                      bmp.compress(Bitmap.CompressFormat.JPEG, jq, fo);
-                      fo.close();
-                      MediaScannerConnection.scanFile(this, new String[]{file.getAbsolutePath()},
-                              new String[]{"image/jpeg"}, null);
-                      return Uri.fromFile(file);
-                  }
-              }
-
-              private void openGallery() {
-                  try {
-                      Intent i;
-                      if (lastUri != null) {
-                          i = new Intent(Intent.ACTION_VIEW);
-                          i.setDataAndType(lastUri, "*/*");
-                          i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                      } else {
-                          i = new Intent(Intent.ACTION_VIEW, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-                      }
-                      startActivity(i);
-                  } catch (Exception e) {
-                      Toast.makeText(this, "No gallery app found", Toast.LENGTH_SHORT).show();
-                  }
-              }
-
-              // ------------------------------------------------------------ settings
-
-              private void showSettings() {
-                  LinearLayout box = new LinearLayout(this);
-                  box.setOrientation(LinearLayout.VERTICAL);
-                  box.setPadding(dp(22), dp(14), dp(22), dp(6));
-
-                  SwitchCompat gs = new SwitchCompat(this);
-                  gs.setText("Rule of Thirds grid  (\u09B0\u09C1\u09B2 \u0985\u09AB \u09A5\u09BE\u09B0\u09CD\u09A1\u09B8)");
-                  gs.setTextColor(0xFFFFFFFF);
-                  gs.setChecked(gridOn);
-                  gs.setOnCheckedChangeListener((b, c) -> {
-                      gridOn = c;
-                      prefs.edit().putBoolean("grid", c).apply();
-                      overlay.setGrid(c);
-                  });
-                  box.addView(gs, new LinearLayout.LayoutParams(-1, dp(48)));
-
-                  SwitchCompat ms = new SwitchCompat(this);
-                  ms.setText("Mirror selfie image  (\u09B8\u09C7\u09B2\u09AB\u09BF \u09AE\u09BF\u09B0\u09B0)");
-                  ms.setTextColor(0xFFFFFFFF);
-                  ms.setChecked(mirrorOn);
-                  ms.setOnCheckedChangeListener((b, c) -> {
-                      mirrorOn = c;
-                      prefs.edit().putBoolean("mirror", c).apply();
-                  });
-                  box.addView(ms, new LinearLayout.LayoutParams(-1, dp(48)));
-
-                  TextView qt = new TextView(this);
-                  qt.setText("Image quality / size");
-                  qt.setTextColor(0xFFFFB066);
-                  qt.setPadding(0, dp(14), 0, dp(4));
-                  box.addView(qt);
-
-                  String[] labels = {
-                          "High  \u2013 up to 4096 px, JPEG 95%",
-                          "Medium \u2013 up to 2048 px, JPEG 85%",
-                          "Low \u2013 up to 1280 px, JPEG 70% (small file)"};
-                  final int[] ids = new int[3];
-                  RadioGroup rg = new RadioGroup(this);
-                  for (int i = 0; i < 3; i++) {
-                      RadioButton rb = new RadioButton(this);
-                      rb.setText(labels[i]);
-                      rb.setTextColor(0xFFFFFFFF);
-                      ids[i] = View.generateViewId();
-                      rb.setId(ids[i]);
-                      rg.addView(rb);
-                  }
-                  rg.check(ids[Math.max(0, Math.min(2, quality))]);
-                  rg.setOnCheckedChangeListener((g, id) -> {
-                      for (int i = 0; i < 3; i++) {
-                          if (ids[i] == id) {
-                              quality = i;
-                              prefs.edit().putInt("quality", i).apply();
-                          }
-                      }
-                  });
-                  box.addView(rg);
-
-                  SwitchCompat vs = new SwitchCompat(this);
-                  vs.setText("Apply filter to saved video (beta)");
-                  vs.setTextColor(0xFFFFFFFF);
-                  vs.setChecked(vfxOn);
-                  vs.setOnCheckedChangeListener((b, c) -> {
-                      vfxOn = c;
-                      prefs.edit().putBoolean("vfx", c).apply();
-                      if (videoMode && recording == null) bindCamera();
-                  });
-                  LinearLayout.LayoutParams vsp = new LinearLayout.LayoutParams(-1, dp(48));
-                  vsp.topMargin = dp(10);
-                  box.addView(vs, vsp);
-
-                  SwitchCompat as = new SwitchCompat(this);
-                  as.setText("Auto brighten video (night)");
-                  as.setTextColor(0xFFFFFFFF);
-                  as.setChecked(abrOn);
-                  as.setOnCheckedChangeListener((b, c) -> {
-                      abrOn = c;
-                      prefs.edit().putBoolean("abr", c).apply();
-                      if (videoFx != null) videoFx.setAutoBrighten(c);
-                  });
-                  box.addView(as, new LinearLayout.LayoutParams(-1, dp(48)));
-
-                  TextView vt = new TextView(this);
-                  vt.setText("Video quality  (approx. size of a 10 minute video)");
-                  vt.setTextColor(0xFFFFB066);
-                  vt.setPadding(0, dp(14), 0, dp(4));
-                  box.addView(vt);
-                  final int[] vids = new int[4];
-                  RadioGroup vg = new RadioGroup(this);
-                  for (int i = 0; i < 4; i++) {
-                      RadioButton rb = new RadioButton(this);
-                      rb.setText(VQ_NAME[i] + "  \u2013  ~" + sizeText(i) + " / 10 min");
-                      rb.setTextColor(0xFFFFFFFF);
-                      vids[i] = View.generateViewId();
-                      rb.setId(vids[i]);
-                      vg.addView(rb);
-                  }
-                  vg.check(vids[Math.max(0, Math.min(3, vq))]);
-                  vg.setOnCheckedChangeListener((g, id) -> {
-                      for (int i = 0; i < 4; i++) {
-                          if (vids[i] == id && vq != i) {
-                              vq = i;
-                              prefs.edit().putInt("vq", i).apply();
-                              if (videoMode && recording == null) bindCamera();
-                          }
-                      }
-                  });
-                  box.addView(vg);
-
-                  View line = new View(this);
-                  line.setBackgroundColor(0x44FFFFFF);
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(1));
-                  lp.topMargin = dp(14);
-                  lp.bottomMargin = dp(10);
-                  box.addView(line, lp);
-
-                  TextView about = new TextView(this);
-                  about.setText("RetroLens 1.0\n"
-                          + "Creator: Mohammod Abdul Awal\n"
-                          + "Student: Department of English, National University\n"
-                          + "Mail: awal.sorkar.144@gmail.com");
-                  about.setTextColor(0xFFCCCCCC);
-                  about.setTextSize(13);
-                  about.setAutoLinkMask(Linkify.EMAIL_ADDRESSES);
-                  about.setLinkTextColor(0xFFFF9A2E);
-                  box.addView(about);
-
-                  ScrollView scroll = new ScrollView(this);
-                  scroll.addView(box);
-                  new AlertDialog.Builder(this)
-                          .setTitle("Settings")
-                          .setView(scroll)
-                          .setPositiveButton("OK", null)
-                          .show();
-              }
-          }
-          EOF
-          cat > app/src/main/java/com/awal/retrolens/OverlayView.java << 'EOF'
-          package com.awal.retrolens;
-
-          import android.content.Context;
-          import android.graphics.Canvas;
-          import android.graphics.Paint;
-          import android.os.SystemClock;
-          import android.view.View;
-
-          /** Effects layer + rule-of-thirds grid + focus ring + exposure label. */
-          public class OverlayView extends View {
-              private Filter filter;
-              private boolean grid = false;
-              private float fx = -1f, fy = -1f;
-              private long focusT = 0, evT = 0;
-              private String evText = "";
-              private final Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
-              private final Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
-              private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
-              private final float d;
-
-              public OverlayView(Context c) {
-                  super(c);
-                  d = c.getResources().getDisplayMetrics().density;
-                  line.setColor(0xAAFFFFFF);
-                  line.setStrokeWidth(1.2f * d);
-                  ring.setStyle(Paint.Style.STROKE);
-                  ring.setStrokeWidth(2f * d);
-                  ring.setColor(0xFFFFB22E);
-                  text.setColor(0xFFFFD27A);
-                  text.setTextSize(15f * d);
-                  text.setTextAlign(Paint.Align.CENTER);
-                  text.setShadowLayer(3f * d, 0, 0, 0xFF000000);
-                  setClickable(true);
-              }
-
-              public void setFilter(Filter f) { filter = f; invalidate(); }
-              public void setGrid(boolean g) { grid = g; invalidate(); }
-
-              public void showFocus(float x, float y) {
-                  fx = x; fy = y;
-                  focusT = SystemClock.uptimeMillis();
-                  invalidate();
-              }
-
-              public void showEv(String s) {
-                  evText = s;
-                  evT = SystemClock.uptimeMillis();
-                  invalidate();
-              }
-
-              @Override
-              protected void onDraw(Canvas c) {
-                  int w = getWidth(), h = getHeight();
-                  if (filter != null) Fx.draw(c, w, h, filter, 1f);
-
-                  if (grid) {
-                      c.drawLine(w / 3f, 0, w / 3f, h, line);
-                      c.drawLine(2f * w / 3f, 0, 2f * w / 3f, h, line);
-                      c.drawLine(0, h / 3f, w, h / 3f, line);
-                      c.drawLine(0, 2f * h / 3f, w, 2f * h / 3f, line);
-                  }
-
-                  long now = SystemClock.uptimeMillis();
-                  boolean again = false;
-
-                  if (fx >= 0) {
-                      long t = now - focusT;
-                      if (t < 2000) {
-                          float k = Math.min(1f, t / 220f);
-                          float r = (52f - 18f * k) * d;
-                          int a = t < 1400 ? 255 : (int) (255f * (2000 - t) / 600f);
-                          ring.setAlpha(Math.max(0, Math.min(255, a)));
-                          c.drawCircle(fx, fy, r, ring);
-                          c.drawCircle(fx, fy, 3f * d, ring);
-                          again = true;
-                      }
-                  }
-
-                  long te = now - evT;
-                  if (evT > 0 && te < 1800) {
-                      int a = te < 1200 ? 255 : (int) (255f * (1800 - te) / 600f);
-                      text.setAlpha(Math.max(0, Math.min(255, a)));
-                      c.drawText(evText, w / 2f, 34f * d, text);
-                      again = true;
-                  }
-
-                  if (again) postInvalidateOnAnimation();
-              }
-          }
-          EOF
-          cat > app/src/main/java/com/awal/retrolens/VideoFx.java << 'EOF'
-          package com.awal.retrolens;
-
-          import android.graphics.SurfaceTexture;
-          import android.opengl.EGL14;
-          import android.opengl.EGLConfig;
-          import android.opengl.EGLContext;
-          import android.opengl.EGLDisplay;
-          import android.opengl.EGLExt;
-          import android.opengl.EGLSurface;
-          import android.opengl.GLES11Ext;
-          import android.opengl.GLES20;
-          import android.os.Handler;
-          import android.os.HandlerThread;
-          import android.util.Size;
-          import android.view.Surface;
-
-          import androidx.camera.core.CameraEffect;
-          import androidx.camera.core.SurfaceOutput;
-          import androidx.camera.core.SurfaceProcessor;
-          import androidx.camera.core.SurfaceRequest;
-          import androidx.core.util.Consumer;
-
-          import java.nio.ByteBuffer;
-          import java.nio.ByteOrder;
-          import java.nio.FloatBuffer;
-          import java.util.ArrayList;
-          import java.util.List;
-          import java.util.concurrent.Executor;
-
-          /** OpenGL processor: applies the selected filter to every video frame before encoding. */
-          public class VideoFx implements SurfaceProcessor {
-
-              public static class Effect extends CameraEffect {
-                  public Effect(Executor e, SurfaceProcessor p, Consumer<Throwable> l) {
-                      super(CameraEffect.VIDEO_CAPTURE, e, p, l);
-                  }
-              }
-
-              private static class Out {
-                  SurfaceOutput out;
-                  EGLSurface es = EGL14.EGL_NO_SURFACE;
-                  float[] mat = new float[16];
-              }
-
-              private static final String VS =
-                      "uniform mat4 uTexM;\n"
-                      + "attribute vec4 aPos;\n"
-                      + "attribute vec4 aTex;\n"
-                      + "varying vec2 vTex;\n"
-                      + "varying vec2 vPos;\n"
-                      + "void main(){\n"
-                      + "  gl_Position = aPos;\n"
-                      + "  vTex = (uTexM * aTex).xy;\n"
-                      + "  vPos = aTex.xy;\n"
-                      + "}\n";
-
-              private static final String FS =
-                      "#extension GL_OES_EGL_image_external : require\n"
-                      + "#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
-                      + "precision highp float;\n"
-                      + "#else\n"
-                      + "precision mediump float;\n"
-                      + "#endif\n"
-                      + "varying vec2 vTex;\n"
-                      + "varying vec2 vPos;\n"
-                      + "uniform samplerExternalOES sTex;\n"
-                      + "uniform mat3 uColor;\n"
-                      + "uniform vec3 uOff;\n"
-                      + "uniform float uVig;\n"
-                      + "uniform vec4 uLeak;\n"
-                      + "uniform int uSide;\n"
-                      + "uniform float uGrain;\n"
-                      + "uniform vec2 uRes;\n"
-                      + "uniform float uTime;\n"
-                      + "uniform float uGain;\n"
-                      + "uniform float uGamma;\n"
-                      + "void main(){\n"
-                      + "  vec3 c = texture2D(sTex, vTex).rgb;\n"
-                      + "  if (uGain > 1.001) {\n"
-                      + "    c = pow(c, vec3(1.0 / uGamma));\n"
-                      + "    c *= uGain;\n"
-                      + "    vec3 over = max(c - 0.8, 0.0);\n"
-                      + "    c = min(c, vec3(0.8)) + 0.2 * (1.0 - exp(-over / 0.2));\n"
-                      + "  }\n"
-                      + "  c = clamp(uColor * c + uOff, 0.0, 1.0);\n"
-                      + "  if (uLeak.a > 0.0) {\n"
-                      + "    float t;\n"
-                      + "    if (uSide == 0) t = 1.0 - vPos.x / 0.6;\n"
-                      + "    else if (uSide == 1) t = 1.0 - (1.0 - vPos.x) / 0.6;\n"
-                      + "    else if (uSide == 2) t = 1.0 - (1.0 - vPos.y) / 0.5;\n"
-                      + "    else t = 1.0 - vPos.y / 0.5;\n"
-                      + "    t = clamp(t, 0.0, 1.0);\n"
-                      + "    c = mix(c, uLeak.rgb, uLeak.a * t);\n"
-                      + "  }\n"
-                      + "  if (uVig > 0.0) {\n"
-                      + "    vec2 p = (vPos - 0.5) * uRes;\n"
-                      + "    float d = length(p) / (0.5 * length(uRes));\n"
-                      + "    float t2 = clamp((d - 0.5) / 0.5, 0.0, 1.0);\n"
-                      + "    c *= 1.0 - uVig * t2;\n"
-                      + "  }\n"
-                      + "  if (uGrain > 0.0) {\n"
-                      + "    float n = fract(sin(dot(vPos * uRes * 0.5 + uTime * 100.0, vec2(12.9898, 78.233))) * 43758.5453);\n"
-                      + "    c = mix(c, vec3(n), uGrain * 0.35);\n"
-                      + "  }\n"
-                      + "  gl_FragColor = vec4(c, 1.0);\n"
-                      + "}\n";
-
-              private final HandlerThread thread;
-              private final Handler handler;
-              public final Executor executor;
-
-              public interface GainListener {
-                  void onGain(float gain);
-              }
-
-              private volatile boolean autoOn = true;
-              private volatile GainListener gainListener;
-              private float gain = 1f, lastReported = 1f;
-              private int frameCount = 0;
-              private int fbo, fboTex;
-              private int uGain, uGamma;
-              private final ByteBuffer pix = ByteBuffer.allocateDirect(32 * 32 * 4).order(ByteOrder.nativeOrder());
-              private final Consumer<Throwable> errorCb;
-
-              private volatile Filter filter;
-              private Filter cachedFor;
-              private final float[] mat3 = new float[9];
-              private final float[] off = new float[3];
-
-              private EGLDisplay dpy = EGL14.EGL_NO_DISPLAY;
-              private EGLContext ctx = EGL14.EGL_NO_CONTEXT;
-              private EGLConfig cfg;
-              private EGLSurface pbuf = EGL14.EGL_NO_SURFACE;
-              private boolean glReady = false;
-              private volatile boolean released = false;
-
-              private int prog, oesTex;
-              private int uTexM, uColor, uOff, uVig, uLeak, uSide, uGrain, uRes, uTime;
-              private FloatBuffer quad;
-
-              private SurfaceTexture inTex;
-              private Surface inSurface;
-              private final float[] texMat = new float[16];
-              private final List<Out> outs = new ArrayList<>();
-
-              public VideoFx(Consumer<Throwable> errorCb) {
-                  this.errorCb = errorCb;
-                  thread = new HandlerThread("RetroLensGL");
-                  thread.start();
-                  handler = new Handler(thread.getLooper());
-                  executor = r -> handler.post(r);
-              }
-
-              public void setFilter(Filter f) {
-                  filter = f;
-              }
-
-              public void setAutoBrighten(boolean on) {
-                  autoOn = on;
-              }
-
-              public void setGainListener(GainListener l) {
-                  gainListener = l;
-              }
-
-              public void close() {
-                  handler.postDelayed(() -> {
-                      released = true;
-                      try {
-                          for (Out o : new ArrayList<>(outs)) {
-                              destroySurface(o.es);
-                              try { o.out.close(); } catch (Exception ignored) { }
-                          }
-                          outs.clear();
-                          if (inTex != null) { inTex.setOnFrameAvailableListener(null); }
-                          if (glReady) {
-                              destroySurface(pbuf);
-                              if (ctx != EGL14.EGL_NO_CONTEXT) {
-                                  EGL14.eglMakeCurrent(dpy, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT);
-                                  EGL14.eglDestroyContext(dpy, ctx);
-                              }
-                          }
-                      } catch (Exception ignored) {
-                      }
-                      thread.quitSafely();
-                  }, 1500);
-              }
-
-              // ---------------------------------------------------------------- SurfaceProcessor
-
-              @Override
-              public void onInputSurface(final SurfaceRequest request) {
-                  try {
-                      ensureGl();
-                      Size size = request.getResolution();
-                      final SurfaceTexture st = new SurfaceTexture(oesTex);
-                      st.setDefaultBufferSize(size.getWidth(), size.getHeight());
-                      final Surface surface = new Surface(st);
-                      inTex = st;
-                      inSurface = surface;
-                      st.setOnFrameAvailableListener(t -> drawFrame(), handler);
-                      request.provideSurface(surface, executor, result -> {
-                          try {
-                              st.setOnFrameAvailableListener(null);
-                              st.release();
-                              surface.release();
-                          } catch (Exception ignored) {
-                          }
-                          if (inTex == st) {
-                              inTex = null;
-                              inSurface = null;
-                          }
-                      });
-                  } catch (Throwable t) {
-                      fail(t);
-                      request.willNotProvideSurface();
-                  }
-              }
-
-              @Override
-              public void onOutputSurface(final SurfaceOutput output) {
-                  try {
-                      ensureGl();
-                      final Out o = new Out();
-                      o.out = output;
-                      Surface s = output.getSurface(executor, ev -> {
-                          outs.remove(o);
-                          destroySurface(o.es);
-                          output.close();
-                      });
-                      int[] a = {EGL14.EGL_NONE};
-                      o.es = EGL14.eglCreateWindowSurface(dpy, cfg, s, a, 0);
-                      outs.add(o);
-                  } catch (Throwable t) {
-                      fail(t);
-                  }
-              }
-
-              private void fail(Throwable t) {
-                  try {
-                      errorCb.accept(t);
-                  } catch (Exception ignored) {
-                  }
-              }
-
-              // ---------------------------------------------------------------- GL
-
-              private void ensureGl() {
-                  if (glReady) return;
-                  dpy = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY);
-                  int[] ver = new int[2];
-                  EGL14.eglInitialize(dpy, ver, 0, ver, 1);
-                  EGLConfig[] cfgs = new EGLConfig[1];
-                  int[] n = new int[1];
-                  int[] withRec = {EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8, EGL14.EGL_BLUE_SIZE, 8,
-                          EGL14.EGL_ALPHA_SIZE, 8, EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
-                          EGLExt.EGL_RECORDABLE_ANDROID, 1, EGL14.EGL_NONE};
-                  int[] noRec = {EGL14.EGL_RED_SIZE, 8, EGL14.EGL_GREEN_SIZE, 8, EGL14.EGL_BLUE_SIZE, 8,
-                          EGL14.EGL_ALPHA_SIZE, 8, EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
-                          EGL14.EGL_NONE};
-                  if (!EGL14.eglChooseConfig(dpy, withRec, 0, cfgs, 0, 1, n, 0) || n[0] == 0) {
-                      if (!EGL14.eglChooseConfig(dpy, noRec, 0, cfgs, 0, 1, n, 0) || n[0] == 0) {
-                          throw new RuntimeException("No EGL config");
-                      }
-                  }
-                  cfg = cfgs[0];
-                  int[] ca = {EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE};
-                  ctx = EGL14.eglCreateContext(dpy, cfg, EGL14.EGL_NO_CONTEXT, ca, 0);
-                  int[] pa = {EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE};
-                  pbuf = EGL14.eglCreatePbufferSurface(dpy, cfg, pa, 0);
-                  if (!EGL14.eglMakeCurrent(dpy, pbuf, pbuf, ctx)) throw new RuntimeException("eglMakeCurrent failed");
-
-                  int[] t = new int[1];
-                  GLES20.glGenTextures(1, t, 0);
-                  oesTex = t[0];
-                  GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTex);
-                  GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
-                  GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-                  GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
-                  GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
-
-                  int vs = compile(GLES20.GL_VERTEX_SHADER, VS);
-                  int fs = compile(GLES20.GL_FRAGMENT_SHADER, FS);
-                  prog = GLES20.glCreateProgram();
-                  GLES20.glAttachShader(prog, vs);
-                  GLES20.glAttachShader(prog, fs);
-                  GLES20.glLinkProgram(prog);
-                  int[] ok = new int[1];
-                  GLES20.glGetProgramiv(prog, GLES20.GL_LINK_STATUS, ok, 0);
-                  if (ok[0] == 0) throw new RuntimeException("link: " + GLES20.glGetProgramInfoLog(prog));
-                  uTexM = GLES20.glGetUniformLocation(prog, "uTexM");
-                  uColor = GLES20.glGetUniformLocation(prog, "uColor");
-                  uOff = GLES20.glGetUniformLocation(prog, "uOff");
-                  uVig = GLES20.glGetUniformLocation(prog, "uVig");
-                  uLeak = GLES20.glGetUniformLocation(prog, "uLeak");
-                  uSide = GLES20.glGetUniformLocation(prog, "uSide");
-                  uGrain = GLES20.glGetUniformLocation(prog, "uGrain");
-                  uRes = GLES20.glGetUniformLocation(prog, "uRes");
-                  uTime = GLES20.glGetUniformLocation(prog, "uTime");
-                  uGain = GLES20.glGetUniformLocation(prog, "uGain");
-                  uGamma = GLES20.glGetUniformLocation(prog, "uGamma");
-
-                  int[] tx = new int[1];
-                  GLES20.glGenTextures(1, tx, 0);
-                  fboTex = tx[0];
-                  GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, fboTex);
-                  GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 32, 32, 0,
-                          GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null);
-                  GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
-                  GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
-                  GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
-                  GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
-                  int[] fb = new int[1];
-                  GLES20.glGenFramebuffers(1, fb, 0);
-                  fbo = fb[0];
-                  GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo);
-                  GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0,
-                          GLES20.GL_TEXTURE_2D, fboTex, 0);
-                  GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-
-                  float[] v = {
-                          -1f, -1f, 0f, 0f,
-                          1f, -1f, 1f, 0f,
-                          -1f, 1f, 0f, 1f,
-                          1f, 1f, 1f, 1f};
-                  quad = ByteBuffer.allocateDirect(v.length * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
-                  quad.put(v).position(0);
-                  glReady = true;
-              }
-
-              private int compile(int type, String src) {
-                  int s = GLES20.glCreateShader(type);
-                  GLES20.glShaderSource(s, src);
-                  GLES20.glCompileShader(s);
-                  int[] ok = new int[1];
-                  GLES20.glGetShaderiv(s, GLES20.GL_COMPILE_STATUS, ok, 0);
-                  if (ok[0] == 0) throw new RuntimeException("shader: " + GLES20.glGetShaderInfoLog(s));
-                  return s;
-              }
-
-              private void destroySurface(EGLSurface s) {
-                  if (s != null && s != EGL14.EGL_NO_SURFACE && dpy != EGL14.EGL_NO_DISPLAY) {
-                      try {
-                          EGL14.eglDestroySurface(dpy, s);
-                      } catch (Exception ignored) {
-                      }
-                  }
-              }
-
-              private void drawFrame() {
-                  if (released || !glReady || inTex == null) return;
-                  try {
-                      EGL14.eglMakeCurrent(dpy, pbuf, pbuf, ctx);
-                      inTex.updateTexImage();
-                      inTex.getTransformMatrix(texMat);
-                      long ts = inTex.getTimestamp();
-                      updateGain();
-                      for (Out o : new ArrayList<>(outs)) {
-                          if (o.es == EGL14.EGL_NO_SURFACE) continue;
-                          o.out.updateTransformMatrix(o.mat, texMat);
-                          EGL14.eglMakeCurrent(dpy, o.es, o.es, ctx);
-                          Size sz = o.out.getSize();
-                          render(o.mat, sz.getWidth(), sz.getHeight(), ts, false);
-                          EGLExt.eglPresentationTimeANDROID(dpy, o.es, ts);
-                          EGL14.eglSwapBuffers(dpy, o.es);
-                      }
-                      EGL14.eglMakeCurrent(dpy, pbuf, pbuf, ctx);
-                  } catch (Throwable t) {
-                      fail(t);
-                  }
-              }
-
-              private void prepareColor(Filter f) {
-                  if (f == cachedFor) return;
-                  float[] a = f.matrix().getArray(); // 4x5 row-major, offsets in 0..255
-                  for (int row = 0; row < 3; row++) {
-                      for (int col = 0; col < 3; col++) {
-                          mat3[col * 3 + row] = a[row * 5 + col];
-                      }
-                      off[row] = a[row * 5 + 4] / 255f;
-                  }
-                  cachedFor = f;
-              }
-
-              private void updateGain() {
-                  float want = 1f;
-                  if (autoOn) {
-                      if ((frameCount++ % 4) != 0) return;
-                      float mean = measureLuma();
-                      want = Math.max(1f, Math.min(3.5f, 0.42f / Math.max(mean, 0.03f)));
-                  } else if (gain == 1f) {
-                      return;
-                  }
-                  gain += (want - gain) * (autoOn ? 0.15f : 1f);
-                  if (gain < 1.005f) gain = 1f;
-                  if (Math.abs(gain - lastReported) > 0.05f || (gain == 1f && lastReported != 1f)) {
-                      lastReported = gain;
-                      GainListener l = gainListener;
-                      if (l != null) l.onGain(gain);
-                  }
-              }
-
-              private float measureLuma() {
-                  GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo);
-                  render(texMat, 32, 32, 0L, true);
-                  pix.clear();
-                  GLES20.glReadPixels(0, 0, 32, 32, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pix);
-                  GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0);
-                  long sum = 0;
-                  for (int i = 0; i < 32 * 32; i++) {
-                      int r = pix.get(i * 4) & 255;
-                      int g = pix.get(i * 4 + 1) & 255;
-                      int b = pix.get(i * 4 + 2) & 255;
-                      sum += (r * 299 + g * 587 + b * 114) / 1000;
-                  }
-                  return sum / 1024f / 255f;
-              }
-
-              private void render(float[] texM, int w, int h, long ts, boolean measure) {
-                  Filter f = filter;
-                  if (f == null) f = new Filter("none");
-                  prepareColor(f);
-
-                  GLES20.glViewport(0, 0, w, h);
-                  GLES20.glUseProgram(prog);
-                  GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-                  GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTex);
-
-                  GLES20.glUniformMatrix4fv(uTexM, 1, false, texM, 0);
-                  if (measure) {
-                      GLES20.glUniformMatrix3fv(uColor, 1, false, new float[]{1, 0, 0, 0, 1, 0, 0, 0, 1}, 0);
-                      GLES20.glUniform3f(uOff, 0f, 0f, 0f);
-                      GLES20.glUniform1f(uVig, 0f);
-                      GLES20.glUniform4f(uLeak, 0f, 0f, 0f, 0f);
-                      GLES20.glUniform1i(uSide, 0);
-                      GLES20.glUniform1f(uGrain, 0f);
-                      GLES20.glUniform1f(uGain, 1f);
-                      GLES20.glUniform1f(uGamma, 1f);
-                  } else {
-                      GLES20.glUniformMatrix3fv(uColor, 1, false, mat3, 0);
-                      GLES20.glUniform3f(uOff, off[0], off[1], off[2]);
-                      GLES20.glUniform1f(uVig, f.vig);
-                      float la = f.leakColor == 0 ? 0f : ((f.leakColor >>> 24) & 255) / 255f;
-                      GLES20.glUniform4f(uLeak, ((f.leakColor >> 16) & 255) / 255f, ((f.leakColor >> 8) & 255) / 255f,
-                              (f.leakColor & 255) / 255f, la);
-                      GLES20.glUniform1i(uSide, f.leakSide);
-                      GLES20.glUniform1f(uGrain, f.grain);
-                      GLES20.glUniform1f(uGain, gain);
-                      GLES20.glUniform1f(uGamma, 1f + (gain - 1f) * 0.2f);
-                  }
-                  GLES20.glUniform2f(uRes, w, h);
-                  GLES20.glUniform1f(uTime, ((ts / 1000000L) % 1000L) / 1000f);
-
-                  int aPos = GLES20.glGetAttribLocation(prog, "aPos");
-                  int aTex = GLES20.glGetAttribLocation(prog, "aTex");
-                  quad.position(0);
-                  GLES20.glVertexAttribPointer(aPos, 2, GLES20.GL_FLOAT, false, 16, quad);
-                  GLES20.glEnableVertexAttribArray(aPos);
-                  quad.position(2);
-                  GLES20.glVertexAttribPointer(aTex, 2, GLES20.GL_FLOAT, false, 16, quad);
-                  GLES20.glEnableVertexAttribArray(aTex);
-                  GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-                  GLES20.glDisableVertexAttribArray(aPos);
-                  GLES20.glDisableVertexAttribArray(aTex);
-              }
-          }
-          EOF
-          cat > app/src/main/res/drawable/ic_logo.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="96dp"
-              android:height="96dp"
-              android:viewportWidth="96"
-              android:viewportHeight="96">
-              <path
-                  android:fillColor="#1C1C1E"
-                  android:pathData="M20,0 H76 A20,20 0 0 1 96,20 V76 A20,20 0 0 1 76,96 H20 A20,20 0 0 1 0,76 V20 A20,20 0 0 1 20,0 Z" />
-              <path
-                  android:fillColor="#FF6A00"
-                  android:pathData="M48,50m-31,0a31,31 0 1,0 62,0a31,31 0 1,0 -62,0" />
-              <path
-                  android:fillColor="#1C1C1E"
-                  android:pathData="M48,50m-23,0a23,23 0 1,0 46,0a23,23 0 1,0 -46,0" />
-              <path
-                  android:fillColor="#3D3D42"
-                  android:pathData="M48,50m-15,0a15,15 0 1,0 30,0a15,15 0 1,0 -30,0" />
-              <path
-                  android:fillColor="#FFB066"
-                  android:pathData="M42,43m-5,0a5,5 0 1,0 10,0a5,5 0 1,0 -10,0" />
-              <path
-                  android:fillColor="#FFD9B0"
-                  android:pathData="M74,16m-4.5,0a4.5,4.5 0 1,0 9,0a4.5,4.5 0 1,0 -9,0" />
-          </vector>
-          EOF
-          cat > app/src/main/res/values/styles.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
-                  <item name="colorPrimary">#FF6A00</item>
-                  <item name="colorAccent">#FF6A00</item>
-                  <item name="android:windowBackground">@android:color/black</item>
-              </style>
-          </resources>
-          EOF
-          cat > build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application' version '8.2.2' apply false
-          }
-          EOF
-          cat > gradle.properties << 'EOF'
-          org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
-          android.useAndroidX=true
-          android.nonTransitiveRClass=true
-          EOF
-          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          EOF
-          cat > gradlew << 'EOF'
-          #!/bin/sh
-          APP_HOME=$(cd "$(dirname "$0")" && pwd -P)
-          if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
-            JAVACMD="$JAVA_HOME/bin/java"
-          else
-            JAVACMD=java
-          fi
-          exec "$JAVACMD" -Xmx64m -Xms64m -Dorg.gradle.appname=gradlew -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
-          EOF
+          mkdir -p app/src/main/java/com/awal/dabaguru app/src/main/res/layout app/src/main/res/values app/src/main/res/drawable app/src/main/assets gradle/wrapper
           cat > settings.gradle << 'EOF'
           pluginManagement {
               repositories {
@@ -1941,21 +50,848 @@ jobs:
                   mavenCentral()
               }
           }
-          rootProject.name = "RetroLens"
+          rootProject.name = "DabaGuru"
           include ':app'
           EOF
+          cat > build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.1.4' apply false
+          }
+          EOF
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.nonTransitiveRClass=true
+          EOF
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.awal.dabaguru'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.awal.dabaguru"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          EOF
 
-      - name: Download Gradle wrapper jar and create gradlew
+      - name: Create Android manifest, Java, layout, icon
         run: |
-          mkdir -p gradle/wrapper
-          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
-          chmod +x gradlew
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <!-- Dabaguru | Creator: Mohammod Abdul Awal | Student, Dept. of English, National University | awal.sorkar.144@gmail.com -->
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:label="@string/app_name"
+                  android:icon="@drawable/ic_launcher"
+                  android:roundIcon="@drawable/ic_launcher"
+                  android:allowBackup="true"
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="portrait"
+                      android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+          cat > app/src/main/java/com/awal/dabaguru/MainActivity.java << 'EOF'
+          package com.awal.dabaguru;
 
-      - name: Build debug APK
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.graphics.Color;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          // Creator: Mohammod Abdul Awal
+          public class MainActivity extends Activity {
+              private WebView web;
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  getWindow().setStatusBarColor(Color.parseColor("#3E2723"));
+                  setContentView(R.layout.activity_main);
+                  web = (WebView) findViewById(R.id.webview);
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setAllowFileAccess(true);
+                  s.setSupportZoom(false);
+                  web.setWebChromeClient(new WebChromeClient());
+                  web.setWebViewClient(new WebViewClient() {
+                      @SuppressWarnings("deprecation")
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView v, String url) {
+                          if (url.startsWith("mailto:")) {
+                              try { startActivity(new Intent(Intent.ACTION_SENDTO, Uri.parse(url))); } catch (Exception e) { }
+                              return true;
+                          }
+                          return false;
+                      }
+                  });
+                  web.loadUrl("file:///android_asset/index.html");
+              }
+          }
+          EOF
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="#3E2723">
+              <WebView
+                  android:id="@+id/webview"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"/>
+          </FrameLayout>
+          EOF
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">দাবা গুরু</string>
+              <string name="creator">Mohammod Abdul Awal</string>
+          </resources>
+          EOF
+          cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path android:fillColor="#3E2723" android:pathData="M54,54m-54,0a54,54 0 1,1 108,0a54,54 0 1,1 -108,0"/>
+              <path android:fillColor="#FFCA28" android:pathData="M52,16h4v8h8v4h-8v8h-4v-8h-8v-4h8z"/>
+              <path android:fillColor="#FFCA28" android:pathData="M32,44L42,58L54,40L66,58L76,44L72,72L36,72z"/>
+              <path android:fillColor="#FFCA28" android:pathData="M32,76h44v8h-44z"/>
+          </vector>
+          EOF
+
+      - name: Create chess game (HTML/JS)
+        run: |
+          cat > app/src/main/assets/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="bn"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+          <meta name="author" content="Mohammod Abdul Awal">
+          <title>দাবা গুরু</title>
+          <style>
+          :root{--bg:#f6efe6;--fg:#3e2723;--card:#fff;--lt:#f0d9b5;--dk:#b58863;--ac:#5d4037;--bd:#d7c4b0;--sz:40px}
+          body.dark{--bg:#1c1a19;--fg:#efe6dd;--card:#2a2625;--lt:#9c8a7b;--dk:#5a493f;--ac:#a1704a;--bd:#4a403a}
+          *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+          body{margin:0;font-family:sans-serif;background:var(--bg);color:var(--fg);padding:8px;-webkit-user-select:none;user-select:none}
+          #app{max-width:520px;margin:0 auto}
+          #hd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+          .logo{width:38px;height:38px;border-radius:50%;background:#3e2723;color:#ffca28;font-size:26px;display:flex;align-items:center;justify-content:center;border:2px solid #ffca28}
+          .ttl{flex:1;font-weight:700;font-size:20px;line-height:1}
+          .ttl small{display:block;font-size:11px;font-weight:400;opacity:.7;margin-top:3px}
+          button,select{font:inherit}
+          .ib{border:0;background:var(--card);color:var(--fg);border-radius:10px;padding:6px 10px;font-size:18px}
+          #bot{display:flex;gap:8px;align-items:center;background:var(--card);border-radius:12px;padding:6px 10px;margin-bottom:6px;min-height:46px}
+          #av{font-size:28px}
+          #say{font-size:13px;flex:1}
+          .pl{display:flex;justify-content:space-between;align-items:center;padding:3px 4px;font-size:14px}
+          .clk{font-weight:700;background:var(--card);border-radius:8px;padding:2px 10px}
+          .clk.on{background:var(--ac);color:#fff}
+          #wrap{display:flex;justify-content:center;align-items:stretch}
+          #ev{width:14px;border-radius:7px;overflow:hidden;background:#222;position:relative;margin-right:6px}
+          #evw{position:absolute;left:0;right:0;background:#fff;transition:height .3s}
+          #board{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);border:2px solid var(--ac);border-radius:4px;overflow:hidden}
+          .sq{position:relative;display:flex;align-items:center;justify-content:center}
+          .lt{background-color:var(--lt)}
+          .dk{background-color:var(--dk)}
+          .sq[data-r]::before{content:attr(data-r);position:absolute;left:2px;top:0;font-size:9px;opacity:.65}
+          .sq[data-f]::after{content:attr(data-f);position:absolute;right:2px;bottom:0;font-size:9px;opacity:.65}
+          .pc{font-size:var(--sz);line-height:1;pointer-events:none}
+          .pw{color:#fff;text-shadow:0 0 3px #000,0 0 2px #000,0 1px 1px #000}
+          .pb{color:#1b1b1b;text-shadow:0 0 2px rgba(255,255,255,.5)}
+          .rot{transform:rotate(180deg)}
+          .lm{box-shadow:inset 0 0 0 100px rgba(255,235,59,.35)}
+          .sel{box-shadow:inset 0 0 0 100px rgba(76,175,80,.5)}
+          .tg{background-image:radial-gradient(circle,rgba(0,0,0,.32) 22%,transparent 24%)}
+          .tc{box-shadow:inset 0 0 0 4px rgba(211,47,47,.75)}
+          .hn{box-shadow:inset 0 0 0 4px #1e88e5,inset 0 0 0 100px rgba(30,136,229,.25)}
+          .chk{box-shadow:inset 0 0 0 100px rgba(244,67,54,.55)}
+          #st{text-align:center;font-weight:600;margin:6px 0 2px;min-height:22px}
+          #cm{text-align:center;font-size:14px;min-height:20px}
+          .g1{color:#2e7d32}.g2{color:#757575}.g3{color:#ef6c00}.g4{color:#c62828}
+          #evt{text-align:center;font-size:12px;opacity:.75;min-height:16px}
+          #bt,#rb{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:6px 0}
+          #bt button,#rb button,.bx button{border:0;border-radius:10px;padding:8px 12px;background:var(--ac);color:#fff}
+          button:disabled{opacity:.4}
+          #ml{font-size:13px;background:var(--card);border-radius:10px;padding:8px;max-height:90px;overflow:auto;line-height:1.7;min-height:36px}
+          .cur{background:#ffca28;color:#000;border-radius:4px;padding:0 3px}
+          #ft{text-align:center;font-size:11px;opacity:.6;margin:8px 0}
+          #mod{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;z-index:9;padding:14px}
+          .bx{background:var(--card);color:var(--fg);border-radius:16px;padding:16px;width:100%;max-width:380px;max-height:90vh;overflow:auto}
+          .bx h3{margin:0 0 8px}
+          .bx label{display:block;font-size:13px;margin-top:8px}
+          .bx select,.bx textarea{width:100%;padding:8px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--fg)}
+          .bx textarea{height:110px;font-size:12px;-webkit-user-select:text;user-select:text}
+          .bx button{margin:8px 6px 0 0}
+          .sm{font-size:12px;opacity:.75}
+          .nb{background:#fff8e1;color:#5d4037;border-radius:10px;padding:8px;margin:8px 0}
+          .pr button{font-size:34px;padding:4px 14px;background:var(--lt);color:#222}
+          .hh #bot,.hh #ev,.hh #bHint,.hh #bUndo,.hh #cm,.hh #evt{display:none}
+          .hh #pTop{transform:rotate(180deg)}
+          </style></head><body>
+          <div id="app">
+          <div id="hd"><div class="logo">♚</div><div class="ttl">দাবা গুরু<small>বুদ্ধির খেলা</small></div><button class="ib" onclick="toggleDark()">🌓</button><button class="ib" onclick="about()">ℹ️</button></div>
+          <div id="bot"><span id="av">😺</span><div id="say"></div></div>
+          <div class="pl" id="pTop"><span id="nTop"></span><span class="clk" id="cTop"></span></div>
+          <div id="wrap"><div id="ev"><div id="evw"></div></div><div id="board"></div></div>
+          <div class="pl"><span id="nBot"></span><span class="clk" id="cBot"></span></div>
+          <div id="st"></div><div id="cm"></div><div id="evt"></div>
+          <div id="rb" style="display:none"><button onclick="rp(-999)">⏮</button><button onclick="rp(-1)">◀ আগের</button><span id="rpi" style="align-self:center"></span><button onclick="rp(1)">পরের ▶</button><button onclick="rp(999)">⏭</button><button onclick="endReplay()">✖ বন্ধ</button></div>
+          <div id="bt"><button id="bUndo" onclick="undo()">↩ Undo</button><button id="bHint" onclick="hint()">💡 হিন্ট</button><button onclick="startReplay()">🔁 রিপ্লে</button><button onclick="showPgn()">📜 PGN</button><button onclick="badges()">🏅 ব্যাজ</button><button onclick="openNew(true)">🆕 নতুন খেলা</button></div>
+          <div id="ml"></div>
+          <div id="ft">দাবা গুরু • Creator: Mohammod Abdul Awal</div>
+          </div>
+          <div id="mod"></div>
+          <script>
+          //ENGINE_START
+          const VAL=[0,100,300,300,500,900,0];
+          const PST=[null,
+          [0,0,0,0,0,0,0,0,
+          50,50,50,50,50,50,50,50,
+          10,10,20,30,30,20,10,10,
+          5,5,10,25,25,10,5,5,
+          0,0,0,20,20,0,0,0,
+          5,-5,-10,0,0,-10,-5,5,
+          5,10,10,-20,-20,10,10,5,
+          0,0,0,0,0,0,0,0],
+          [-50,-40,-30,-30,-30,-30,-40,-50,
+          -40,-20,0,0,0,0,-20,-40,
+          -30,0,10,15,15,10,0,-30,
+          -30,5,15,20,20,15,5,-30,
+          -30,0,15,20,20,15,0,-30,
+          -30,5,10,15,15,10,5,-30,
+          -40,-20,0,5,5,0,-20,-40,
+          -50,-40,-30,-30,-30,-30,-40,-50],
+          [-20,-10,-10,-10,-10,-10,-10,-20,
+          -10,0,0,0,0,0,0,-10,
+          -10,0,5,10,10,5,0,-10,
+          -10,5,5,10,10,5,5,-10,
+          -10,0,10,10,10,10,0,-10,
+          -10,10,10,10,10,10,10,-10,
+          -10,5,0,0,0,0,5,-10,
+          -20,-10,-10,-10,-10,-10,-10,-20],
+          [0,0,0,0,0,0,0,0,
+          5,10,10,10,10,10,10,5,
+          -5,0,0,0,0,0,0,-5,
+          -5,0,0,0,0,0,0,-5,
+          -5,0,0,0,0,0,0,-5,
+          -5,0,0,0,0,0,0,-5,
+          -5,0,0,0,0,0,0,-5,
+          0,0,0,5,5,0,0,0],
+          [-20,-10,-10,-5,-5,-10,-10,-20,
+          -10,0,0,0,0,0,0,-10,
+          -10,0,5,5,5,5,0,-10,
+          -5,0,5,5,5,5,0,-5,
+          0,0,5,5,5,5,0,-5,
+          -10,5,5,5,5,5,0,-10,
+          -10,0,5,0,0,0,0,-10,
+          -20,-10,-10,-5,-5,-10,-10,-20],
+          [-30,-40,-40,-50,-50,-40,-40,-30,
+          -30,-40,-40,-50,-50,-40,-40,-30,
+          -30,-40,-40,-50,-50,-40,-40,-30,
+          -30,-40,-40,-50,-50,-40,-40,-30,
+          -20,-30,-30,-40,-40,-30,-30,-20,
+          -10,-20,-20,-20,-20,-20,-20,-10,
+          20,20,0,0,0,0,20,20,
+          20,30,10,0,0,10,30,20]];
+          const ND=[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+          const KD=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+          const BD=[[-1,-1],[-1,1],[1,-1],[1,1]];
+          const RD=[[-1,0],[1,0],[0,-1],[0,1]];
+          const FL='abcdefgh',PL=['','','N','B','R','Q','K'],PRL={5:'Q',4:'R',3:'B',2:'N'};
+          let B=new Array(64).fill(0),CR=15,EP=-1,HALF=0,KS=[60,4];
+          const CM=new Array(64).fill(0);CM[63]=1;CM[60]=3;CM[56]=2;CM[7]=4;CM[4]=12;CM[0]=8;
+          function setup(){
+           const bk=[4,2,3,5,6,3,2,4];
+           B=new Array(64).fill(0);
+           for(let c=0;c<8;c++){B[c]=-bk[c];B[8+c]=-1;B[48+c]=1;B[56+c]=bk[c];}
+           CR=15;EP=-1;HALF=0;KS=[60,4];
+          }
+          function att(s,by){
+           const r=s>>3,c=s&7,pr=r+(by===1?1:-1);
+           if(pr>=0&&pr<8){if(c>0&&B[pr*8+c-1]===by)return true;if(c<7&&B[pr*8+c+1]===by)return true;}
+           for(const d of ND){const rr=r+d[0],cc=c+d[1];if(rr>=0&&rr<8&&cc>=0&&cc<8&&B[rr*8+cc]===by*2)return true;}
+           for(const d of KD){const rr=r+d[0],cc=c+d[1];if(rr>=0&&rr<8&&cc>=0&&cc<8&&B[rr*8+cc]===by*6)return true;}
+           for(const d of BD){let rr=r+d[0],cc=c+d[1];while(rr>=0&&rr<8&&cc>=0&&cc<8){const q=B[rr*8+cc];if(q){if(q===by*3||q===by*5)return true;break;}rr+=d[0];cc+=d[1];}}
+           for(const d of RD){let rr=r+d[0],cc=c+d[1];while(rr>=0&&rr<8&&cc>=0&&cc<8){const q=B[rr*8+cc];if(q){if(q===by*4||q===by*5)return true;break;}rr+=d[0];cc+=d[1];}}
+           return false;
+          }
+          function pm(mv,f,t,p,q,promo){
+           if(promo){for(const x of [5,4,3,2])mv.push({f:f,t:t,p:p,c:q,pr:x});}
+           else mv.push({f:f,t:t,p:p,c:q,pr:0});
+          }
+          function gen(side,caps){
+           const mv=[];
+           for(let s=0;s<64;s++){
+            const p=B[s];if(p*side<=0)continue;
+            const t=p*side,r=s>>3,c=s&7;
+            if(t===1){
+             const dir=-side,r1=r+dir,last=side===1?0:7,st=side===1?6:1;
+             if(r1<0||r1>7)continue;
+             const f1=r1*8+c;
+             if(B[f1]===0&&(!caps||r1===last)){
+              pm(mv,s,f1,p,0,r1===last);
+              if(!caps&&r===st&&B[f1+dir*8]===0)mv.push({f:s,t:f1+dir*8,p:p,c:0,pr:0,dp:1});
+             }
+             for(let dc=-1;dc<=1;dc+=2){
+              const cc=c+dc;if(cc<0||cc>7)continue;
+              const to=r1*8+cc,q=B[to];
+              if(q*side<0)pm(mv,s,to,p,q,r1===last);
+              else if(q===0&&to===EP)mv.push({f:s,t:to,p:p,c:-side,pr:0,e:1});
+             }
+            }else if(t===2||t===6){
+             const D=t===2?ND:KD;
+             for(const d of D){
+              const rr=r+d[0],cc=c+d[1];if(rr<0||rr>7||cc<0||cc>7)continue;
+              const to=rr*8+cc,q=B[to];if(q*side>0)continue;if(caps&&!q)continue;
+              mv.push({f:s,t:to,p:p,c:q,pr:0});
+             }
+            }else{
+             const D=t===3?BD:t===4?RD:BD.concat(RD);
+             for(const d of D){
+              let rr=r+d[0],cc=c+d[1];
+              while(rr>=0&&rr<8&&cc>=0&&cc<8){
+               const to=rr*8+cc,q=B[to];if(q*side>0)break;
+               if(!(caps&&!q))mv.push({f:s,t:to,p:p,c:q,pr:0});
+               if(q)break;rr+=d[0];cc+=d[1];
+              }
+             }
+            }
+           }
+           if(!caps){
+            const ks=side===1?60:4,bK=side===1?1:4,bQ=side===1?2:8;
+            if(B[ks]===side*6&&!att(ks,-side)){
+             if((CR&bK)&&B[ks+1]===0&&B[ks+2]===0&&B[ks+3]===side*4&&!att(ks+1,-side)&&!att(ks+2,-side))mv.push({f:ks,t:ks+2,p:side*6,c:0,pr:0,cs:1});
+             if((CR&bQ)&&B[ks-1]===0&&B[ks-2]===0&&B[ks-3]===0&&B[ks-4]===side*4&&!att(ks-1,-side)&&!att(ks-2,-side))mv.push({f:ks,t:ks-2,p:side*6,c:0,pr:0,cs:2});
+            }
+           }
+           return mv;
+          }
+          function make(m){
+           const u={cr:CR,ep:EP,hf:HALF},side=m.p>0?1:-1;
+           B[m.f]=0;
+           if(m.e)B[m.t+(side===1?8:-8)]=0;
+           B[m.t]=m.pr?side*m.pr:m.p;
+           if(m.cs===1){B[m.f+1]=B[m.f+3];B[m.f+3]=0;}
+           else if(m.cs===2){B[m.f-1]=B[m.f-4];B[m.f-4]=0;}
+           if(m.p*side===6)KS[side===1?0:1]=m.t;
+           CR&=~(CM[m.f]|CM[m.t]);
+           EP=m.dp?(m.f+m.t)>>1:-1;
+           HALF=(m.p*side===1||m.c)?0:HALF+1;
+           return u;
+          }
+          function unmake(m,u){
+           const side=m.p>0?1:-1;
+           B[m.f]=m.p;
+           if(m.e){B[m.t]=0;B[m.t+(side===1?8:-8)]=-side;}else B[m.t]=m.c;
+           if(m.cs===1){B[m.f+3]=B[m.f+1];B[m.f+1]=0;}
+           else if(m.cs===2){B[m.f-4]=B[m.f-1];B[m.f-1]=0;}
+           if(m.p*side===6)KS[side===1?0:1]=m.f;
+           CR=u.cr;EP=u.ep;HALF=u.hf;
+          }
+          function inCheck(side){return att(KS[side===1?0:1],-side);}
+          function legal(side){
+           const ms=gen(side),out=[],ki=side===1?0:1;
+           for(const m of ms){const u=make(m);if(!att(KS[ki],-side))out.push(m);unmake(m,u);}
+           return out;
+          }
+          function evaluate(){
+           let sc=0;
+           for(let s=0;s<64;s++){
+            const p=B[s];if(!p)continue;
+            if(p>0)sc+=VAL[p]+PST[p][s];else sc-=VAL[-p]+PST[-p][s^56];
+           }
+           return sc;
+          }
+          function order(ms){
+           for(const m of ms)m.o=(m.c?1000+VAL[Math.abs(m.c)]-VAL[Math.abs(m.p)]/10:0)+(m.pr?VAL[m.pr]:0);
+           ms.sort((a,b)=>b.o-a.o);
+          }
+          let NODES=0,DL=0,ABORT=false;
+          const MATE=100000;
+          function qs(alpha,beta,side,d){
+           const st=side*evaluate();
+           if(d===0)return st;
+           if(st>=beta)return st;
+           if(st>alpha)alpha=st;
+           const ms=gen(side,true),ki=side===1?0:1;order(ms);
+           for(const m of ms){
+            const u=make(m);
+            if(att(KS[ki],-side)){unmake(m,u);continue;}
+            const v=-qs(-beta,-alpha,-side,d-1);
+            unmake(m,u);
+            if(v>=beta)return v;
+            if(v>alpha)alpha=v;
+           }
+           return alpha;
+          }
+          function srch(d,alpha,beta,side){
+           if(++NODES%2048===0&&Date.now()>DL)ABORT=true;
+           if(ABORT)return 0;
+           if(d<=0)return qs(alpha,beta,side,2);
+           const ms=gen(side),ki=side===1?0:1;order(ms);
+           let n=0,bst=-1e9;
+           for(const m of ms){
+            const u=make(m);
+            if(att(KS[ki],-side)){unmake(m,u);continue;}
+            n++;
+            const v=-srch(d-1,-beta,-alpha,-side);
+            unmake(m,u);
+            if(ABORT)return 0;
+            if(v>bst)bst=v;
+            if(v>alpha)alpha=v;
+            if(alpha>=beta)break;
+           }
+           if(!n)return att(KS[ki],-side)?-MATE-d:0;
+           return bst;
+          }
+          function best(side,depth,lim){
+           const ms=legal(side);
+           if(!ms.length)return null;
+           for(let i=ms.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const x=ms[i];ms[i]=ms[j];ms[j]=x;}
+           order(ms);
+           let bm=ms[0],bs=0;
+           NODES=0;ABORT=false;DL=Date.now()+lim;
+           if(ms.length===1)return {m:bm,s:0};
+           for(let d=1;d<=depth;d++){
+            let cb=null,cs=-1e9,alpha=-1e9;
+            const i=ms.indexOf(bm);if(i>0){ms.splice(i,1);ms.unshift(bm);}
+            for(const m of ms){
+             const u=make(m);
+             const v=-srch(d-1,-1e9,-alpha,-side);
+             unmake(m,u);
+             if(ABORT)break;
+             if(v>cs){cs=v;cb=m;}
+             if(v>alpha)alpha=v;
+            }
+            if(ABORT)break;
+            bm=cb;bs=cs;
+           }
+           return {m:bm,s:bs};
+          }
+          function analyze(side){
+           const ms=legal(side),out=[];
+           NODES=0;ABORT=false;DL=Date.now()+4000;
+           for(const m of ms){const u=make(m);const v=-srch(2,-1e9,1e9,-side);unmake(m,u);out.push({m:m,s:v});}
+           return out;
+          }
+          function sq(s){return FL[s&7]+(8-(s>>3));}
+          function san(m,ls){
+           if(m.cs)return m.cs===1?'O-O':'O-O-O';
+           const t=Math.abs(m.p);let s='';
+           if(t===1){
+            if(m.c)s=FL[m.f&7]+'x';
+            s+=sq(m.t);
+            if(m.pr)s+='='+PRL[m.pr];
+            return s;
+           }
+           s=PL[t];
+           const o=ls.filter(x=>x!==m&&x.p===m.p&&x.t===m.t);
+           if(o.length){
+            if(!o.some(x=>(x.f&7)===(m.f&7)))s+=FL[m.f&7];
+            else if(!o.some(x=>(x.f>>3)===(m.f>>3)))s+=(8-(m.f>>3));
+            else s+=sq(m.f);
+           }
+           if(m.c)s+='x';
+           return s+sq(m.t);
+          }
+          //ENGINE_END
+          const $=id=>document.getElementById(id);
+          const bn=n=>String(n).replace(/\d/g,d=>'০১২৩৪৫৬৭৮৯'[d]);
+          const GL=['','\u265F\uFE0E','\u265E\uFE0E','\u265D\uFE0E','\u265C\uFE0E','\u265B\uFE0E','\u265A\uFE0E'];
+          const D=[
+          {n:'গম্ভীর দাদু',a:'👴',
+           start:['বসো দাদু ভাই, আজ তোমাকে দাবার পাঠ শেখাব।','চাল ভেবেচিন্তে দিও, তাড়াহুড়া করলে গজও পালায়।'],
+           move:['হুম... এই চালটা আমার ষাট বছরের অভিজ্ঞতার ফল।','আমাদের সময়ে এমন চাল দিলে চা ঠাণ্ডা হয়ে যেত।','ধীরে চলো, বোড়েও একদিন মন্ত্রী হয়।'],
+           check:['কিস্তি! রাজাকে সামলাও দাদু ভাই!'],
+           mistake:['ছিঃ ছিঃ! এই ভুল চাল দেখে আমার চশমা খুলে পড়ে গেল!','আহা, এ কী করলে! আমার ব্লাডপ্রেশার বাড়ছে।'],
+           good:['বাহ্! চালটা মন্দ নয়, বংশের ছেলে বটে।'],
+           lose:['হুম... হেরে গেলাম। লাঠিটা আবার কোথায় রাখলাম...'],
+           win:['জিতলাম বটে, তবে অহংকার করব না। আরেক হাত হবে?'],
+           draw:['ড্র! মানে দুজনেই সমান জেদি।']},
+          {n:'ফাজিল বন্ধু',a:'😜',
+           start:['কী রে দোস্ত, রেডি? আজ তোর বারোটা বাজাব!','চল চল, দেখি তোর দৌড় কতদূর!'],
+           move:['এইটা দেখ, একদম মাস্টারস্ট্রোক!','ভাই রে ভাই, আমি তো জিনিয়াস!','তুই তো ঘামতে শুরু করেছিস রে!'],
+           check:['কিস্তি দোস্ত! রাজা সাহেব দৌড় দাও!'],
+           mistake:['হাহা! এটা কী চাল দিলি রে ভাই! 😂','আরে বাপরে! ঘুঁটি তো উপহার দিয়ে দিলি!'],
+           good:['উরেব্বাস! চালটা তো দারুণ দিলি, চমকে গেলাম!'],
+           lose:['ধুর! তুই নিশ্চয়ই চিট করেছিস! রিম্যাচ চাই!'],
+           win:['হাহাহা! চা-নাশতা তোর খরচে, কথা ছিল না?'],
+           draw:['ড্র? যাহ, মজাটাই মাটি!']},
+          {n:'ঘুমকাতুরে বিড়াল',a:'😺',
+           start:['মিউউউ... এসেছ? একটু আড়মোড়া ভেঙে নিই...','হাই... ঘুঁটি সাজাও, আমি জেগে আছি... প্রায়।'],
+           move:['মিউ... চাল দিলাম... জ্জ্জ...','ঘুমের মধ্যেও এর চেয়ে ভালো চাল দিই... জ্জ্জ','এই চালটা মাছের কথা ভাবতে ভাবতে দিলাম... মিউ।'],
+           check:['মিউ! কিস্তি... এবার একটু ঘুমাই?'],
+           mistake:['মিউ?! ভুল করলে... ইঁদুরও হাসবে।','এই ভুলের জন্য এক বাটি দুধ পাওনা... মিউ!'],
+           good:['মিউ! চালটা আরামদায়ক... গরগর করছি।'],
+           lose:['মিউ... হেরে গেলাম... একটু ঘুমাই...'],
+           win:['জিতেছি... এবার পুরস্কার হিসেবে মাছ চাই... মিউ!'],
+           draw:['ড্র... জ্জ্জ... সমান সমান... ঘুম পাচ্ছে।']}
+          ];
+          let S={mode:'ai',lv:2,ps:0,tc:600,hc:1};
+          let turn=1,moves=[],sans=[],snaps=[],tms=[],keys=[],T=[600,600],over=null,hints=0,busy=false,rep=-1,sel=-1,selMoves=[],hintMove=null,cmt=null,curEval=0,started=false,GID=0,lastTick=Date.now(),sv=0;
+          function key(){return B.join(',')+'|'+turn+'|'+CR+'|'+EP;}
+          function insuf(){let n=0;for(let s=0;s<64;s++){const t=Math.abs(B[s]);if(t&&t!==6){if(t===1||t===4||t===5)return false;n++;}}return n<=1;}
+          function fl(){return S.mode==='ai'&&S.hc===-1;}
+          function canHuman(){return S.mode==='hh'||turn===S.hc;}
+          function apply(m){
+           const side=turn,ls=legal(side),sn=san(m,ls);
+           make(m);turn=-side;
+           const ck=inCheck(turn),nl=legal(turn).length;
+           let suf='',res=null;
+           if(nl===0){if(ck){suf='#';res={w:side,why:'কিস্তিমাত'};}else res={w:0,why:'স্টেলমেট (চাল নেই)'};}
+           else if(ck)suf='+';
+           moves.push([m.f,m.t,m.pr||0]);sans.push(sn+suf);
+           snaps.push({b:B.slice(),f:m.f,t:m.t});tms.push([T[0],T[1]]);
+           const k=key();keys.push(k);
+           if(!res){
+            if(HALF>=100)res={w:0,why:'৫০ চালের নিয়ম'};
+            else if(insuf())res={w:0,why:'ঘুঁটি অপর্যাপ্ত'};
+            else if(keys.filter(x=>x===k).length>=3)res={w:0,why:'একই অবস্থান তিনবার'};
+           }
+           if(res)over=res;
+           return {ck:ck,res:res};
+          }
+          function sameMove(a,b){return a.f===b.f&&a.t===b.t&&(a.pr||0)===(b.pr||0);}
+          function updEval(){
+           if(over)curEval=over.w*9999;
+           else curEval=qs(-1e9,1e9,turn,2)*turn;
+          }
+          function say(ev){
+           if(S.mode!=='ai')return;
+           const P=D[S.ps],L=P[ev];if(!L)return;
+           $('av').textContent=P.a;
+           $('say').textContent=P.n+': '+L[Math.floor(Math.random()*L.length)];
+          }
+          function play(m,ai){
+           hintMove=null;sel=-1;selMoves=[];
+           const r=apply(m);
+           if(S.mode==='ai')updEval();
+           if(r.res)finish(r.res);
+           else if(S.mode==='ai'&&ai){if(r.ck)say('check');else if(Math.random()<.6)say('move');}
+           save();render();
+           if(!r.res&&S.mode==='ai'&&!ai)aiMove();
+          }
+          function humanMove(m){
+           if(S.mode==='ai'){
+            const an=analyze(turn);let bs=-1e9,ms=null;
+            for(const x of an){if(x.s>bs)bs=x.s;if(sameMove(x.m,m))ms=x.s;}
+            if(ms===null)ms=bs;
+            const loss=Math.min(bs-ms,3000);
+            if(loss<=25)cmt={t:'✅ ভালো চাল',c:'g1'};
+            else if(loss<=90)cmt={t:'👌 ঠিকঠাক',c:'g2'};
+            else if(loss<=280)cmt={t:'❓ ভুল',c:'g3'};
+            else cmt={t:'❌ বিশাল ভুল',c:'g4'};
+            if(loss>90)say('mistake');else if(loss<=25&&Math.random()<.4)say('good');
+           }
+           play(m,false);
+          }
+          function aiMove(){
+           if(over||rep>=0||busy)return;
+           busy=true;const g=GID;render();
+           setTimeout(()=>{
+            if(g!==GID)return;
+            const ls=legal(turn);let m=null;
+            if(ls.length){
+             if(S.lv===1&&Math.random()<.3)m=ls[Math.floor(Math.random()*ls.length)];
+             else{const r=best(turn,S.lv,S.lv>=4?6000:S.lv===3?3500:2500);m=r&&r.m;}
+            }
+            busy=false;
+            if(m)play(m,true);else render();
+           },80);
+          }
+          function hint(){
+           if(S.mode!=='ai'||over||busy||rep>=0||turn!==S.hc)return;
+           if(hints>=3){cmt={t:'💡 এই খেলায় হিন্ট শেষ!',c:'g2'};render();return;}
+           const r=best(turn,3,3000);
+           if(r&&r.m){hintMove=r.m;hints++;sel=-1;selMoves=[];save();render();}
+          }
+          function clickSq(s){
+           if(over||rep>=0||busy||!canHuman())return;
+           if(sel>=0){
+            const ms=selMoves.filter(m=>m.t===s);
+            if(ms.length){
+             if(ms[0].pr){promo(ms);return;}
+             humanMove(ms[0]);return;
+            }
+           }
+           if(B[s]*turn>0){sel=s;selMoves=legal(turn).filter(m=>m.f===s);}
+           else{sel=-1;selMoves=[];}
+           render();
+          }
+          function promo(ms){
+           const c=turn===1?'pw':'pb';
+           let h='<h3>বোড়ে উন্নীত করুন</h3><div class="pr">';
+           for(const x of [5,4,3,2])h+='<button onclick="pickPromo('+x+')"><span class="'+c+'">'+GL[x]+'</span></button>';
+           modal(h+'</div>');
+           window._pm=ms;
+          }
+          function pickPromo(x){
+           const m=window._pm.find(y=>y.pr===x);closeMod();
+           if(m)humanMove(m);
+          }
+          function finish(r){
+           over=r;let extra='';
+           if(S.mode==='ai'){
+            if(r.w===S.hc){extra=ach();say('lose');}
+            else if(r.w===0)say('draw');
+            else say('win');
+           }
+           save();render();
+           setTimeout(()=>showResult(extra),500);
+          }
+          function ach(){
+           let a={};try{a=JSON.parse(localStorage.getItem('daba_ach')||'{}');}catch(e){}
+           const g=[],hm=moves.filter((_,i)=>(i%2===0)===(S.hc===1)).length;
+           if(!a.first){a.first=1;g.push('🥇 প্রথম জয়');}
+           if(!a.queen&&B.some(x=>x===S.hc*5)){a.queen=1;g.push('👑 মন্ত্রী বাঁচানোর ওস্তাদ');}
+           if(!a.ten&&hm<=10){a.ten=1;g.push('⚡ ১০ চালে জয়');}
+           try{localStorage.setItem('daba_ach',JSON.stringify(a));}catch(e){}
+           return g.length?'<div class="nb">🏅 নতুন ব্যাজ পেয়েছেন!<br>'+g.join('<br>')+'</div>':'';
+          }
+          function badges(){
+           let a={};try{a=JSON.parse(localStorage.getItem('daba_ach')||'{}');}catch(e){}
+           const L=[['first','🥇 প্রথম জয়','কম্পিউটারকে প্রথমবার হারান'],['queen','👑 মন্ত্রী বাঁচানোর ওস্তাদ','মন্ত্রী না হারিয়ে জিতুন'],['ten','⚡ ১০ চালে জয়','নিজের ১০ চালের মধ্যে জিতুন']];
+           let h='<h3>🏅 ব্যাজ</h3>';
+           for(const x of L)h+='<p>'+(a[x[0]]?x[1]:'🔒 '+x[1].slice(3))+'<br><span class="sm">'+x[2]+'</span></p>';
+           modal(h+'<button onclick="closeMod()">বন্ধ</button>');
+          }
+          function pgn(){
+           const d=new Date(),ds=d.getFullYear()+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getDate()).padStart(2,'0');
+           const wn=S.mode==='ai'?(S.hc===1?'Human':'Computer'):'Player1',bk=S.mode==='ai'?(S.hc===1?'Computer':'Human'):'Player2';
+           const res=over?(over.w===1?'1-0':over.w===-1?'0-1':'1/2-1/2'):'*';
+           let t='[Event "Daba Guru"]\n[Site "Android"]\n[Date "'+ds+'"]\n[White "'+wn+'"]\n[Black "'+bk+'"]\n[Result "'+res+'"]\n\n';
+           for(let i=0;i<sans.length;i++){if(i%2===0)t+=(i/2+1)+'. ';t+=sans[i]+' ';}
+           return t+res;
+          }
+          function resTxt(){
+           const w=over.w,y=over.why;
+           if(w===0)return '🤝 ড্র — '+y;
+           if(S.mode==='ai')return (w===S.hc?'🎉 আপনি জিতেছেন! — ':'😅 কম্পিউটার জিতেছে — ')+y;
+           return (w===1?'⚪ সাদা':'⚫ কালো')+' জিতেছে 🎉 — '+y;
+          }
+          function stTxt(){
+           if(over)return resTxt();
+           if(rep>=0)return '🔁 রিপ্লে মোড';
+           if(busy)return '🤔 ভাবছি...';
+           const ck=inCheck(turn)?' — ⚠️ কিস্তি!':'';
+           if(S.mode==='ai')return (turn===S.hc?'আপনার চাল ('+(turn===1?'সাদা':'কালো')+')':'কম্পিউটারের চাল')+ck;
+           return (turn===1?'⚪ সাদার চাল':'⚫ কালোর চাল')+ck;
+          }
+          function pname(s){
+           if(S.mode==='ai')return (s===S.hc?'👤 আপনি':'🤖 '+D[S.ps].n)+' ('+(s===1?'সাদা':'কালো')+')';
+           return s===1?'⚪ খেলোয়াড় ১ (সাদা)':'⚫ খেলোয়াড় ২ (কালো)';
+          }
+          function fmtT(t){t=Math.max(0,Math.ceil(t));return bn(String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0'));}
+          function updClocks(){
+           const f=fl(),topS=f?1:-1,botS=-topS;
+           $('cTop').textContent=fmtT(T[topS===1?0:1]);$('cBot').textContent=fmtT(T[botS===1?0:1]);
+           $('cTop').className='clk'+(!over&&turn===topS?' on':'');
+           $('cBot').className='clk'+(!over&&turn===botS?' on':'');
+          }
+          function render(){
+           const idx=rep>=0?rep:snaps.length-1,sn=snaps[idx],b=sn.b,f=fl();
+           let chk=-1;if(rep<0&&!over&&inCheck(turn))chk=KS[turn===1?0:1];
+           let h='';
+           for(let i=0;i<8;i++)for(let j=0;j<8;j++){
+            const r=f?7-i:i,c=f?7-j:j,s=r*8+c,p=b[s];
+            let cl='sq '+((r+c)%2?'dk':'lt');
+            if(s===sn.f||s===sn.t)cl+=' lm';
+            if(rep<0){
+             if(s===sel)cl+=' sel';
+             const tm=S.mode==='ai'?selMoves.find(m=>m.t===s):null;
+             if(tm)cl+=(p||tm.e)?' tc':' tg';
+             if(hintMove&&(s===hintMove.f||s===hintMove.t))cl+=' hn';
+             if(s===chk)cl+=' chk';
+            }
+            h+='<div class="'+cl+'" data-s="'+s+'"'+(i===7?' data-f="'+FL[c]+'"':'')+(j===0?' data-r="'+(8-r)+'"':'')+'>'+(p?'<span class="pc '+(p>0?'pw':'pb')+(S.mode==='hh'&&p<0?' rot':'')+'">'+GL[Math.abs(p)]+'</span>':'')+'</div>';
+           }
+           $('board').innerHTML=h;
+           const topS=f?1:-1;
+           $('nTop').textContent=pname(topS);$('nBot').textContent=pname(-topS);
+           updClocks();
+           $('st').textContent=stTxt();
+           $('cm').innerHTML=cmt?'<span class="'+cmt.c+'">'+cmt.t+'</span>':'';
+           const pct=50+50*Math.tanh(curEval/500),ew=$('evw');
+           ew.style.height=pct+'%';
+           if(f){ew.style.top='0';ew.style.bottom='';}else{ew.style.bottom='0';ew.style.top='';}
+           const ev=Math.abs(curEval/100);
+           $('evt').textContent=Math.abs(curEval)>=9000?'কিস্তিমাত':(Math.abs(curEval)<15?'⚖️ সমান সমান':(curEval>0?'সাদা':'কালো')+' এগিয়ে (+'+bn(ev.toFixed(1))+')');
+           $('bHint').textContent='💡 হিন্ট ('+bn(3-hints)+')';
+           $('bUndo').disabled=busy||rep>=0||!moves.length;
+           $('bHint').disabled=busy||rep>=0||!!over||S.mode!=='ai'||turn!==S.hc;
+           $('rb').style.display=rep>=0?'flex':'none';
+           $('rpi').textContent=bn(rep)+'/'+bn(moves.length);
+           let l='';
+           for(let i=0;i<sans.length;i++){
+            if(i%2===0)l+=bn(i/2+1)+'. ';
+            l+='<span class="'+(rep>0&&i===rep-1?'cur':'')+'">'+sans[i]+'</span> ';
+           }
+           $('ml').innerHTML=l||'<span class="sm">এখনো কোনো চাল হয়নি</span>';
+           if(rep<0)$('ml').scrollTop=$('ml').scrollHeight;
+          }
+          function startReplay(){if(busy)return;if(!moves.length){cmt={t:'এখনো কোনো চাল নেই',c:'g2'};render();return;}rep=moves.length;render();}
+          function rp(d){if(rep<0)return;rep=Math.max(0,Math.min(moves.length,rep+d));render();}
+          function endReplay(){rep=-1;lastTick=Date.now();render();}
+          function undo(){
+           if(busy||rep>=0||!moves.length||S.mode==='hh')return;
+           let k=(S.mode==='ai'&&turn===S.hc)?2:1;k=Math.min(k,moves.length);
+           const n=moves.length-k;
+           rebuild(moves.slice(0,n),tms.slice(0,n+1),tms[n]);
+           save();render();
+           if(S.mode==='ai'&&turn!==S.hc)aiMove();
+          }
+          function rebuild(list,tl,T0){
+           GID++;busy=false;setup();turn=1;moves=[];sans=[];snaps=[{b:B.slice(),f:-1,t:-1}];tms=[tl[0].slice()];keys=[key()];over=null;rep=-1;sel=-1;selMoves=[];hintMove=null;cmt=null;
+           for(let i=0;i<list.length;i++){
+            const f=list[i][0],t=list[i][1],pr=list[i][2]||0;
+            const m=legal(turn).find(x=>x.f===f&&x.t===t&&(x.pr||0)===pr);
+            if(!m)break;
+            T=tl[i+1]?tl[i+1].slice():[T[0],T[1]];
+            apply(m);
+           }
+           T=T0.slice();
+           if(S.mode==='ai')updEval();else curEval=0;
+          }
+          function newGame(){
+           GID++;
+           S.hc=S.mode==='ai'?(Math.random()<.5?1:-1):1;
+           setup();turn=1;moves=[];sans=[];snaps=[{b:B.slice(),f:-1,t:-1}];T=[S.tc,S.tc];tms=[[S.tc,S.tc]];keys=[key()];
+           over=null;hints=0;busy=false;rep=-1;sel=-1;selMoves=[];hintMove=null;cmt=null;curEval=0;started=true;lastTick=Date.now();
+           document.body.classList.toggle('hh',S.mode==='hh');
+           save();render();say('start');
+           if(S.mode==='ai'&&S.hc===-1)aiMove();
+          }
+          function save(){
+           try{localStorage.setItem('daba_game',JSON.stringify({S:S,m:moves,tm:tms,T:T,h:hints,o:over}));}catch(e){}
+          }
+          function load(){
+           try{
+            const d=JSON.parse(localStorage.getItem('daba_game')||'null');
+            if(!d||!d.m||!d.tm)return false;
+            S=Object.assign(S,d.S);
+            document.body.classList.toggle('hh',S.mode==='hh');
+            rebuild(d.m,d.tm,d.T);
+            hints=d.h||0;if(d.o)over=d.o;
+            started=true;return true;
+           }catch(e){return false;}
+          }
+          function modal(h){$('mod').innerHTML='<div class="bx">'+h+'</div>';$('mod').style.display='flex';}
+          function closeMod(){$('mod').style.display='none';}
+          function openNew(cc){
+           modal('<h3>🆕 নতুন খেলা</h3><label>খেলার ধরন</label><select id="mMode" onchange="mm()"><option value="ai">🤖 কম্পিউটারের সাথে</option><option value="hh">👥 বন্ধুর সাথে (একই ফোনে)</option></select>'+
+           '<div id="aiOpt"><label>কঠিনতা</label><select id="mLv"><option value="1">শিশু</option><option value="2">সহজ</option><option value="3">মাঝারি</option><option value="4">কঠিন</option></select>'+
+           '<label>রোবটের চরিত্র</label><select id="mPs"><option value="0">👴 গম্ভীর দাদু</option><option value="1">😜 ফাজিল বন্ধু</option><option value="2">😺 ঘুমকাতুরে বিড়াল</option></select></div>'+
+           '<label>প্রত্যেকের সময়</label><select id="mTc"><option value="300">৫ মিনিট</option><option value="600">১০ মিনিট</option><option value="900">১৫ মিনিট</option></select>'+
+           '<p class="sm" id="mNote"></p><button onclick="startNew()">▶ খেলা শুরু</button>'+(cc?'<button onclick="closeMod()">বাতিল</button>':''));
+           $('mMode').value=S.mode;$('mLv').value=S.lv;$('mPs').value=S.ps;$('mTc').value=S.tc;mm();
+          }
+          function mm(){
+           const ai=$('mMode').value==='ai';
+           $('aiOpt').style.display=ai?'block':'none';
+           $('mNote').textContent=ai?'সাদা না কালো — সেটা এলোমেলোভাবে ঠিক হবে।':'দুজন একই ফোনে খেলবেন। ওপরের খেলোয়াড়ের ঘুঁটি উল্টো দেখাবে। কোনো সাহায্য থাকবে না, শুধু ঘড়ি।';
+          }
+          function startNew(){
+           S.mode=$('mMode').value;S.lv=+$('mLv').value;S.ps=+$('mPs').value;S.tc=+$('mTc').value;
+           try{localStorage.setItem('daba_set',JSON.stringify(S));}catch(e){}
+           closeMod();newGame();
+          }
+          function showResult(extra){
+           if(!over)return;
+           modal('<h3>'+resTxt()+'</h3>'+(extra||'')+'<p class="sm">চালের তালিকা (PGN):</p><textarea id="pg" readonly>'+pgn()+'</textarea><button onclick="cp()">📋 কপি</button><button onclick="closeMod();startReplay()">🔁 রিপ্লে</button><button onclick="openNew(true)">🆕 নতুন খেলা</button><button onclick="closeMod()">বন্ধ</button><p class="sm" id="cpm"></p>');
+          }
+          function showPgn(){
+           modal('<h3>📜 চালের তালিকা (PGN)</h3><textarea id="pg" readonly>'+pgn()+'</textarea><button onclick="cp()">📋 কপি</button><button onclick="closeMod()">বন্ধ</button><p class="sm" id="cpm"></p>');
+          }
+          function cp(){
+           const t=$('pg');t.select();
+           let ok=false;try{ok=document.execCommand('copy');}catch(e){}
+           $('cpm').textContent=ok?'কপি হয়েছে ✔':'লেখাটি চেপে ধরে কপি করুন';
+          }
+          function about(){
+           modal('<div style="text-align:center"><div class="logo" style="margin:0 auto 8px;width:64px;height:64px;font-size:44px">♚</div><h3>দাবা গুরু</h3><p class="sm">বাংলায় দাবা খেলার অ্যাপ</p></div><p><b>নির্মাতা (Creator):</b><br>Mohammod Abdul Awal</p><p><b>Student:</b><br>Department of English,<br>National University</p><p><b>Mail:</b><br><a href="mailto:awal.sorkar.144@gmail.com">awal.sorkar.144@gmail.com</a></p><button onclick="closeMod()">বন্ধ</button>');
+          }
+          function toggleDark(){
+           const d=document.body.classList.toggle('dark');
+           try{localStorage.setItem('daba_dark',d?'1':'0');}catch(e){}
+          }
+          function fit(){
+           const w=Math.floor(Math.min(innerWidth-56,innerHeight*0.56,480));
+           $('board').style.width=w+'px';$('board').style.height=w+'px';$('ev').style.height=w+'px';
+           document.documentElement.style.setProperty('--sz',(w/8*0.8)+'px');
+          }
+          setInterval(()=>{
+           const now=Date.now(),dt=Math.min((now-lastTick)/1000,1);lastTick=now;
+           if(!started||over||rep>=0)return;
+           const i=turn===1?0:1;
+           T[i]-=dt;
+           if(T[i]<=0){T[i]=0;updClocks();finish({w:-turn,why:'সময় শেষ'});return;}
+           updClocks();
+           if(++sv%20===0)save();
+          },250);
+          window.addEventListener('resize',fit);
+          window.onload=()=>{
+           $('board').onclick=e=>{const el=e.target.closest('.sq');if(el)clickSq(+el.dataset.s);};
+           try{
+            if(localStorage.getItem('daba_dark')==='1')document.body.classList.add('dark');
+            const s=JSON.parse(localStorage.getItem('daba_set')||'null');if(s)S=Object.assign(S,s);
+           }catch(e){}
+           setup();snaps=[{b:B.slice(),f:-1,t:-1}];
+           fit();
+           if(load()){render();if(S.mode==='ai'&&!over&&turn!==S.hc)aiMove();}
+           else{render();openNew(false);}
+           lastTick=Date.now();
+          };
+          </script></body></html>
+          EOF
+
+      - name: Create Gradle wrapper
+        run: |
+          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+          cat > gradlew << 'EOF'
+          #!/bin/sh
+          APP_HOME=$(cd "$(dirname "$0")" && pwd -P)
+          exec java -Dorg.gradle.appname=gradlew -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
+          EOF
+          chmod +x gradlew
+          ls -la gradle/wrapper
+
+      - name: Build APK
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: RetroLens-APK
+          name: DabaGuru-APK
           path: app/build/outputs/apk/debug/*.apk
