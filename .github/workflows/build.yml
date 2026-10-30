@@ -220,7 +220,7 @@ jobs:
           .dk{background-color:var(--dk)}
           .sq[data-r]::before{content:attr(data-r);position:absolute;left:2px;top:0;font-size:9px;opacity:.65}
           .sq[data-f]::after{content:attr(data-f);position:absolute;right:2px;bottom:0;font-size:9px;opacity:.65}
-          .pc{font-size:var(--sz);line-height:1;pointer-events:none}
+          .pc{font-size:var(--sz);line-height:1;pointer-events:none;position:relative;z-index:2}
           .pw{color:#fff;text-shadow:0 0 3px #000,0 0 2px #000,0 1px 1px #000}
           .pb{color:#1b1b1b;text-shadow:0 0 2px rgba(255,255,255,.5)}
           .rot{transform:rotate(180deg)}
@@ -552,6 +552,7 @@ jobs:
            win:['জিতেছি... এবার পুরস্কার হিসেবে মাছ চাই... মিউ!'],
            draw:['ড্র... জ্জ্জ... সমান সমান... ঘুম পাচ্ছে।']}
           ];
+          let anim=null;
           let S={mode:'ai',lv:2,ps:0,tc:600,hc:1};
           let turn=1,moves=[],sans=[],snaps=[],tms=[],keys=[],T=[600,600],over=null,hints=0,busy=false,rep=-1,sel=-1,selMoves=[],hintMove=null,cmt=null,curEval=0,started=false,GID=0,lastTick=Date.now(),sv=0;
           function key(){return B.join(',')+'|'+turn+'|'+CR+'|'+EP;}
@@ -590,6 +591,7 @@ jobs:
           function play(m,ai){
            hintMove=null;sel=-1;selMoves=[];
            const r=apply(m);
+           anim=pairsFor(moves.length-1,false);
            if(S.mode==='ai')updEval();
            if(r.res)finish(r.res);
            else if(S.mode==='ai'&&ai){if(r.ck)say('check');else if(Math.random()<.6)say('move');}
@@ -612,7 +614,8 @@ jobs:
           }
           function aiMove(){
            if(over||rep>=0||busy)return;
-           busy=true;const g=GID;render();
+           busy=true;const g=GID;
+           $('st').textContent=stTxt();$('bUndo').disabled=true;$('bHint').disabled=true;
            setTimeout(()=>{
             if(g!==GID)return;
             const ls=legal(turn);let m=null;
@@ -622,7 +625,7 @@ jobs:
             }
             busy=false;
             if(m)play(m,true);else render();
-           },80);
+           },320);
           }
           function hint(){
            if(S.mode!=='ai'||over||busy||rep>=0||turn!==S.hc)return;
@@ -661,8 +664,8 @@ jobs:
             else if(r.w===0)say('draw');
             else say('win');
            }
-           save();render();
-           setTimeout(()=>showResult(extra),500);
+           save();
+           setTimeout(()=>showResult(extra),700);
           }
           function ach(){
            let a={};try{a=JSON.parse(localStorage.getItem('daba_ach')||'{}');}catch(e){}
@@ -731,6 +734,7 @@ jobs:
             h+='<div class="'+cl+'" data-s="'+s+'"'+(i===7?' data-f="'+FL[c]+'"':'')+(j===0?' data-r="'+(8-r)+'"':'')+'>'+(p?'<span class="pc '+(p>0?'pw':'pb')+(S.mode==='hh'&&p<0?' rot':'')+'">'+GL[Math.abs(p)]+'</span>':'')+'</div>';
            }
            $('board').innerHTML=h;
+           if(anim){runAnim(anim);anim=null;}
            const topS=f?1:-1;
            $('nTop').textContent=pname(topS);$('nBot').textContent=pname(-topS);
            updClocks();
@@ -755,7 +759,34 @@ jobs:
            if(rep<0)$('ml').scrollTop=$('ml').scrollHeight;
           }
           function startReplay(){if(busy)return;if(!moves.length){cmt={t:'এখনো কোনো চাল নেই',c:'g2'};render();return;}rep=moves.length;render();}
-          function rp(d){if(rep<0)return;rep=Math.max(0,Math.min(moves.length,rep+d));render();}
+          function pairsFor(i,rev){
+           const m=moves[i],f=m[0],t=m[1],b=snaps[i+1].b;
+           const p=[[f,t]];
+           if(Math.abs(b[t])===6&&Math.abs(t-f)===2)p.push(t>f?[f+3,f+1]:[f-4,f-1]);
+           return rev?p.map(x=>[x[1],x[0]]):p;
+          }
+          function runAnim(list){
+           const bd=$('board');
+           for(const a of list){
+            const e1=bd.querySelector('[data-s="'+a[0]+'"]'),e2=bd.querySelector('[data-s="'+a[1]+'"]');
+            const pc=e2&&e2.querySelector('.pc');
+            if(!e1||!pc)continue;
+            const r1=e1.getBoundingClientRect(),r2=e2.getBoundingClientRect();
+            const base=pc.classList.contains('rot')?' rotate(180deg)':'';
+            pc.style.transition='none';
+            pc.style.zIndex=9;
+            pc.style.transform='translate('+(r1.left-r2.left)+'px,'+(r1.top-r2.top)+'px)'+base;
+            pc.getBoundingClientRect();
+            pc.style.transition='transform .25s ease-out';
+            pc.style.transform=base||'none';
+           }
+          }
+          function rp(d){
+           if(rep<0)return;
+           const o=rep;rep=Math.max(0,Math.min(moves.length,rep+d));
+           if(rep-o===1)anim=pairsFor(o,false);else if(rep-o===-1)anim=pairsFor(rep,true);
+           render();
+          }
           function endReplay(){rep=-1;lastTick=Date.now();render();}
           function undo(){
            if(busy||rep>=0||!moves.length||S.mode==='hh')return;
@@ -849,7 +880,7 @@ jobs:
            if(!started||over||rep>=0)return;
            const i=turn===1?0:1;
            T[i]-=dt;
-           if(T[i]<=0){T[i]=0;updClocks();finish({w:-turn,why:'সময় শেষ'});return;}
+           if(T[i]<=0){T[i]=0;updClocks();finish({w:-turn,why:'সময় শেষ'});render();return;}
            updClocks();
            if(++sv%20===0)save();
           },250);
