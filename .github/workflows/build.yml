@@ -228,6 +228,21 @@ jobs:
           .sel{box-shadow:inset 0 0 0 100px rgba(76,175,80,.5)}
           .tg{background-image:radial-gradient(circle,rgba(0,0,0,.32) 22%,transparent 24%)}
           .tc{box-shadow:inset 0 0 0 4px rgba(211,47,47,.75)}
+          .rv1{box-shadow:inset 0 0 0 100px rgba(46,125,50,.4)}
+          .rv2{box-shadow:inset 0 0 0 100px rgba(117,117,117,.4)}
+          .rv3{box-shadow:inset 0 0 0 100px rgba(239,108,0,.45)}
+          .rv4{box-shadow:inset 0 0 0 100px rgba(198,40,40,.5)}
+          #bw{position:relative}
+          #ov{position:absolute;left:2px;top:2px;width:calc(100% - 4px);height:calc(100% - 4px);pointer-events:none}
+          #rvp{display:none;margin:6px 0;background:var(--card);border-radius:12px;padding:8px}
+          #rvh{font-weight:700;margin-bottom:4px}
+          #rvt{font-size:14px;line-height:1.55}
+          .nv{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;margin-top:8px}
+          .nv button{border:0;border-radius:10px;padding:8px 12px;background:var(--ac);color:#fff}
+          #rvl{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;max-height:90px;overflow:auto}
+          .chip{border:2px solid var(--bd);background:var(--bg);color:var(--fg);border-radius:8px;padding:2px 6px;font-size:12px}
+          .chip.c1{border-color:#2e7d32}.chip.c2{border-color:#757575}.chip.c3{border-color:#ef6c00}.chip.c4{border-color:#c62828}
+          .chip.on{background:#ffca28;color:#000}
           .hn{box-shadow:inset 0 0 0 4px #1e88e5,inset 0 0 0 100px rgba(30,136,229,.25)}
           .chk{box-shadow:inset 0 0 0 100px rgba(244,67,54,.55)}
           #st{text-align:center;font-weight:600;margin:6px 0 2px;min-height:22px}
@@ -257,11 +272,12 @@ jobs:
           <div id="hd"><div class="logo">♚</div><div class="ttl">দাবা গুরু<small>বুদ্ধির খেলা</small></div><button class="ib" onclick="toggleDark()">🌓</button><button class="ib" onclick="about()">ℹ️</button></div>
           <div id="bot"><span id="av">😺</span><div id="say"></div></div>
           <div class="pl" id="pTop"><span id="nTop"></span><span class="clk" id="cTop"></span></div>
-          <div id="wrap"><div id="ev"><div id="evw"></div></div><div id="board"></div></div>
+          <div id="wrap"><div id="ev"><div id="evw"></div></div><div id="bw"><div id="board"></div><svg id="ov" viewBox="0 0 8 8"></svg></div></div>
           <div class="pl"><span id="nBot"></span><span class="clk" id="cBot"></span></div>
           <div id="st"></div><div id="cm"></div><div id="evt"></div>
           <div id="rb" style="display:none"><button onclick="rp(-999)">⏮</button><button onclick="rp(-1)">◀ আগের</button><span id="rpi" style="align-self:center"></span><button onclick="rp(1)">পরের ▶</button><button onclick="rp(999)">⏭</button><button onclick="endReplay()">✖ বন্ধ</button></div>
-          <div id="bt"><button id="bUndo" onclick="undo()">↩ Undo</button><button id="bHint" onclick="hint()">💡 হিন্ট</button><button onclick="startReplay()">🔁 রিপ্লে</button><button onclick="showPgn()">📜 PGN</button><button onclick="badges()">🏅 ব্যাজ</button><button onclick="openNew(true)">🆕 নতুন খেলা</button></div>
+          <div id="rvp"><div id="rvh"></div><div id="rvt"></div><div class="nv"><button onclick="rvGo(-1)">◀ আগের</button><span id="rvi"></span><button onclick="rvGo(1)">পরের ▶</button><button onclick="endReview()">✖ বন্ধ</button></div><div id="rvl"></div></div>
+          <div id="bt"><button id="bUndo" onclick="undo()">↩ Undo</button><button id="bHint" onclick="hint()">💡 হিন্ট</button><button onclick="startReplay()">🔁 রিপ্লে</button><button onclick="showPgn()">📜 PGN</button><button onclick="startReview()">📊 রিভিউ</button><button onclick="badges()">🏅 ব্যাজ</button><button onclick="openNew(true)">🆕 নতুন খেলা</button></div>
           <div id="ml"></div>
           <div id="ft">দাবা গুরু • Creator: Mohammod Abdul Awal</div>
           </div>
@@ -552,7 +568,7 @@ jobs:
            win:['জিতেছি... এবার পুরস্কার হিসেবে মাছ চাই... মিউ!'],
            draw:['ড্র... জ্জ্জ... সমান সমান... ঘুম পাচ্ছে।']}
           ];
-          let anim=null;
+          let anim=null,rvC=null,rvK=-2;
           let S={mode:'ai',lv:2,ps:0,tc:600,hc:1};
           let turn=1,moves=[],sans=[],snaps=[],tms=[],keys=[],T=[600,600],over=null,hints=0,busy=false,rep=-1,sel=-1,selMoves=[],hintMove=null,cmt=null,curEval=0,started=false,GID=0,lastTick=Date.now(),sv=0;
           function key(){return B.join(',')+'|'+turn+'|'+CR+'|'+EP;}
@@ -698,6 +714,7 @@ jobs:
            return (w===1?'⚪ সাদা':'⚫ কালো')+' জিতেছে 🎉 — '+y;
           }
           function stTxt(){
+           if(rvK>=-1)return '📊 খেলার রিভিউ';
            if(over)return resTxt();
            if(rep>=0)return '🔁 রিপ্লে মোড';
            if(busy)return '🤔 ভাবছি...';
@@ -717,14 +734,16 @@ jobs:
            $('cBot').className='clk'+(!over&&turn===botS?' on':'');
           }
           function render(){
-           const idx=rep>=0?rep:snaps.length-1,sn=snaps[idx],b=sn.b,f=fl();
-           let chk=-1;if(rep<0&&!over&&inCheck(turn))chk=KS[turn===1?0:1];
+           const inRv=rvK>=-1&&!!rvC,rvx=inRv&&rvK>=0?rvC.list[rvK]:null,live=rep<0&&!inRv;
+           const idx=rvx?rvx.i:(rep>=0?rep:snaps.length-1),sn=snaps[idx],b=sn.b,f=fl();
+           let chk=-1;if(live&&!over&&inCheck(turn))chk=KS[turn===1?0:1];
            let h='';
            for(let i=0;i<8;i++)for(let j=0;j<8;j++){
             const r=f?7-i:i,c=f?7-j:j,s=r*8+c,p=b[s];
             let cl='sq '+((r+c)%2?'dk':'lt');
-            if(s===sn.f||s===sn.t)cl+=' lm';
-            if(rep<0){
+            if(!rvx&&(s===sn.f||s===sn.t))cl+=' lm';
+            if(rvx){if(s===rvx.pt)cl+=' rv'+rvx.c;if(!rvx.same&&(s===rvx.bf||s===rvx.bt))cl+=' hn';}
+            if(live){
              if(s===sel)cl+=' sel';
              const tm=selMoves.find(m=>m.t===s);
              if(tm)cl+=(p||tm.e)?' tc':' tg';
@@ -735,6 +754,7 @@ jobs:
            }
            $('board').innerHTML=h;
            if(anim){runAnim(anim);anim=null;}
+           drawOv(rvx,f);
            const topS=f?1:-1;
            $('nTop').textContent=pname(topS);$('nBot').textContent=pname(-topS);
            updClocks();
@@ -749,6 +769,8 @@ jobs:
            $('bUndo').disabled=busy||rep>=0||!moves.length;
            $('bHint').disabled=busy||rep>=0||!!over||S.mode!=='ai'||turn!==S.hc;
            $('rb').style.display=rep>=0?'flex':'none';
+           $('bt').style.display=inRv?'none':'flex';$('rvp').style.display=inRv?'block':'none';
+           if(inRv)rvUpdate();
            $('rpi').textContent=bn(rep)+'/'+bn(moves.length);
            let l='';
            for(let i=0;i<sans.length;i++){
@@ -758,7 +780,128 @@ jobs:
            $('ml').innerHTML=l||'<span class="sm">এখনো কোনো চাল হয়নি</span>';
            if(rep<0)$('ml').scrollTop=$('ml').scrollHeight;
           }
-          function startReplay(){if(busy)return;if(!moves.length){cmt={t:'এখনো কোনো চাল নেই',c:'g2'};render();return;}rep=moves.length;render();}
+
+          const PN=['','বোড়ে','ঘোড়া','গজ','নৌকা','মন্ত্রী','রাজা'];
+          const R=[
+          {intro:{w:['জিতেছ ঠিকই, তবে চলো দেখি কোথায় কোথায় হাত কাঁপল।'],l:['হেরেছ বলে মন খারাপ কোরো না দাদু ভাই, ভুল থেকেই শেখা হয়।'],d:['ড্র হয়েছে। দেখি কোথায় আরও এগোনো যেত।']},
+           best:['বাহ্! {p} একদম সেরা চাল, আমার মতোই ভেবেছ।','{p} চালটাই ঠিক ছিল, বংশের নাম রাখলে।'],
+           good:['{p} ভালোই চাল, প্রায় সেরার কাছাকাছি।'],
+           ok:['{p} চলনসই। তবে {b} দিলে আরও জোরালো হতো।'],
+           bad:['{p} দিয়ে ভুল করলে দাদু ভাই! {b} দিলে অবস্থা ভালো থাকত।'],
+           blun:['আহা! {p} মারাত্মক ভুল! এখানে {b} দেওয়াই ছিল বুদ্ধিমানের কাজ।'],
+           tail:['একটাও বড় ভুল নেই! তোমার দাদু গর্বিত।'],
+           worst:'সবচেয়ে বড় ভুলটা ছিল {n} নম্বর চালে —'},
+          {intro:{w:['জিতে গেলি! তবে চল দেখি কোথায় ফাঁকি দিয়েছিস 😏'],l:['হেরে গেলি দোস্ত! চল দেখি ভুলটা কোথায় করলি 😜'],d:['ড্র! চল দেখি কে কোথায় ফসকাল।']},
+           best:['কেয়া বাত! {p} একদম সেরা চাল! 🔥','{p} দিয়ে তো আমার মাথা ঘুরিয়ে দিলি!'],
+           good:['{p} ভালো চাল দোস্ত, ফাটাফাটি না হলেও চলে।'],
+           ok:['{p} চলে, কিন্তু {b} দিলে আরও জমত।'],
+           bad:['এই {p} কী করলি রে! {b} দিলে তো ভালো হতো 😅'],
+           blun:['হায় হায়! {p} দিয়ে নিজের পায়েই কুড়াল মারলি! {b} দিতে পারতি 🤦'],
+           tail:['প্রায় নিখুঁত খেলেছিস, রিম্যাচ দিতেই হবে!'],
+           worst:'সবচেয়ে বড় গণ্ডগোলটা হয়েছিল {n} নম্বর চালে —'},
+          {intro:{w:['জ্জ্জ... মিউ, জিতেছ... এবার দেখি কোথায় ঘুমিয়ে পড়েছিলে...'],l:['মিউ... হেরেছ, তবে চিন্তা নেই, ভুলগুলো দেখি...'],d:['মিউ... ড্র... চলো দেখি কোথায় ফসকে গেল...']},
+           best:['মিউ! {p} একদম আরামদায়ক সেরা চাল, গরগর...','{p}... মিউ, আমার চেয়েও ভালো ভেবেছ।'],
+           good:['মিউ, {p} ভালো... একটু দুধ পাওনা।'],
+           ok:['{p} ঠিকঠাক... {b} হলে আরও আরাম হতো, মিউ।'],
+           bad:['মিউ?! {p} ভুল... {b} দিলে মাছ পেতে।'],
+           blun:['মিউউউ!! {p} বিশাল ভুল! {b} দিলে ইঁদুরও খুশি হতো।'],
+           tail:['মিউ... কোনো বড় ভুল নেই... আমি ঘুমাতে গেলাম।'],
+           worst:'সবচেয়ে বড় ভুলটা ছিল {n} নম্বর চালে... মিউ —'},
+          {intro:{w:['খেলার বিশ্লেষণ:'],l:['খেলার বিশ্লেষণ:'],d:['খেলার বিশ্লেষণ:']},
+           best:['{p} — সেরা চাল।'],good:['{p} — ভালো চাল।'],
+           ok:['{p} — ঠিকঠাক। {b} আরও ভালো হতো।'],
+           bad:['{p} — ভুল। {b} খেলা উচিত ছিল।'],
+           blun:['{p} — বিশাল ভুল! {b} খেলা উচিত ছিল।'],
+           tail:['কোনো বড় ভুল হয়নি।'],
+           worst:'সবচেয়ে বড় ভুল ছিল {n} নম্বর চালে —'}
+          ];
+          function startReview(){
+           if(busy||rvK>=-1)return;
+           if(!over||!moves.length){cmt={t:'📊 রিভিউ দেখতে আগে খেলা শেষ করুন',c:'g2'};render();return;}
+           rep=-1;
+           if(rvC&&rvC.gid===GID&&rvC.n===moves.length){rvK=-1;render();return;}
+           modal('<h3>📊 বিশ্লেষণ চলছে...</h3><p class="sm" id="rvprog">একটু অপেক্ষা করুন</p>');
+           const g=GID,sv={b:B.slice(),cr:CR,ep:EP,h:HALF,ks:KS.slice()},ML=moves.slice(),SN=sans.slice(),list=[];
+           setup();let sd=1,i=0;
+           const done=()=>{B=sv.b;CR=sv.cr;EP=sv.ep;HALF=sv.h;KS=sv.ks;};
+           const stp=()=>{
+            if(i>=ML.length){done();finRv(list,g);return;}
+            const ls=legal(sd),m=ls.find(x=>x.f===ML[i][0]&&x.t===ML[i][1]&&(x.pr||0)===(ML[i][2]||0));
+            if(!m){done();finRv(list,g);return;}
+            if(S.mode==='hh'||sd===S.hc){
+             const an=analyze(sd);let bs=-1e9,bm=null,ps=null;
+             for(const x of an){if(x.s>bs){bs=x.s;bm=x.m;}if(sameMove(x.m,m))ps=x.s;}
+             if(ps===null)ps=bs;
+             const b2=ls.find(x=>sameMove(x,bm))||m,same=sameMove(b2,m);
+             let why='';
+             if(!same){
+              const u=make(b2),gc=inCheck(-sd);unmake(b2,u);
+              if(bs>90000)why='কিস্তিমাত করা যেত!';
+              else if(b2.c)why=PN[Math.abs(b2.c)]+' ধরা যেত';
+              else if(gc)why='কিস্তি দিয়ে চাপ বাড়ানো যেত';
+              else if(b2.pr)why='বোড়ে উন্নীত করা যেত';
+              else if(b2.cs)why='castling করে রাজাকে নিরাপদ করা যেত';
+             }
+             const loss=Math.min(bs-ps,3000);
+             list.push({i:i,side:sd,p:SN[i],b:san(b2,ls),bf:b2.f,bt:b2.t,pf:m.f,pt:m.t,loss:loss,same:same,why:why,c:(same||loss<=25)?1:loss<=90?2:loss<=280?3:4});
+            }
+            make(m);sd=-sd;i++;
+            const e=$('rvprog');if(e)e.textContent=bn(i)+' / '+bn(ML.length);
+            setTimeout(stp,12);
+           };
+           setTimeout(stp,80);
+          }
+          function finRv(list,g){
+           if(g!==GID){closeMod();return;}
+           const cnt=[0,0,0,0,0];let w=null;
+           for(const x of list){cnt[x.c]++;if(x.c>=3&&(!w||x.loss>w.loss))w=x;}
+           rvC={gid:g,n:moves.length,list:list,cnt:cnt,worst:w};
+           closeMod();rvK=-1;render();
+          }
+          function rvGo(d){if(rvK<-1||!rvC)return;rvK=Math.max(-1,Math.min(rvC.list.length-1,rvK+d));render();}
+          function rvTo(k){rvK=k;render();}
+          function endReview(){rvK=-2;render();}
+          function rvUpdate(){
+           const ai=S.mode==='ai',P=ai?R[S.ps]:R[3],av=ai?D[S.ps].a:'🧐',nm=ai?D[S.ps].n:'বিশ্লেষক',L=rvC.list;
+           const mn=x=>bn(Math.floor(x.i/2)+1)+(x.i%2?'... ':'. ')+x.p;
+           let h,t;
+           if(rvK<0){
+            const c=rvC.cnt,rs=over.w===0?'d':(ai?(over.w===S.hc?'w':'l'):'w'),w=rvC.worst;
+            h='📊 খেলার সারাংশ';
+            t=P.intro[rs][0]+'<br>✅ ভালো '+bn(c[1])+' • 👌 ঠিকঠাক '+bn(c[2])+' • ❓ ভুল '+bn(c[3])+' • ❌ বিশাল ভুল '+bn(c[4]);
+            t+='<br>'+(w?P.worst.replace('{n}',bn(Math.floor(w.i/2)+1))+' <b>'+w.p+'</b> না দিয়ে <b>'+w.b+'</b> দিলে ভালো হতো।':P.tail[0]);
+            t+='<br><span class="sm">নীল তীর = সেরা চাল, রঙিন তীর = খেলা চাল। নিচ থেকে চাল বেছে দেখুন।</span>';
+           }else{
+            const x=L[rvK],A=P[x.same?'best':['','good','ok','bad','blun'][x.c]];
+            h=mn(x)+' '+['','✅','👌','❓','❌'][x.c]+(ai?'':(x.side===1?' (সাদা)':' (কালো)'));
+            t=A[x.i%A.length].replace(/\{p\}/g,'<b>'+x.p+'</b>').replace(/\{b\}/g,'<b>'+x.b+'</b>');
+            if(!x.same&&x.c>=2&&x.why)t+=' ('+x.why+')';
+            if(x.c>=3)t+=' <span class="sm">[ক্ষতি ≈ '+bn((x.loss/100).toFixed(1))+' বোড়ার সমান]</span>';
+           }
+           $('rvh').textContent=h;
+           $('rvt').innerHTML='<b>'+av+' '+nm+':</b> '+t;
+           $('rvi').textContent=rvK<0?'সারাংশ':bn(rvK+1)+'/'+bn(L.length);
+           let s='<button class="chip'+(rvK<0?' on':'')+'" onclick="rvTo(-1)">📊</button>';
+           L.forEach((x,k)=>{s+='<button class="chip c'+x.c+(k===rvK?' on':'')+'" onclick="rvTo('+k+')">'+mn(x).replace('... ','…')+'</button>';});
+           $('rvl').innerHTML=s;
+          }
+          function drawOv(x,f){
+           const o=$('ov');
+           if(!x){o.innerHTML='';return;}
+           const pos=q=>{const r=q>>3,c=q&7;return [(f?7-c:c)+.5,(f?7-r:r)+.5];};
+           const ar=(a,b,cl,w)=>{
+            const p=pos(a),q=pos(b),dx=q[0]-p[0],dy=q[1]-p[1],L=Math.hypot(dx,dy),ux=dx/L,uy=dy/L,hl=.34,hw=.22,ex=q[0]-ux*hl,ey=q[1]-uy*hl;
+            return '<line x1="'+p[0]+'" y1="'+p[1]+'" x2="'+ex+'" y2="'+ey+'" stroke="'+cl+'" stroke-width="'+w+'" stroke-linecap="round" opacity=".85"/><polygon points="'+q[0]+','+q[1]+' '+(ex-uy*hw)+','+(ey+ux*hw)+' '+(ex+uy*hw)+','+(ey-ux*hw)+'" fill="'+cl+'" opacity=".85"/>';
+           };
+           const col=['','#2e7d32','#757575','#ef6c00','#c62828'][x.c];
+           let h='';
+           if(!x.same)h+=ar(x.bf,x.bt,'#1e88e5',.16);
+           h+=ar(x.pf,x.pt,col,.12);
+           const q=pos(x.pt),sym=x.same?'★':['','✓','~','?','??'][x.c];
+           h+='<circle cx="'+(q[0]+.3)+'" cy="'+(q[1]-.3)+'" r=".24" fill="'+(x.same?'#f9a825':col)+'"/><text x="'+(q[0]+.3)+'" y="'+(q[1]-.2)+'" font-size=".3" font-weight="bold" fill="#fff" text-anchor="middle">'+sym+'</text>';
+           o.innerHTML=h;
+          }
+          function startReplay(){if(busy||rvK>=-1)return;if(!moves.length){cmt={t:'এখনো কোনো চাল নেই',c:'g2'};render();return;}rep=moves.length;render();}
           function pairsFor(i,rev){
            const m=moves[i],f=m[0],t=m[1],b=snaps[i+1].b;
            const p=[[f,t]];
@@ -797,7 +940,7 @@ jobs:
            if(S.mode==='ai'&&turn!==S.hc)aiMove();
           }
           function rebuild(list,tl,T0){
-           GID++;busy=false;setup();turn=1;moves=[];sans=[];snaps=[{b:B.slice(),f:-1,t:-1}];tms=[tl[0].slice()];keys=[key()];over=null;rep=-1;sel=-1;selMoves=[];hintMove=null;cmt=null;
+           GID++;busy=false;setup();turn=1;moves=[];sans=[];snaps=[{b:B.slice(),f:-1,t:-1}];tms=[tl[0].slice()];keys=[key()];over=null;rvC=null;rvK=-2;rep=-1;sel=-1;selMoves=[];hintMove=null;cmt=null;
            for(let i=0;i<list.length;i++){
             const f=list[i][0],t=list[i][1],pr=list[i][2]||0;
             const m=legal(turn).find(x=>x.f===f&&x.t===t&&(x.pr||0)===pr);
@@ -812,7 +955,7 @@ jobs:
            GID++;
            S.hc=S.mode==='ai'?(Math.random()<.5?1:-1):1;
            setup();turn=1;moves=[];sans=[];snaps=[{b:B.slice(),f:-1,t:-1}];T=[S.tc,S.tc];tms=[[S.tc,S.tc]];keys=[key()];
-           over=null;hints=0;busy=false;rep=-1;sel=-1;selMoves=[];hintMove=null;cmt=null;curEval=0;started=true;lastTick=Date.now();
+           over=null;rvC=null;rvK=-2;hints=0;busy=false;rep=-1;sel=-1;selMoves=[];hintMove=null;cmt=null;curEval=0;started=true;lastTick=Date.now();
            document.body.classList.toggle('hh',S.mode==='hh');
            save();render();say('start');
            if(S.mode==='ai'&&S.hc===-1)aiMove();
@@ -853,7 +996,7 @@ jobs:
           }
           function showResult(extra){
            if(!over)return;
-           modal('<h3>'+resTxt()+'</h3>'+(extra||'')+'<p class="sm">চালের তালিকা (PGN):</p><textarea id="pg" readonly>'+pgn()+'</textarea><button onclick="cp()">📋 কপি</button><button onclick="closeMod();startReplay()">🔁 রিপ্লে</button><button onclick="openNew(true)">🆕 নতুন খেলা</button><button onclick="closeMod()">বন্ধ</button><p class="sm" id="cpm"></p>');
+           modal('<h3>'+resTxt()+'</h3>'+(extra||'')+'<p class="sm">চালের তালিকা (PGN):</p><textarea id="pg" readonly>'+pgn()+'</textarea><button onclick="cp()">📋 কপি</button><button onclick="closeMod();startReview()">📊 রিভিউ</button><button onclick="closeMod();startReplay()">🔁 রিপ্লে</button><button onclick="openNew(true)">🆕 নতুন খেলা</button><button onclick="closeMod()">বন্ধ</button><p class="sm" id="cpm"></p>');
           }
           function showPgn(){
            modal('<h3>📜 চালের তালিকা (PGN)</h3><textarea id="pg" readonly>'+pgn()+'</textarea><button onclick="cp()">📋 কপি</button><button onclick="closeMod()">বন্ধ</button><p class="sm" id="cpm"></p>');
