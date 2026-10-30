@@ -726,7 +726,7 @@ jobs:
             if(s===sn.f||s===sn.t)cl+=' lm';
             if(rep<0){
              if(s===sel)cl+=' sel';
-             const tm=S.mode==='ai'?selMoves.find(m=>m.t===s):null;
+             const tm=selMoves.find(m=>m.t===s);
              if(tm)cl+=(p||tm.e)?' tc':' tg';
              if(hintMove&&(s===hintMove.f||s===hintMove.t))cl+=' hn';
              if(s===chk)cl+=' chk';
