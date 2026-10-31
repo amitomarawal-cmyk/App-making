@@ -1,28 +1,17 @@
-name: Build TenParts Downloader APK
-
-on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:
-
+name: Build Awal Launcher APK
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      LC_ALL: C.UTF-8
-      JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF-8
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5
         with:
-          distribution: temurin
           java-version: '17'
+          distribution: 'temurin'
 
-      - name: Accept Android SDK licenses
+      - name: Accept SDK Licenses
         run: |
           mkdir -p $ANDROID_HOME/licenses
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
@@ -30,44 +19,47 @@ jobs:
           echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
           echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_HOME/licenses/android-googletv-license
 
-      - name: Create project files (Java, XML, drawable, gradle)
+      - name: Create Project Structure
         run: |
-          set -e
+          mkdir -p app/src/main/java/com/awal/launcher
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
           mkdir -p gradle/wrapper
-          mkdir -p app/src/main/java/com/awal/tenparts
-          mkdir -p app/src/main/res/layout app/src/main/res/values app/src/main/res/drawable
 
+      - name: settings.gradle
+        run: |
           cat > settings.gradle << 'EOF'
           pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
           }
           dependencyResolutionManagement {
               repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
+              repositories { google(); mavenCentral() }
           }
-          rootProject.name = 'TenParts'
+          rootProject.name = "AwalLauncher"
           include ':app'
           EOF
 
+      - name: root build.gradle
+        run: |
           cat > build.gradle << 'EOF'
           plugins {
-              id 'com.android.application' version '8.1.4' apply false
+              id 'com.android.application' version '8.1.2' apply false
           }
           EOF
 
+      - name: gradle.properties
+        run: |
           cat > gradle.properties << 'EOF'
-          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
-          android.useAndroidX=false
-          android.nonTransitiveRClass=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.daemon=false
           EOF
 
+      - name: gradle wrapper props
+        run: |
           cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
@@ -76,1026 +68,1058 @@ jobs:
           zipStorePath=wrapper/dists
           EOF
 
+      - name: Download gradle wrapper jar
+        run: |
+          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
+
+      - name: gradlew
+        run: |
+          cat > gradlew << 'GRADLEW'
+          #!/bin/sh
+          APP_HOME=`pwd -P`
+          CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+          exec "$JAVA_HOME/bin/java" -Xmx64m -Xms64m -Dorg.gradle.appname="gradlew" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+          GRADLEW
+          chmod +x gradlew
+
+      - name: app build.gradle
+        run: |
           cat > app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
           }
-
           android {
-              namespace 'com.awal.tenparts'
+              namespace 'com.awal.launcher'
               compileSdk 34
-
               defaultConfig {
-                  applicationId "com.awal.tenparts"
-                  minSdk 21
+                  applicationId "com.awal.launcher"
+                  minSdk 26
                   targetSdk 34
                   versionCode 1
                   versionName "1.0"
               }
-
+              buildTypes {
+                  debug { minifyEnabled false }
+              }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
           }
-
-          tasks.withType(JavaCompile).configureEach {
-              options.encoding = 'UTF-8'
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.10.0'
+              implementation 'androidx.recyclerview:recyclerview:1.3.2'
           }
           EOF
 
+      - name: AndroidManifest.xml
+        run: |
           cat > app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-              <uses-permission android:name="android.permission.INTERNET" />
-              <uses-permission
-                  android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-                  android:maxSdkVersion="28" />
-
+              <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+              <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+              <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
+              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
               <application
-                  android:allowBackup="false"
+                  android:allowBackup="true"
                   android:icon="@drawable/ic_launcher"
-                  android:label="@string/app_name"
-                  android:theme="@style/AppTheme"
-                  android:usesCleartextTraffic="true">
-
-                  <activity
-                      android:name=".MainActivity"
-                      android:configChanges="orientation|screenSize|keyboardHidden"
-                      android:exported="true"
-                      android:windowSoftInputMode="adjustResize">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                      <intent-filter>
-                          <action android:name="android.intent.action.SEND" />
-                          <category android:name="android.intent.category.DEFAULT" />
-                          <data android:mimeType="text/plain" />
+                  android:label="Awal Launcher"
+                  android:theme="@style/AppTheme">
+                  <activity android:name=".MainActivity" android:exported="true"
+                      android:launchMode="singleTask" android:screenOrientation="portrait"
+                      android:stateNotNeeded="true">
+                      <intent-filter android:priority="1">
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.HOME"/>
+                          <category android:name="android.intent.category.DEFAULT"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
                   </activity>
+                  <activity android:name=".PatternLockActivity" android:exported="false"
+                      android:theme="@style/AppTheme"/>
+                  <activity android:name=".PatternSetupActivity" android:exported="false"
+                      android:theme="@style/AppTheme"/>
+                  <receiver android:name=".BootReceiver" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                      </intent-filter>
+                  </receiver>
               </application>
           </manifest>
           EOF
 
-          cat > app/src/main/res/values/strings.xml << 'EOF'
+      - name: colors.xml
+        run: |
+          cat > app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <string name="app_name">TenParts Downloader</string>
-              <string name="subtitle">প্রতিটি ফাইল ১০ টুকরায়, ১০ থ্রেডে</string>
-              <string name="hint_urls">এক বা একাধিক লিংক দিন (প্রতি লাইনে একটা)</string>
-              <string name="btn_add">ডাউনলোড শুরু করুন</string>
-              <string name="about">Creator: Mohammod Abdul Awal\nStudent: Department of English, National University\nMail: awal.sorkar.144@gmail.com</string>
+              <color name="glass_white">#33FFFFFF</color>
+              <color name="glass_border">#55FFFFFF</color>
+              <color name="text_white">#FFFFFFFF</color>
+              <color name="text_dim">#CCFFFFFF</color>
+              <color name="accent_blue">#4FC3F7</color>
+              <color name="bg_dark">#CC000015</color>
+              <color name="dock_bg">#44FFFFFF</color>
+              <color name="pattern_default">#88FFFFFF</color>
+              <color name="pattern_set">#FF4FC3F7</color>
+              <color name="pattern_error">#FFEF5350</color>
           </resources>
           EOF
 
+      - name: strings.xml
+        run: |
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Awal Launcher</string>
+              <string name="creator">Mohammod Abdul Awal\nDept. of English, National University\nawal.sorkar.144@gmail.com</string>
+          </resources>
+          EOF
+
+      - name: styles.xml
+        run: |
           cat > app/src/main/res/values/styles.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
-                  <item name="android:colorPrimary">#1565C0</item>
-                  <item name="android:colorPrimaryDark">#0D47A1</item>
-                  <item name="android:colorAccent">#1565C0</item>
-                  <item name="android:statusBarColor">#0D47A1</item>
+              <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+                  <item name="android:windowBackground">@android:color/transparent</item>
+                  <item name="android:colorBackgroundCacheHint">@null</item>
+                  <item name="android:windowTranslucentStatus">true</item>
+                  <item name="android:windowTranslucentNavigation">true</item>
+                  <item name="android:statusBarColor">@android:color/transparent</item>
               </style>
           </resources>
           EOF
 
+      - name: ic_launcher drawable
+        run: |
           cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="96dp"
-              android:height="96dp"
-              android:viewportWidth="108"
-              android:viewportHeight="108">
-              <path
-                  android:fillColor="#1565C0"
-                  android:pathData="M54,54m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0" />
-              <path
-                  android:fillColor="#FFFFFF"
-                  android:pathData="M46,20 L62,20 L62,44 L76,44 L54,68 L32,44 L46,44 Z" />
-              <path
-                  android:fillColor="#FFFFFF"
-                  android:pathData="M24,76 h16 v8 h-16 z M46,76 h16 v8 h-16 z M68,76 h16 v8 h-16 z" />
+              android:width="108dp" android:height="108dp"
+              android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#1565C0"
+                  android:pathData="M0,0h108v108h-108z"/>
+              <path android:fillColor="#90CAF9"
+                  android:pathData="M54,20C35.2,20 20,35.2 20,54s15.2,34 34,34 34,-15.2 34,-34S72.8,20 54,20z"/>
+              <path android:fillColor="#1565C0"
+                  android:pathData="M54,34C42.9,34 34,42.9 34,54s8.9,20 20,20 20,-8.9 20,-20S65.1,34 54,34z"/>
+              <path android:fillColor="#FFFFFF"
+                  android:pathData="M54,44C48.5,44 44,48.5 44,54s4.5,10 10,10 10,-4.5 10,-10S59.5,44 54,44z"/>
           </vector>
           EOF
 
-          cat > app/src/main/res/drawable/btn_bg.xml << 'EOF'
+      - name: glass_card drawable
+        run: |
+          cat > app/src/main/res/drawable/glass_card.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#1565C0" />
-              <corners android:radius="10dp" />
+          <shape xmlns:android="http://schemas.android.com/apk/res/android">
+              <solid android:color="#2AFFFFFF"/>
+              <stroke android:width="1dp" android:color="#55FFFFFF"/>
+              <corners android:radius="20dp"/>
           </shape>
           EOF
 
-          cat > app/src/main/res/drawable/btn_small_bg.xml << 'EOF'
+      - name: glass_circle drawable
+        run: |
+          cat > app/src/main/res/drawable/glass_circle.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#E3F2FD" />
-              <stroke android:width="1dp" android:color="#1565C0" />
-              <corners android:radius="8dp" />
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+              <solid android:color="#33FFFFFF"/>
+              <stroke android:width="1dp" android:color="#66FFFFFF"/>
           </shape>
           EOF
 
-          cat > app/src/main/res/drawable/card_bg.xml << 'EOF'
+      - name: dock_bg drawable
+        run: |
+          cat > app/src/main/res/drawable/dock_bg.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#FFFFFF" />
-              <stroke android:width="1dp" android:color="#D0D7E2" />
-              <corners android:radius="12dp" />
+          <shape xmlns:android="http://schemas.android.com/apk/res/android">
+              <solid android:color="#44FFFFFF"/>
+              <stroke android:width="1dp" android:color="#66FFFFFF"/>
+              <corners android:radius="32dp"/>
           </shape>
           EOF
 
-          cat > app/src/main/res/drawable/input_bg.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#FFFFFF" />
-              <stroke android:width="1dp" android:color="#90A4AE" />
-              <corners android:radius="10dp" />
-          </shape>
-          EOF
-
+      - name: activity_main layout
+        run: |
           cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+id/rootLayout"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@color/bg_dark">
+
+              <LinearLayout
+                  android:id="@+id/statusBar"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="horizontal"
+                  android:paddingTop="44dp"
+                  android:paddingHorizontal="20dp"
+                  android:paddingBottom="4dp">
+                  <TextView android:id="@+id/statusTime"
+                      android:layout_width="0dp" android:layout_height="wrap_content"
+                      android:layout_weight="1"
+                      android:textColor="@color/text_white" android:textSize="14sp"
+                      android:fontFamily="sans-serif-medium" android:text="12:00"/>
+                  <TextView android:id="@+id/statusDate"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:textColor="@color/text_dim" android:textSize="13sp"
+                      android:text="Mon, Jan 1"/>
+              </LinearLayout>
+
+              <LinearLayout
+                  android:id="@+id/clockPanel"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:layout_below="@id/statusBar"
+                  android:orientation="vertical"
+                  android:paddingHorizontal="20dp"
+                  android:paddingBottom="8dp">
+                  <TextView android:id="@+id/bigClock"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:textColor="@color/text_white" android:textSize="72sp"
+                      android:fontFamily="sans-serif-thin" android:text="12:00"
+                      android:letterSpacing="-0.05"/>
+                  <TextView android:id="@+id/fullDate"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:textColor="@color/text_dim" android:textSize="15sp"
+                      android:text="Monday, January 1"/>
+              </LinearLayout>
+
+              <HorizontalScrollView
+                  android:id="@+id/widgetScroll"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:layout_below="@id/clockPanel"
+                  android:scrollbars="none"
+                  android:paddingHorizontal="12dp"
+                  android:paddingBottom="8dp">
+                  <LinearLayout
+                      android:id="@+id/widgetRow"
+                      android:layout_width="wrap_content"
+                      android:layout_height="130dp"
+                      android:orientation="horizontal"
+                      android:gravity="center_vertical"/>
+              </HorizontalScrollView>
+
+              <androidx.recyclerview.widget.RecyclerView
+                  android:id="@+id/appGrid"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"
+                  android:layout_below="@id/widgetScroll"
+                  android:layout_above="@id/dockArea"
+                  android:padding="4dp"
+                  android:clipToPadding="false"/>
+
+              <LinearLayout
+                  android:id="@+id/dockArea"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:layout_alignParentBottom="true"
+                  android:orientation="vertical"
+                  android:paddingBottom="20dp"
+                  android:paddingHorizontal="16dp">
+
+                  <LinearLayout
+                      android:id="@+id/dockRow"
+                      android:layout_width="match_parent"
+                      android:layout_height="80dp"
+                      android:orientation="horizontal"
+                      android:gravity="center"
+                      android:background="@drawable/dock_bg"
+                      android:padding="8dp"/>
+
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="52dp"
+                      android:orientation="horizontal"
+                      android:gravity="center"
+                      android:layout_marginTop="8dp">
+                      <TextView android:id="@+id/powerBtn"
+                          android:layout_width="52dp" android:layout_height="52dp"
+                          android:gravity="center" android:text="⏻"
+                          android:textSize="22sp" android:textColor="@color/text_white"
+                          android:background="@drawable/glass_circle"/>
+                  </LinearLayout>
+              </LinearLayout>
+          </RelativeLayout>
+          EOF
+
+      - name: item_app layout
+        run: |
+          cat > app/src/main/res/layout/item_app.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:orientation="vertical"
+              android:gravity="center"
+              android:padding="6dp">
+              <FrameLayout android:layout_width="56dp" android:layout_height="56dp">
+                  <ImageView android:id="@+id/appIcon"
+                      android:layout_width="52dp" android:layout_height="52dp"
+                      android:layout_gravity="center"
+                      android:scaleType="fitCenter"/>
+                  <ImageView android:id="@+id/lockBadge"
+                      android:layout_width="18dp" android:layout_height="18dp"
+                      android:layout_gravity="bottom|end"
+                      android:visibility="gone"/>
+              </FrameLayout>
+              <TextView android:id="@+id/appName"
+                  android:layout_width="68dp" android:layout_height="wrap_content"
+                  android:gravity="center" android:textColor="#FFFFFFFF"
+                  android:textSize="10sp" android:maxLines="1" android:ellipsize="end"
+                  android:layout_marginTop="3dp"/>
+          </LinearLayout>
+          EOF
+
+      - name: activity_pattern layout
+        run: |
+          cat > app/src/main/res/layout/activity_pattern.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
-              android:background="#F2F5FA"
-              android:orientation="vertical">
-
-              <LinearLayout
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:background="#FFFFFF"
-                  android:elevation="4dp"
-                  android:gravity="center_vertical"
-                  android:orientation="horizontal"
-                  android:padding="12dp">
-
-                  <ImageView
-                      android:layout_width="48dp"
-                      android:layout_height="48dp"
-                      android:contentDescription="logo"
-                      android:src="@drawable/ic_launcher" />
-
-                  <LinearLayout
-                      android:layout_width="0dp"
-                      android:layout_height="wrap_content"
-                      android:layout_marginLeft="12dp"
-                      android:layout_weight="1"
-                      android:orientation="vertical">
-
-                      <TextView
-                          android:layout_width="wrap_content"
-                          android:layout_height="wrap_content"
-                          android:text="@string/app_name"
-                          android:textColor="#0D47A1"
-                          android:textSize="20sp"
-                          android:textStyle="bold" />
-
-                      <TextView
-                          android:layout_width="wrap_content"
-                          android:layout_height="wrap_content"
-                          android:text="@string/subtitle"
-                          android:textColor="#546E7A"
-                          android:textSize="12sp" />
-                  </LinearLayout>
-              </LinearLayout>
-
-              <LinearLayout
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:orientation="vertical"
-                  android:padding="12dp">
-
-                  <EditText
-                      android:id="@+id/etUrls"
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:background="@drawable/input_bg"
-                      android:gravity="top"
-                      android:hint="@string/hint_urls"
-                      android:inputType="textMultiLine"
-                      android:maxLines="5"
-                      android:minLines="2"
-                      android:padding="10dp"
-                      android:textSize="14sp" />
-
-                  <Button
-                      android:id="@+id/btnAdd"
-                      android:layout_width="match_parent"
-                      android:layout_height="48dp"
-                      android:layout_marginTop="8dp"
-                      android:background="@drawable/btn_bg"
-                      android:text="@string/btn_add"
-                      android:textColor="#FFFFFF"
-                      android:textStyle="bold" />
-              </LinearLayout>
-
-              <ListView
-                  android:id="@+id/lvTasks"
-                  android:layout_width="match_parent"
-                  android:layout_height="0dp"
-                  android:layout_weight="1"
-                  android:clipToPadding="false"
-                  android:divider="@android:color/transparent"
-                  android:dividerHeight="0dp"
-                  android:paddingLeft="12dp"
-                  android:paddingRight="12dp" />
-
-              <TextView
-                  android:id="@+id/tvAbout"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:background="#FFFFFF"
-                  android:gravity="center"
-                  android:padding="8dp"
-                  android:text="@string/about"
-                  android:textColor="#607D8B"
-                  android:textSize="11sp" />
+              android:orientation="vertical"
+              android:gravity="center"
+              android:background="@color/bg_dark"
+              android:padding="32dp">
+              <ImageView android:id="@+id/appIconBig"
+                  android:layout_width="72dp" android:layout_height="72dp"
+                  android:scaleType="fitCenter"
+                  android:layout_marginBottom="12dp"/>
+              <TextView android:id="@+id/patternTitle"
+                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:textColor="#FFFFFFFF" android:textSize="20sp"
+                  android:text="Draw Pattern to Unlock"
+                  android:layout_marginBottom="8dp"/>
+              <TextView android:id="@+id/patternMsg"
+                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:textColor="#CCFFFFFF" android:textSize="14sp"
+                  android:layout_marginBottom="24dp"/>
+              <com.awal.launcher.PatternView
+                  android:id="@+id/patternView"
+                  android:layout_width="280dp"
+                  android:layout_height="280dp"/>
+              <TextView android:id="@+id/btnCancel"
+                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="Cancel"
+                  android:textColor="@color/accent_blue"
+                  android:textSize="16sp"
+                  android:padding="16dp"
+                  android:layout_marginTop="16dp"/>
           </LinearLayout>
           EOF
 
-          cat > app/src/main/res/layout/item_download.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent"
-              android:layout_height="wrap_content"
-              android:paddingBottom="8dp">
-
-              <LinearLayout
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
-                  android:background="@drawable/card_bg"
-                  android:orientation="vertical"
-                  android:padding="12dp">
-
-                  <TextView
-                      android:id="@+id/tvName"
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:ellipsize="middle"
-                      android:singleLine="true"
-                      android:textColor="#0D1B2A"
-                      android:textSize="15sp"
-                      android:textStyle="bold" />
-
-                  <ProgressBar
-                      android:id="@+id/pb"
-                      style="?android:attr/progressBarStyleHorizontal"
-                      android:layout_width="match_parent"
-                      android:layout_height="8dp"
-                      android:layout_marginTop="8dp"
-                      android:max="100" />
-
-                  <com.awal.tenparts.PartsView
-                      android:id="@+id/partsView"
-                      android:layout_width="match_parent"
-                      android:layout_height="40dp"
-                      android:layout_marginTop="10dp" />
-
-                  <LinearLayout
-                      android:layout_width="match_parent"
-                      android:layout_height="wrap_content"
-                      android:layout_marginTop="6dp"
-                      android:gravity="center_vertical"
-                      android:orientation="horizontal">
-
-                      <TextView
-                          android:id="@+id/tvStatus"
-                          android:layout_width="0dp"
-                          android:layout_height="wrap_content"
-                          android:layout_weight="1"
-                          android:textColor="#455A64"
-                          android:textSize="12sp" />
-
-                      <Button
-                          android:id="@+id/btnAction"
-                          android:layout_width="wrap_content"
-                          android:layout_height="36dp"
-                          android:layout_marginLeft="8dp"
-                          android:background="@drawable/btn_small_bg"
-                          android:minWidth="72dp"
-                          android:textColor="#1565C0"
-                          android:textSize="12sp" />
-                  </LinearLayout>
-              </LinearLayout>
-          </FrameLayout>
-          EOF
-
-          cat > app/src/main/java/com/awal/tenparts/DownloadTask.java << 'EOF'
-          package com.awal.tenparts;
-
-          import android.content.ContentValues;
-          import android.content.Context;
-          import android.net.Uri;
-          import android.os.Build;
-          import android.os.Environment;
-          import android.provider.MediaStore;
-
-          import java.io.File;
-          import java.io.FileInputStream;
-          import java.io.FileOutputStream;
-          import java.io.IOException;
-          import java.io.InputStream;
-          import java.io.OutputStream;
-          import java.net.HttpURLConnection;
-          import java.net.URL;
-          import java.net.URLDecoder;
-          import java.util.ArrayList;
-          import java.util.List;
-          import java.util.concurrent.ExecutionException;
-          import java.util.concurrent.ExecutorService;
-          import java.util.concurrent.Executors;
-          import java.util.concurrent.Future;
-          import java.util.concurrent.atomic.AtomicInteger;
-          import java.util.concurrent.atomic.AtomicLong;
-          import java.util.concurrent.atomic.AtomicLongArray;
-          import java.util.regex.Matcher;
-          import java.util.regex.Pattern;
-
-          public class DownloadTask {
-              public static final int PARTS = 10;
-              public static final int QUEUED = 0, CONNECTING = 1, DOWNLOADING = 2, MERGING = 3,
-                      DONE = 4, FAILED = 5, CANCELED = 6;
-
-              // কোনো লাইন নেই: সব ফাইল আর সব টুকরা একসাথে শুরু হবে
-              private static final ExecutorService FILES = Executors.newCachedThreadPool();
-              // টুকরা-থ্রেডগুলো এখানে চলবে
-              private static final ExecutorService SEGMENTS = Executors.newCachedThreadPool();
-              private static final AtomicInteger IDS = new AtomicInteger(1);
-
-              public final int id = IDS.getAndIncrement();
-              public final String url;
-              public volatile String name = "লিংক পরীক্ষা হচ্ছে...";
-              public volatile long total = -1;
-              public final AtomicLong downloaded = new AtomicLong(0);
-              public final AtomicInteger partsDone = new AtomicInteger(0);
-              public volatile int totalParts = PARTS;
-              // প্রতিটা টুকরার নিজস্ব অগ্রগতি (১০টা বক্স দেখানোর জন্য)
-              public volatile AtomicLongArray partBytes = new AtomicLongArray(PARTS);
-              public volatile long[] partSize = new long[PARTS];
-              public volatile int state = QUEUED;
-              public volatile String error = "";
-              public volatile String savedTo = "";
-              public volatile long speed = 0;
-
-              private volatile boolean cancelled = false;
-              private volatile boolean abort = false;
-              private volatile boolean rangeOk = false;
-              private volatile String resolved;
-              private long lastBytes = 0;
-              private final Context ctx;
-              private File dir;
-
-              public DownloadTask(Context context, String url) {
-                  this.ctx = context.getApplicationContext();
-                  this.url = url;
-                  this.resolved = url;
-              }
-
-              public void start() {
-                  FILES.execute(this::run);
-              }
-
-              public void cancel() {
-                  cancelled = true;
-                  state = CANCELED;
-              }
-
-              public void retry() {
-                  if (state != FAILED) return;
-                  cancelled = false;
-                  abort = false;
-                  error = "";
-                  state = QUEUED;
-                  FILES.execute(this::run);
-              }
-
-              public void tick(long ms) {
-                  long d = downloaded.get();
-                  long s = (d - lastBytes) * 1000 / ms;
-                  speed = s < 0 ? 0 : s;
-                  lastBytes = d;
-              }
-
-              private boolean stopped() {
-                  return cancelled || abort;
-              }
-
-              private void set(int s) {
-                  if (!cancelled) state = s;
-              }
-
-              private void run() {
-                  try {
-                      set(CONNECTING);
-                      probe();
-                      if (cancelled) {
-                          cleanup();
-                          return;
-                      }
-                      File base = ctx.getExternalFilesDir(null);
-                      if (base == null) base = ctx.getFilesDir();
-                      dir = new File(base, "parts_" + id);
-                      if (!dir.exists() && !dir.mkdirs()) throw new IOException("টেম্প ফোল্ডার তৈরি করা যায়নি");
-
-                      final boolean ranged = rangeOk;
-                      final int n = (ranged && total >= PARTS * 1024L) ? PARTS : 1;
-                      totalParts = n;
-                      final long size = ranged ? total / n : 0;
-                      File[] parts = new File[n];
-                      long have = 0;
-                      AtomicLongArray pbytes = new AtomicLongArray(n);
-                      long[] psizes = new long[n];
-                      for (int i = 0; i < n; i++) {
-                          parts[i] = new File(dir, "part" + i);
-                          long len = parts[i].exists() ? parts[i].length() : 0;
-                          have += len;
-                          pbytes.set(i, len);
-                          psizes[i] = ranged ? (i == n - 1 ? total - (long) i * size : size) : total;
-                      }
-                      partBytes = pbytes;
-                      partSize = psizes;
-                      downloaded.set(have);
-                      lastBytes = have;
-                      partsDone.set(0);
-                      set(DOWNLOADING);
-
-                      List<Future<?>> fs = new ArrayList<>();
-                      for (int i = 0; i < n; i++) {
-                          final int idx = i;
-                          final File pf = parts[i];
-                          final long s = ranged ? i * size : 0;
-                          final long e = ranged ? (i == n - 1 ? total - 1 : s + size - 1) : -1;
-                          fs.add(SEGMENTS.submit(() -> {
-                              downloadPart(idx, pf, s, e, ranged);
-                              if (!stopped()) partsDone.incrementAndGet();
-                              return null;
-                          }));
-                      }
-
-                      try {
-                          for (Future<?> f : fs) f.get();
-                      } catch (ExecutionException ex) {
-                          abort = true;
-                          for (Future<?> f : fs) {
-                              try { f.get(); } catch (Exception ignore) { }
-                          }
-                          Throwable c = ex.getCause();
-                          throw (c instanceof Exception) ? (Exception) c : ex;
-                      }
-
-                      if (cancelled) {
-                          cleanup();
-                          return;
-                      }
-
-                      long sum = 0;
-                      for (File p : parts) sum += p.exists() ? p.length() : 0;
-                      if (total > 0 && sum != total) throw new IOException("ফাইল অসম্পূর্ণ (" + sum + "/" + total + ")");
-
-                      set(MERGING);
-                      merge(parts);
-                      cleanup();
-                      set(DONE);
-                  } catch (Exception e) {
-                      if (cancelled) {
-                          cleanup();
-                      } else {
-                          String m = e.getMessage();
-                          error = (m == null || m.isEmpty()) ? e.getClass().getSimpleName() : m;
-                          state = FAILED;
-                      }
-                  }
-              }
-
-              // ---------- সার্ভার পরীক্ষা: সাইজ আর Range সাপোর্ট আছে কিনা ----------
-              private void probe() throws IOException {
-                  HttpURLConnection c = open(url, 0, 0);
-                  try {
-                      resolved = c.getURL().toString();
-                      int code = c.getResponseCode();
-                      String cd = c.getHeaderField("Content-Disposition");
-                      if (code == 206) {
-                          long t = -1;
-                          String cr = c.getHeaderField("Content-Range");
-                          if (cr != null && cr.contains("/")) {
-                              try {
-                                  t = Long.parseLong(cr.substring(cr.lastIndexOf('/') + 1).trim());
-                              } catch (NumberFormatException ignore) { }
-                          }
-                          total = t;
-                          rangeOk = t > 0;
-                      } else if (code == 200) {
-                          total = c.getContentLengthLong();
-                          rangeOk = false;
-                      } else if (code == 416) {
-                          total = 0;
-                          rangeOk = false;
-                      } else {
-                          throw new IOException("সার্ভার থেকে HTTP " + code + " এসেছে");
-                      }
-                      name = pickName(cd, resolved);
-                  } finally {
-                      c.disconnect();
-                  }
-              }
-
-              private String pickName(String cd, String u) {
-                  String n = null;
-                  if (cd != null) {
-                      Matcher m = Pattern.compile("filename\\*?=(?:UTF-8'')?\"?([^\";]+)\"?",
-                              Pattern.CASE_INSENSITIVE).matcher(cd);
-                      if (m.find()) n = m.group(1).trim();
-                  }
-                  if (n == null) {
-                      try {
-                          String p = new URL(u).getPath();
-                          n = p.substring(p.lastIndexOf('/') + 1);
-                      } catch (Exception ignore) { }
-                  }
-                  if (n != null) {
-                      try { n = URLDecoder.decode(n, "UTF-8"); } catch (Exception ignore) { }
-                  }
-                  if (n == null || n.trim().isEmpty()) n = "download_" + System.currentTimeMillis();
-                  n = n.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
-                  return n;
-              }
-
-              // ---------- redirect নিজে ফলো করে কানেকশন খোলা ----------
-              private HttpURLConnection open(String u, long from, long to) throws IOException {
-                  for (int i = 0; i < 8; i++) {
-                      HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
-                      c.setInstanceFollowRedirects(false);
-                      c.setConnectTimeout(15000);
-                      c.setReadTimeout(20000);
-                      c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) TenPartsDM/1.0");
-                      c.setRequestProperty("Accept-Encoding", "identity");
-                      if (from >= 0) {
-                          c.setRequestProperty("Range", "bytes=" + from + "-" + (to >= 0 ? String.valueOf(to) : ""));
-                      }
-                      int code = c.getResponseCode();
-                      if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
-                          String loc = c.getHeaderField("Location");
-                          c.disconnect();
-                          if (loc == null) throw new IOException("Redirect এর Location নেই");
-                          u = new URL(new URL(u), loc).toString();
-                          continue;
-                      }
-                      return c;
-                  }
-                  throw new IOException("অনেক বেশি redirect");
-              }
-
-              // ---------- একটা টুকরা ডাউনলোড (ব্যর্থ হলে ৫ বার পর্যন্ত, যেখানে থেমেছিল সেখান থেকে) ----------
-              private void downloadPart(int idx, File f, long start, long end, boolean ranged) throws Exception {
-                  int attempt = 0;
-                  byte[] buf = new byte[32768];
-                  while (true) {
-                      if (stopped()) return;
-                      long have = f.exists() ? f.length() : 0;
-                      if (!ranged && have > 0) {
-                          downloaded.addAndGet(-have);
-                          partBytes.set(idx, 0);
-                          f.delete();
-                          have = 0;
-                      }
-                      long partLen = ranged ? end - start + 1 : -1;
-                      if (ranged && have >= partLen) return;
-
-                      HttpURLConnection c = null;
-                      try {
-                          c = ranged ? open(resolved, start + have, end) : open(resolved, -1, -1);
-                          int code = c.getResponseCode();
-                          if (ranged && code != 206) throw new IOException("সার্ভার Range সাপোর্ট করেনি (HTTP " + code + ")");
-                          if (!ranged && code != 200) throw new IOException("HTTP " + code);
-
-                          long got = 0;
-                          try (InputStream in = c.getInputStream();
-                               FileOutputStream out = new FileOutputStream(f, ranged)) {
-                              int r;
-                              while (!stopped() && (r = in.read(buf)) > 0) {
-                                  if (ranged) {
-                                      long remaining = partLen - have - got;
-                                      if (r > remaining) r = (int) remaining;
-                                  }
-                                  out.write(buf, 0, r);
-                                  got += r;
-                                  downloaded.addAndGet(r);
-                                  partBytes.addAndGet(idx, r);
-                                  if (ranged && have + got >= partLen) break;
-                              }
-                          }
-                          if (stopped()) return;
-                          if (ranged && have + got < partLen) throw new IOException("টুকরা অসম্পূর্ণ");
-                          return;
-                      } catch (IOException e) {
-                          if (stopped()) return;
-                          if (++attempt >= 5) throw e;
-                          Thread.sleep(1000L * attempt);
-                      } finally {
-                          if (c != null) c.disconnect();
-                      }
-                  }
-              }
-
-              // ---------- ১০ টুকরা জোড়া লাগানো ----------
-              private void merge(File[] parts) throws Exception {
-                  OutputStream out;
-                  Uri uri = null;
-                  File outFile = null;
-                  if (Build.VERSION.SDK_INT >= 29) {
-                      ContentValues v = new ContentValues();
-                      v.put(MediaStore.Downloads.DISPLAY_NAME, name);
-                      v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/TenParts");
-                      v.put(MediaStore.Downloads.IS_PENDING, 1);
-                      uri = ctx.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
-                      if (uri == null) throw new IOException("আউটপুট ফাইল তৈরি করা যায়নি");
-                      out = ctx.getContentResolver().openOutputStream(uri);
-                      if (out == null) throw new IOException("আউটপুট ফাইল খোলা যায়নি");
-                      savedTo = "Downloads/TenParts/" + name;
-                  } else {
-                      File d = new File(Environment.getExternalStoragePublicDirectory(
-                              Environment.DIRECTORY_DOWNLOADS), "TenParts");
-                      if (!d.exists() && !d.mkdirs()) throw new IOException("Downloads ফোল্ডারে লেখা যাচ্ছে না (পারমিশন দিন)");
-                      outFile = unique(d, name);
-                      out = new FileOutputStream(outFile);
-                      savedTo = "Download/TenParts/" + outFile.getName();
-                  }
-
-                  byte[] buf = new byte[65536];
-                  try {
-                      for (File p : parts) {
-                          if (!p.exists()) continue;
-                          try (InputStream in = new FileInputStream(p)) {
-                              int r;
-                              while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
-                          }
-                      }
-                      out.flush();
-                      out.close();
-                  } catch (IOException e) {
-                      try { out.close(); } catch (Exception ignore) { }
-                      if (uri != null) ctx.getContentResolver().delete(uri, null, null);
-                      else if (outFile != null) outFile.delete();
-                      throw e;
-                  }
-
-                  if (uri != null) {
-                      ContentValues v = new ContentValues();
-                      v.put(MediaStore.Downloads.IS_PENDING, 0);
-                      ctx.getContentResolver().update(uri, v, null, null);
-                  }
-              }
-
-              private File unique(File d, String n) {
-                  File f = new File(d, n);
-                  String base = n, ext = "";
-                  int dot = n.lastIndexOf('.');
-                  if (dot > 0) {
-                      base = n.substring(0, dot);
-                      ext = n.substring(dot);
-                  }
-                  int i = 1;
-                  while (f.exists()) f = new File(d, base + " (" + (i++) + ")" + ext);
-                  return f;
-              }
-
-              private void cleanup() {
-                  if (dir == null) return;
-                  File[] fs = dir.listFiles();
-                  if (fs != null) for (File f : fs) f.delete();
-                  dir.delete();
+      - name: AppInfo.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/AppInfo.java << 'EOF'
+          package com.awal.launcher;
+          import android.graphics.drawable.Drawable;
+          public class AppInfo {
+              public String label, packageName;
+              public Drawable icon;
+              public int launchCount;
+              public boolean patternLocked;
+              public AppInfo(String l, String p, Drawable i, int c, boolean locked) {
+                  label=l; packageName=p; icon=i; launchCount=c; patternLocked=locked;
               }
           }
           EOF
 
-          cat > app/src/main/java/com/awal/tenparts/PartsView.java << 'EOF'
-          package com.awal.tenparts;
-
+      - name: PatternView.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/PatternView.java << 'EOF'
+          package com.awal.launcher;
           import android.content.Context;
           import android.graphics.Canvas;
           import android.graphics.Paint;
-          import android.graphics.RectF;
+          import android.graphics.Path;
           import android.util.AttributeSet;
+          import android.view.MotionEvent;
           import android.view.View;
+          import java.util.ArrayList;
+          import java.util.List;
 
-          import java.util.concurrent.atomic.AtomicLongArray;
+          public class PatternView extends View {
+              public interface PatternListener { void onComplete(List<Integer> pattern); }
+              private Paint circlePaint, linePaint, activePaint;
+              private List<Integer> selected = new ArrayList<>();
+              private List<Integer> order = new ArrayList<>();
+              private float touchX, touchY;
+              private boolean drawing;
+              private PatternListener listener;
+              private int state = 0; // 0=default,1=set,2=error
+              private static final int COLS=3, ROWS=3;
+              private float[] cx = new float[9], cy = new float[9];
 
-          /** ১০টা বক্স: প্রতিটা টুকরা নিচ থেকে উপরে ভরে ওঠে, শেষ হলে সবুজ হয়। */
-          public class PartsView extends View {
-              private final Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
-              private final Paint fg = new Paint(Paint.ANTI_ALIAS_FLAG);
-              private final Paint tx = new Paint(Paint.ANTI_ALIAS_FLAG);
-              private final RectF r = new RectF();
-              private final float dp;
-              private DownloadTask task;
-
-              public PartsView(Context c) {
-                  super(c);
-                  dp = c.getResources().getDisplayMetrics().density;
-                  init();
-              }
-
-              public PartsView(Context c, AttributeSet a) {
-                  super(c, a);
-                  dp = c.getResources().getDisplayMetrics().density;
-                  init();
-              }
+              public PatternView(Context c) { super(c); init(); }
+              public PatternView(Context c, AttributeSet a) { super(c,a); init(); }
 
               private void init() {
-                  bg.setColor(0xFFE3EAF3);
-                  tx.setTextAlign(Paint.Align.CENTER);
-                  tx.setTextSize(11 * dp);
-                  tx.setFakeBoldText(true);
+                  circlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  circlePaint.setStyle(Paint.Style.STROKE);
+                  circlePaint.setStrokeWidth(2f);
+                  circlePaint.setColor(0x88FFFFFF);
+                  linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  linePaint.setStyle(Paint.Style.STROKE);
+                  linePaint.setStrokeWidth(3f);
+                  linePaint.setColor(0xFF4FC3F7);
+                  activePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  activePaint.setStyle(Paint.Style.FILL);
+                  activePaint.setColor(0xFF4FC3F7);
               }
 
-              public void setTask(DownloadTask t) {
-                  task = t;
-                  invalidate();
+              public void setListener(PatternListener l) { listener=l; }
+              public void setError() { state=2; linePaint.setColor(0xFFEF5350); activePaint.setColor(0xFFEF5350); invalidate(); postDelayed(this::reset,600); }
+              public void reset() { selected.clear(); order.clear(); drawing=false; state=0; linePaint.setColor(0xFF4FC3F7); activePaint.setColor(0xFF4FC3F7); invalidate(); }
+
+              @Override
+              protected void onSizeChanged(int w, int h, int ow, int oh) {
+                  float pw=w/3f, ph=h/3f;
+                  for(int i=0;i<9;i++) { cx[i]=pw*(i%3)+pw/2; cy[i]=ph*(i/3)+ph/2; }
               }
 
               @Override
-              protected void onDraw(Canvas canvas) {
-                  DownloadTask t = task;
-                  if (t == null) return;
-                  int n = Math.max(1, t.totalParts);
-                  AtomicLongArray pb = t.partBytes;
-                  long[] ps = t.partSize;
-                  float gap = 4 * dp;
-                  float w = (getWidth() - gap * (n - 1)) / n;
-                  float h = getHeight();
-                  float rad = 6 * dp;
-                  boolean done = t.state == DownloadTask.DONE;
+              protected void onDraw(Canvas c) {
+                  float r=28f;
+                  for(int i=0;i<9;i++) {
+                      circlePaint.setColor(selected.contains(i)?0xFF4FC3F7:0x88FFFFFF);
+                      if(state==2) circlePaint.setColor(selected.contains(i)?0xFFEF5350:0x88FFFFFF);
+                      c.drawCircle(cx[i],cy[i],r,circlePaint);
+                      if(selected.contains(i)) c.drawCircle(cx[i],cy[i],8f,activePaint);
+                  }
+                  Path path = new Path();
+                  for(int k=0;k<order.size();k++) {
+                      int idx=order.get(k);
+                      if(k==0) path.moveTo(cx[idx],cy[idx]);
+                      else path.lineTo(cx[idx],cy[idx]);
+                  }
+                  if(drawing && !order.isEmpty()) path.lineTo(touchX,touchY);
+                  c.drawPath(path,linePaint);
+              }
 
-                  for (int i = 0; i < n; i++) {
-                      float left = i * (w + gap);
-                      r.set(left, 0, left + w, h);
-                      canvas.drawRoundRect(r, rad, rad, bg);
+              @Override
+              public boolean onTouchEvent(MotionEvent e) {
+                  switch(e.getAction()) {
+                      case MotionEvent.ACTION_DOWN: drawing=true; selected.clear(); order.clear(); checkHit(e.getX(),e.getY()); break;
+                      case MotionEvent.ACTION_MOVE: touchX=e.getX(); touchY=e.getY(); checkHit(e.getX(),e.getY()); invalidate(); break;
+                      case MotionEvent.ACTION_UP:
+                          drawing=false; invalidate();
+                          if(listener!=null && order.size()>=4) listener.onComplete(new ArrayList<>(order));
+                          else if(order.size()<4) { state=2; invalidate(); postDelayed(this::reset,600); }
+                          break;
+                  }
+                  return true;
+              }
 
-                      float frac = 0;
-                      if (done) {
-                          frac = 1;
-                      } else if (pb != null && ps != null && i < pb.length() && i < ps.length && ps[i] > 0) {
-                          frac = Math.min(1f, pb.get(i) / (float) ps[i]);
+              private void checkHit(float x, float y) {
+                  for(int i=0;i<9;i++) {
+                      if(!selected.contains(i)) {
+                          float d=(float)Math.hypot(x-cx[i],y-cy[i]);
+                          if(d<36f) { selected.add(i); order.add(i); invalidate(); break; }
                       }
-                      if (frac > 0) {
-                          fg.setColor(frac >= 1f ? 0xFF2E7D32 : 0xFF1565C0);
-                          canvas.save();
-                          canvas.clipRect(left, h - h * frac, left + w, h);
-                          canvas.drawRoundRect(r, rad, rad, fg);
-                          canvas.restore();
-                      }
-                      tx.setColor(frac > 0.55f ? 0xFFFFFFFF : 0xFF546E7A);
-                      float ty = h / 2f - (tx.descent() + tx.ascent()) / 2f;
-                      canvas.drawText(String.valueOf(i + 1), left + w / 2f, ty, tx);
                   }
               }
           }
           EOF
 
-          cat > app/src/main/java/com/awal/tenparts/MainActivity.java << 'EOF'
-          package com.awal.tenparts;
-
-          import android.Manifest;
+      - name: PatternLockActivity.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/PatternLockActivity.java << 'EOF'
+          package com.awal.launcher;
           import android.app.Activity;
           import android.content.Intent;
+          import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
-          import android.os.Build;
+          import android.graphics.drawable.Drawable;
           import android.os.Bundle;
-          import android.os.Handler;
-          import android.os.Looper;
-          import android.view.View;
-          import android.view.ViewGroup;
-          import android.widget.BaseAdapter;
-          import android.widget.Button;
-          import android.widget.EditText;
-          import android.widget.ListView;
-          import android.widget.ProgressBar;
+          import android.widget.ImageView;
           import android.widget.TextView;
-          import android.widget.Toast;
-
-          import java.util.ArrayList;
           import java.util.List;
-          import java.util.Locale;
 
-          public class MainActivity extends Activity {
-
-              private static final List<DownloadTask> TASKS = new ArrayList<>();
-              private final Handler handler = new Handler(Looper.getMainLooper());
-              private TaskAdapter adapter;
-              private EditText etUrls;
-
-              private final Runnable ticker = new Runnable() {
-                  @Override
-                  public void run() {
-                      for (DownloadTask t : TASKS) t.tick(500);
-                      adapter.notifyDataSetChanged();
-                      handler.postDelayed(this, 500);
-                  }
-              };
+          public class PatternLockActivity extends Activity {
+              private PatternView pv;
+              private TextView msg;
+              private String savedPattern;
+              private String pkg;
 
               @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  setContentView(R.layout.activity_main);
+              protected void onCreate(Bundle s) {
+                  super.onCreate(s);
+                  setContentView(R.layout.activity_pattern);
+                  pkg = getIntent().getStringExtra("package");
+                  SharedPreferences prefs = getSharedPreferences("patterns", MODE_PRIVATE);
+                  savedPattern = prefs.getString("pattern_"+pkg, null);
+                  pv = findViewById(R.id.patternView);
+                  msg = findViewById(R.id.patternMsg);
+                  TextView title = findViewById(R.id.patternTitle);
+                  title.setText("Draw Pattern to Unlock");
+                  try {
+                      Drawable icon = getPackageManager().getApplicationIcon(pkg);
+                      ((ImageView)findViewById(R.id.appIconBig)).setImageDrawable(icon);
+                  } catch(PackageManager.NameNotFoundException ignored){}
+                  pv.setListener(pattern -> {
+                      String p = listToStr(pattern);
+                      if(p.equals(savedPattern)) {
+                          setResult(RESULT_OK);
+                          finish();
+                      } else {
+                          msg.setText("Wrong pattern. Try again.");
+                          pv.setError();
+                      }
+                  });
+                  findViewById(R.id.btnCancel).setOnClickListener(v -> finish());
+              }
 
-                  etUrls = (EditText) findViewById(R.id.etUrls);
-                  Button btnAdd = (Button) findViewById(R.id.btnAdd);
-                  ListView lv = (ListView) findViewById(R.id.lvTasks);
-                  adapter = new TaskAdapter();
-                  lv.setAdapter(adapter);
+              private String listToStr(List<Integer> l) {
+                  StringBuilder sb=new StringBuilder();
+                  for(int i:l) sb.append(i);
+                  return sb.toString();
+              }
+          }
+          EOF
 
-                  if (Build.VERSION.SDK_INT < 29 && Build.VERSION.SDK_INT >= 23
-                          && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                          != PackageManager.PERMISSION_GRANTED) {
-                      requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
-                  }
+      - name: PatternSetupActivity.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/PatternSetupActivity.java << 'EOF'
+          package com.awal.launcher;
+          import android.app.Activity;
+          import android.content.SharedPreferences;
+          import android.os.Bundle;
+          import android.widget.TextView;
+          import java.util.List;
 
-                  Intent in = getIntent();
-                  if (in != null && Intent.ACTION_SEND.equals(in.getAction())) {
-                      String shared = in.getStringExtra(Intent.EXTRA_TEXT);
-                      if (shared != null) etUrls.setText(shared);
-                  }
+          public class PatternSetupActivity extends Activity {
+              private PatternView pv;
+              private TextView msg, title;
+              private String firstPattern;
+              private String pkg;
+              private int step = 1;
 
-                  btnAdd.setOnClickListener(new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          addLinks();
+              @Override
+              protected void onCreate(Bundle s) {
+                  super.onCreate(s);
+                  setContentView(R.layout.activity_pattern);
+                  pkg = getIntent().getStringExtra("package");
+                  pv = findViewById(R.id.patternView);
+                  msg = findViewById(R.id.patternMsg);
+                  title = findViewById(R.id.patternTitle);
+                  title.setText("Set Pattern Lock");
+                  msg.setText("Draw a pattern (min 4 dots)");
+                  pv.setListener(pattern -> {
+                      String p = listToStr(pattern);
+                      if(step==1) {
+                          firstPattern=p; step=2;
+                          pv.reset();
+                          title.setText("Confirm Pattern");
+                          msg.setText("Draw the same pattern again");
+                      } else {
+                          if(p.equals(firstPattern)) {
+                              SharedPreferences prefs = getSharedPreferences("patterns", MODE_PRIVATE);
+                              prefs.edit().putString("pattern_"+pkg, p).apply();
+                              setResult(RESULT_OK);
+                              finish();
+                          } else {
+                              step=1; firstPattern=null;
+                              msg.setText("Patterns don't match. Start again.");
+                              title.setText("Set Pattern Lock");
+                              pv.setError();
+                          }
+                      }
+                  });
+                  findViewById(R.id.btnCancel).setOnClickListener(v -> finish());
+              }
+
+              private String listToStr(List<Integer> l) {
+                  StringBuilder sb=new StringBuilder();
+                  for(int i:l) sb.append(i);
+                  return sb.toString();
+              }
+          }
+          EOF
+
+      - name: WeatherData.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/WeatherData.java << 'EOF'
+          package com.awal.launcher;
+          public class WeatherData {
+              public String day, condition, icon;
+              public int tempHigh, tempLow;
+              public WeatherData(String d, String c, int h, int l, String i) {
+                  day=d; condition=c; tempHigh=h; tempLow=l; icon=i;
+              }
+          }
+          EOF
+
+      - name: WeatherManager.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/WeatherManager.java << 'EOF'
+          package com.awal.launcher;
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import android.os.Handler;
+          import android.os.Looper;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+          import java.io.BufferedReader;
+          import java.io.InputStreamReader;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+
+          public class WeatherManager {
+              private static final String PREFS="weather_prefs", KEY="weather_json", LAST="last_fetch";
+              private static final long GAP=24*60*60*1000L;
+              private Context ctx;
+              private ExecutorService exec=Executors.newSingleThreadExecutor();
+              public interface Callback { void onWeather(List<WeatherData> d); }
+
+              public WeatherManager(Context c){ctx=c;}
+
+              public void get(String loc, Callback cb){
+                  SharedPreferences p=ctx.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
+                  String cached=p.getString(KEY,null);
+                  if(cached!=null && System.currentTimeMillis()-p.getLong(LAST,0)<GAP){cb.onWeather(parse(cached));return;}
+                  exec.execute(()->{
+                      try{
+                          URL url=new URL("https://wttr.in/"+loc.replace(" ","+")+"?format=j1");
+                          HttpURLConnection c=(HttpURLConnection)url.openConnection();
+                          c.setConnectTimeout(5000);c.setReadTimeout(5000);
+                          BufferedReader br=new BufferedReader(new InputStreamReader(c.getInputStream()));
+                          StringBuilder sb=new StringBuilder();String ln;
+                          while((ln=br.readLine())!=null)sb.append(ln);
+                          String json=sb.toString();
+                          p.edit().putString(KEY,json).putLong(LAST,System.currentTimeMillis()).apply();
+                          List<WeatherData> list=parse(json);
+                          new Handler(Looper.getMainLooper()).post(()->cb.onWeather(list));
+                      }catch(Exception e){
+                          if(cached!=null) new Handler(Looper.getMainLooper()).post(()->cb.onWeather(parse(cached)));
+                          else new Handler(Looper.getMainLooper()).post(()->cb.onWeather(fallback()));
                       }
                   });
               }
 
-              private void addLinks() {
-                  String[] parts = etUrls.getText().toString().trim().split("\\s+");
-                  int count = 0;
-                  for (String p : parts) {
-                      String u = p.trim();
-                      if (u.startsWith("http://") || u.startsWith("https://")) {
-                          DownloadTask t = new DownloadTask(this, u);
-                          TASKS.add(0, t);
-                          t.start();
-                          count++;
+              private List<WeatherData> parse(String json){
+                  List<WeatherData> list=new ArrayList<>();
+                  try{
+                      JSONArray days=new JSONObject(json).getJSONArray("weather");
+                      String[] names={"Today","Tomorrow","Day 3","Day 4","Day 5","Day 6","Day 7"};
+                      for(int i=0;i<Math.min(7,days.length());i++){
+                          JSONObject d=days.getJSONObject(i);
+                          int hi=Integer.parseInt(d.getString("maxtempC"));
+                          int lo=Integer.parseInt(d.getString("mintempC"));
+                          JSONArray h=d.getJSONArray("hourly");
+                          String desc=h.getJSONObject(4).getJSONArray("weatherDesc").getJSONObject(0).getString("value");
+                          int code=Integer.parseInt(h.getJSONObject(4).getString("weatherCode"));
+                          list.add(new WeatherData(names[i],desc,hi,lo,icon(code)));
                       }
-                  }
-                  if (count == 0) {
-                      Toast.makeText(this, "সঠিক লিংক দিন (http:// বা https:// দিয়ে শুরু)", Toast.LENGTH_SHORT).show();
-                  } else {
-                      etUrls.setText("");
-                      adapter.notifyDataSetChanged();
-                  }
+                  }catch(Exception e){return fallback();}
+                  return list;
               }
+              private String icon(int c){
+                  if(c>=200&&c<300)return"⛈";if(c>=300&&c<400)return"🌦";
+                  if(c>=500&&c<600)return"🌧";if(c>=600&&c<700)return"❄";
+                  if(c==800)return"☀";if(c>800)return"⛅";return"🌤";
+              }
+              private List<WeatherData> fallback(){
+                  List<WeatherData> l=new ArrayList<>();
+                  for(String d:new String[]{"Today","Tomorrow","Day 3","Day 4","Day 5","Day 6","Day 7"})
+                      l.add(new WeatherData(d,"--",0,0,"🌤"));
+                  return l;
+              }
+          }
+          EOF
 
+      - name: AppAdapter.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/AppAdapter.java << 'EOF'
+          package com.awal.launcher;
+          import android.graphics.drawable.GradientDrawable;
+          import android.view.LayoutInflater;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.ImageView;
+          import android.widget.TextView;
+          import androidx.annotation.NonNull;
+          import androidx.recyclerview.widget.RecyclerView;
+          import java.util.List;
+
+          public class AppAdapter extends RecyclerView.Adapter<AppAdapter.VH> {
+              private List<AppInfo> apps;
+              private OnClick click;
+              private OnLongClick longClick;
+              public interface OnClick{void on(AppInfo a);}
+              public interface OnLongClick{void on(AppInfo a);}
+              public AppAdapter(List<AppInfo> a,OnClick c,OnLongClick l){apps=a;click=c;longClick=l;}
+              public void update(List<AppInfo> a){apps=a;notifyDataSetChanged();}
+
+              @NonNull @Override
+              public VH onCreateViewHolder(@NonNull ViewGroup p,int t){
+                  return new VH(LayoutInflater.from(p.getContext()).inflate(R.layout.item_app,p,false));
+              }
               @Override
-              protected void onStart() {
-                  super.onStart();
-                  handler.post(ticker);
+              public void onBindViewHolder(@NonNull VH h,int pos){
+                  AppInfo a=apps.get(pos);
+                  h.icon.setImageDrawable(a.icon);
+                  h.name.setText(a.label);
+                  if(a.patternLocked){
+                      GradientDrawable badge=new GradientDrawable();
+                      badge.setShape(GradientDrawable.OVAL);
+                      badge.setColor(0xFF4FC3F7);
+                      h.lock.setBackground(badge);
+                      h.lock.setVisibility(View.VISIBLE);
+                  } else { h.lock.setVisibility(View.GONE); }
+                  h.itemView.setOnClickListener(v->click.on(a));
+                  h.itemView.setOnLongClickListener(v->{longClick.on(a);return true;});
               }
-
-              @Override
-              protected void onStop() {
-                  super.onStop();
-                  handler.removeCallbacks(ticker);
+              @Override public int getItemCount(){return apps.size();}
+              static class VH extends RecyclerView.ViewHolder{
+                  ImageView icon,lock; TextView name;
+                  VH(View v){super(v);icon=v.findViewById(R.id.appIcon);name=v.findViewById(R.id.appName);lock=v.findViewById(R.id.lockBadge);}
               }
+          }
+          EOF
 
-              private static String fmt(long b) {
-                  if (b < 1024) return b + " B";
-                  double k = b / 1024.0;
-                  if (k < 1024) return String.format(Locale.US, "%.1f KB", k);
-                  double m = k / 1024.0;
-                  if (m < 1024) return String.format(Locale.US, "%.1f MB", m);
-                  return String.format(Locale.US, "%.2f GB", m / 1024.0);
-              }
-
-              private static String statusText(DownloadTask t) {
-                  switch (t.state) {
-                      case DownloadTask.QUEUED:
-                          return "লাইনে অপেক্ষা করছে...";
-                      case DownloadTask.CONNECTING:
-                          return "সার্ভারের সাথে যোগাযোগ হচ্ছে...";
-                      case DownloadTask.DOWNLOADING: {
-                          long d = t.downloaded.get();
-                          String head;
-                          if (t.total > 0) {
-                              head = (d * 100 / t.total) + "% • " + fmt(d) + " / " + fmt(t.total);
-                          } else {
-                              head = fmt(d);
-                          }
-                          return head + " • " + fmt(t.speed) + "/s\nটুকরা " + t.partsDone.get() + "/" + t.totalParts
-                                  + " সম্পন্ন (" + t.totalParts + " থ্রেড)";
-                      }
-                      case DownloadTask.MERGING:
-                          return "টুকরাগুলো জোড়া লাগানো হচ্ছে...";
-                      case DownloadTask.DONE:
-                          return "✔ সম্পন্ন • " + fmt(t.downloaded.get()) + "\n" + t.savedTo;
-                      case DownloadTask.FAILED:
-                          return "✖ ব্যর্থ: " + t.error;
-                      default:
-                          return "বাতিল করা হয়েছে";
-                  }
-              }
-
-              private class TaskAdapter extends BaseAdapter {
-                  @Override
-                  public int getCount() {
-                      return TASKS.size();
-                  }
-
-                  @Override
-                  public Object getItem(int i) {
-                      return TASKS.get(i);
-                  }
-
-                  @Override
-                  public long getItemId(int i) {
-                      return TASKS.get(i).id;
-                  }
-
-                  @Override
-                  public View getView(int pos, View v, ViewGroup parent) {
-                      if (v == null) v = getLayoutInflater().inflate(R.layout.item_download, parent, false);
-                      final DownloadTask t = TASKS.get(pos);
-                      TextView tvName = (TextView) v.findViewById(R.id.tvName);
-                      TextView tvStatus = (TextView) v.findViewById(R.id.tvStatus);
-                      ProgressBar pb = (ProgressBar) v.findViewById(R.id.pb);
-                      Button btn = (Button) v.findViewById(R.id.btnAction);
-                      PartsView pv = (PartsView) v.findViewById(R.id.partsView);
-                      pv.setTask(t);
-
-                      tvName.setText(t.name);
-                      tvStatus.setText(statusText(t));
-
-                      if (t.state == DownloadTask.DONE) {
-                          pb.setIndeterminate(false);
-                          pb.setProgress(100);
-                      } else if (t.state == DownloadTask.DOWNLOADING && t.total > 0) {
-                          pb.setIndeterminate(false);
-                          pb.setProgress((int) (t.downloaded.get() * 100 / t.total));
-                      } else if (t.state == DownloadTask.DOWNLOADING || t.state == DownloadTask.CONNECTING
-                              || t.state == DownloadTask.MERGING) {
-                          pb.setIndeterminate(true);
-                      } else {
-                          pb.setIndeterminate(false);
-                          pb.setProgress(0);
-                      }
-
-                      btn.setEnabled(t.state != DownloadTask.MERGING);
-                      if (t.state == DownloadTask.FAILED) {
-                          btn.setText("আবার");
-                      } else if (t.state == DownloadTask.DONE || t.state == DownloadTask.CANCELED) {
-                          btn.setText("সরান");
-                      } else {
-                          btn.setText("বাতিল");
-                      }
-                      btn.setOnClickListener(new View.OnClickListener() {
-                          @Override
-                          public void onClick(View view) {
-                              if (t.state == DownloadTask.FAILED) {
-                                  t.retry();
-                              } else if (t.state == DownloadTask.DONE || t.state == DownloadTask.CANCELED) {
-                                  TASKS.remove(t);
-                              } else {
-                                  t.cancel();
-                              }
-                              notifyDataSetChanged();
-                          }
-                      });
-                      return v;
+      - name: BootReceiver.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/BootReceiver.java << 'EOF'
+          package com.awal.launcher;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          public class BootReceiver extends BroadcastReceiver {
+              @Override public void onReceive(Context c, Intent i){
+                  if(Intent.ACTION_BOOT_COMPLETED.equals(i.getAction())){
+                      Intent it=new Intent(c,MainActivity.class);
+                      it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      c.startActivity(it);
                   }
               }
           }
           EOF
 
-          echo "সব ফাইল তৈরি হয়েছে"
-          find . -type f -not -path "./.git/*" | sort
-
-      - name: Download Gradle wrapper jar
+      - name: MainActivity.java
         run: |
-          mkdir -p gradle/wrapper
-          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
-          ls -l gradle/wrapper/gradle-wrapper.jar
+          cat > app/src/main/java/com/awal/launcher/MainActivity.java << 'EOF'
+          package com.awal.launcher;
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.content.pm.ResolveInfo;
+          import android.graphics.drawable.Drawable;
+          import android.graphics.drawable.GradientDrawable;
+          import android.media.AudioManager;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.view.GestureDetector;
+          import android.view.MotionEvent;
+          import android.view.View;
+          import android.view.Window;
+          import android.view.WindowManager;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+          import androidx.recyclerview.widget.GridLayoutManager;
+          import androidx.recyclerview.widget.RecyclerView;
+          import java.text.SimpleDateFormat;
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.Date;
+          import java.util.List;
+          import java.util.Locale;
 
-      - name: Create gradlew
-        run: |
-          cat > gradlew << 'EOF'
-          #!/bin/sh
-          APP_HOME=$(cd "$(dirname "$0")" && pwd -P)
-          if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
-            JAVACMD="$JAVA_HOME/bin/java"
-          else
-            JAVACMD=java
-          fi
-          exec "$JAVACMD" -Dorg.gradle.appname=gradlew -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
+          public class MainActivity extends Activity {
+              private static final int REQ_PATTERN=101, REQ_SETUP=102;
+              private Handler handler=new Handler();
+              private TextView bigClock,fullDate,statusTime,statusDate;
+              private RecyclerView appGrid;
+              private AppAdapter adapter;
+              private List<AppInfo> appList=new ArrayList<>();
+              private SharedPreferences usagePrefs,patternPrefs;
+              private WeatherManager weatherMgr;
+              private LinearLayout dockRow,widgetRow;
+              private GestureDetector powerGesture;
+              private AudioManager audioMgr;
+              private AppInfo pendingLaunch;
+
+              private Runnable tick=new Runnable(){@Override public void run(){clock();handler.postDelayed(this,1000);}};
+
+              @Override protected void onCreate(Bundle s){
+                  super.onCreate(s);
+                  requestWindowFeature(Window.FEATURE_NO_TITLE);
+                  getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+                  setContentView(R.layout.activity_main);
+                  usagePrefs=getSharedPreferences("usage",MODE_PRIVATE);
+                  patternPrefs=getSharedPreferences("patterns",MODE_PRIVATE);
+                  audioMgr=(AudioManager)getSystemService(AUDIO_SERVICE);
+                  weatherMgr=new WeatherManager(this);
+                  bigClock=findViewById(R.id.bigClock);
+                  fullDate=findViewById(R.id.fullDate);
+                  statusTime=findViewById(R.id.statusTime);
+                  statusDate=findViewById(R.id.statusDate);
+                  appGrid=findViewById(R.id.appGrid);
+                  dockRow=findViewById(R.id.dockRow);
+                  widgetRow=findViewById(R.id.widgetRow);
+                  appGrid.setLayoutManager(new GridLayoutManager(this,4));
+                  adapter=new AppAdapter(appList,this::onAppClick,this::onAppLongClick);
+                  appGrid.setAdapter(adapter);
+                  setupWidgets();
+                  setupPower();
+                  loadApps();
+                  loadWeather();
+              }
+
+              private void setupWidgets(){
+                  String[][] w={{"☀","weather"},{"🗓","calendar"},{"🧮","calc"},{"🧭","compass"},{"🚗","speed"}};
+                  for(String[] item:w){
+                      LinearLayout card=new LinearLayout(this);
+                      card.setOrientation(LinearLayout.VERTICAL);
+                      card.setGravity(android.view.Gravity.CENTER);
+                      GradientDrawable bg=new GradientDrawable();
+                      bg.setCornerRadius(20*getResources().getDisplayMetrics().density);
+                      bg.setColor(0x2AFFFFFF);
+                      bg.setStroke(1,(int)0x55FFFFFF);
+                      card.setBackground(bg);
+                      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(120,130);
+                      lp.setMargins(8,0,8,0);
+                      card.setLayoutParams(lp);
+                      TextView tv=new TextView(this);
+                      tv.setText(item[0]);tv.setTextSize(32);
+                      tv.setGravity(android.view.Gravity.CENTER);
+                      card.addView(tv);
+                      TextView label=new TextView(this);
+                      label.setTextColor(0xCCFFFFFF);
+                      label.setTextSize(10);
+                      label.setGravity(android.view.Gravity.CENTER);
+                      if("weather".equals(item[1]))label.setTag("weather_label");
+                      card.addView(label);
+                      final String type=item[1];
+                      card.setOnClickListener(v->handleWidget(type));
+                      widgetRow.addView(card);
+                  }
+              }
+
+              private void handleWidget(String t){
+                  if("calendar".equals(t)){showCalendar();}
+                  else if("weather".equals(t)){showWeatherFull();}
+                  else{new AlertDialog.Builder(this).setTitle(t.toUpperCase())
+                      .setMessage("Feature active.\nMore detail in full version.")
+                      .setPositiveButton("OK",null).show();}
+              }
+
+              private void showCalendar(){
+                  new AlertDialog.Builder(this)
+                      .setTitle("Calendar")
+                      .setMessage(buildCalendar())
+                      .setPositiveButton("OK",null).show();
+              }
+
+              private String buildCalendar(){
+                  java.util.Calendar c=java.util.Calendar.getInstance();
+                  java.text.SimpleDateFormat mf=new java.text.SimpleDateFormat("MMMM yyyy",Locale.ENGLISH);
+                  StringBuilder sb=new StringBuilder(mf.format(c.getTime())+"\n\nSu Mo Tu We Th Fr Sa\n");
+                  int today=c.get(java.util.Calendar.DAY_OF_MONTH);
+                  c.set(java.util.Calendar.DAY_OF_MONTH,1);
+                  int first=c.get(java.util.Calendar.DAY_OF_WEEK)-1;
+                  int max=c.getActualMaximum(java.util.Calendar.DAY_OF_MONTH);
+                  int col=0;
+                  for(int i=0;i<first;i++){sb.append("   ");col++;}
+                  for(int d=1;d<=max;d++){
+                      sb.append(d==today?String.format("[%2d]",d):String.format(" %2d ",d));
+                      if(++col%7==0)sb.append("\n");
+                  }
+                  return sb.toString();
+              }
+
+              private List<WeatherData> cachedWeather;
+              private void showWeatherFull(){
+                  if(cachedWeather==null){new AlertDialog.Builder(this).setMessage("Loading...").show();return;}
+                  StringBuilder sb=new StringBuilder("7-Day Forecast\n\n");
+                  for(WeatherData d:cachedWeather)
+                      sb.append(d.icon+" "+d.day+": "+d.condition+" "+d.tempHigh+"°/"+d.tempLow+"°C\n");
+                  new AlertDialog.Builder(this).setTitle("Weather").setMessage(sb).setPositiveButton("OK",null).show();
+              }
+
+              private void setupPower(){
+                  TextView powerBtn=findViewById(R.id.powerBtn);
+                  powerGesture=new GestureDetector(this,new GestureDetector.SimpleOnGestureListener(){
+                      @Override public boolean onFling(MotionEvent e1,MotionEvent e2,float vx,float vy){
+                          float dx=e2.getX()-e1.getX(),dy=e2.getY()-e1.getY();
+                          if(Math.abs(dx)>Math.abs(dy)){
+                              audioMgr.adjustStreamVolume(AudioManager.STREAM_MUSIC,
+                                  dx>0?AudioManager.ADJUST_RAISE:AudioManager.ADJUST_LOWER,
+                                  AudioManager.FLAG_SHOW_UI);
+                          } else {
+                              try{
+                                  int cur=android.provider.Settings.System.getInt(getContentResolver(),android.provider.Settings.System.SCREEN_BRIGHTNESS);
+                                  int next=dy<0?Math.min(255,cur+25):Math.max(0,cur-25);
+                                  android.provider.Settings.System.putInt(getContentResolver(),android.provider.Settings.System.SCREEN_BRIGHTNESS,next);
+                              }catch(Exception ignored){}
+                          }
+                          return true;
+                      }
+                  });
+                  powerBtn.setOnTouchListener((v,ev)->{powerGesture.onTouchEvent(ev);return false;});
+                  powerBtn.setOnClickListener(v->{
+                      android.app.KeyguardManager km=(android.app.KeyguardManager)getSystemService(KEYGUARD_SERVICE);
+                      moveTaskToBack(true);
+                  });
+              }
+
+              private void loadApps(){
+                  new Thread(()->{
+                      Intent intent=new Intent(Intent.ACTION_MAIN,null);
+                      intent.addCategory(Intent.CATEGORY_LAUNCHER);
+                      PackageManager pm=getPackageManager();
+                      List<ResolveInfo> res=pm.queryIntentActivities(intent,0);
+                      List<AppInfo> list=new ArrayList<>();
+                      List<AppInfo> dock=new ArrayList<>();
+                      String[] dockPkgs={"com.android.dialer","com.android.messaging",
+                          "com.android.chrome","com.android.camera2","com.android.settings"};
+                      for(ResolveInfo ri:res){
+                          String pkg=ri.activityInfo.packageName;
+                          if(pkg.equals(getPackageName()))continue;
+                          String lbl=ri.loadLabel(pm).toString();
+                          int cnt=usagePrefs.getInt(pkg,0);
+                          boolean locked=patternPrefs.getString("pattern_"+pkg,null)!=null;
+                          AppInfo ai=new AppInfo(lbl,pkg,ri.loadIcon(pm),cnt,locked);
+                          list.add(ai);
+                          for(String dp:dockPkgs){if(pkg.contains(dp.split("\\.")[2]))dock.add(ai);}
+                      }
+                      Collections.sort(list,(a,b)->{
+                          if(b.launchCount!=a.launchCount)return b.launchCount-a.launchCount;
+                          return a.label.compareToIgnoreCase(b.label);
+                      });
+                      final List<AppInfo> dockFinal=dock.size()>5?dock.subList(0,5):dock;
+                      runOnUiThread(()->{
+                          appList.clear();appList.addAll(list);adapter.update(appList);
+                          buildDock(dockFinal,pm);
+                      });
+                  }).start();
+              }
+
+              private void buildDock(List<AppInfo> dock, PackageManager pm){
+                  dockRow.removeAllViews();
+                  for(AppInfo a:dock){
+                      LinearLayout cell=new LinearLayout(this);
+                      cell.setOrientation(LinearLayout.VERTICAL);
+                      cell.setGravity(android.view.Gravity.CENTER);
+                      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f);
+                      cell.setLayoutParams(lp);
+                      ImageView iv=new ImageView(this);
+                      iv.setImageDrawable(a.icon);
+                      iv.setLayoutParams(new LinearLayout.LayoutParams(52,52));
+                      iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                      cell.addView(iv);
+                      cell.setOnClickListener(v->onAppClick(a));
+                      dockRow.addView(cell);
+                  }
+              }
+
+              private void onAppClick(AppInfo a){
+                  if(a.patternLocked){
+                      pendingLaunch=a;
+                      Intent i=new Intent(this,PatternLockActivity.class);
+                      i.putExtra("package",a.packageName);
+                      startActivityForResult(i,REQ_PATTERN);
+                  } else { launchApp(a); }
+              }
+
+              private void onAppLongClick(AppInfo a){
+                  String[] opts=a.patternLocked?
+                      new String[]{"Open","Remove Pattern Lock"}:
+                      new String[]{"Open","Set Pattern Lock"};
+                  new AlertDialog.Builder(this)
+                      .setTitle(a.label)
+                      .setItems(opts,(d,which)->{
+                          if(which==0){onAppClick(a);}
+                          else if(a.patternLocked){
+                              patternPrefs.edit().remove("pattern_"+a.packageName).apply();
+                              a.patternLocked=false;
+                              adapter.update(appList);
+                          } else {
+                              pendingLaunch=null;
+                              Intent i=new Intent(this,PatternSetupActivity.class);
+                              i.putExtra("package",a.packageName);
+                              startActivityForResult(i,REQ_SETUP);
+                          }
+                      }).show();
+              }
+
+              @Override protected void onActivityResult(int req,int res,Intent data){
+                  if(req==REQ_PATTERN && res==RESULT_OK && pendingLaunch!=null){
+                      launchApp(pendingLaunch); pendingLaunch=null;
+                  } else if(req==REQ_SETUP && res==RESULT_OK){
+                      for(AppInfo a:appList){
+                          a.patternLocked=patternPrefs.getString("pattern_"+a.packageName,null)!=null;
+                      }
+                      adapter.update(appList);
+                  }
+              }
+
+              private void launchApp(AppInfo a){
+                  int c=usagePrefs.getInt(a.packageName,0)+1;
+                  usagePrefs.edit().putInt(a.packageName,c).apply();
+                  a.launchCount=c;
+                  Collections.sort(appList,(x,y)->{
+                      if(y.launchCount!=x.launchCount)return y.launchCount-x.launchCount;
+                      return x.label.compareToIgnoreCase(y.label);
+                  });
+                  adapter.update(new ArrayList<>(appList));
+                  Intent i=getPackageManager().getLaunchIntentForPackage(a.packageName);
+                  if(i!=null)startActivity(i);
+              }
+
+              private void loadWeather(){
+                  SharedPreferences p=getSharedPreferences("launcher_prefs",MODE_PRIVATE);
+                  String loc=p.getString("weather_location","Dhaka");
+                  weatherMgr.get(loc,data->{
+                      cachedWeather=data;
+                      if(!data.isEmpty()){
+                          WeatherData t=data.get(0);
+                          View wCard=widgetRow.getChildAt(0);
+                          if(wCard instanceof LinearLayout){
+                              View label=((LinearLayout)wCard).getChildAt(1);
+                              if(label instanceof TextView)
+                                  ((TextView)label).setText(t.icon+t.tempHigh+"°C");
+                          }
+                      }
+                  });
+              }
+
+              private void clock(){
+                  Date now=new Date();
+                  bigClock.setText(new SimpleDateFormat("HH:mm",Locale.ENGLISH).format(now));
+                  fullDate.setText(new SimpleDateFormat("EEEE, MMMM d",Locale.ENGLISH).format(now));
+                  statusTime.setText(new SimpleDateFormat("HH:mm",Locale.ENGLISH).format(now));
+                  statusDate.setText(new SimpleDateFormat("EEE, MMM d",Locale.ENGLISH).format(now));
+              }
+
+              @Override protected void onResume(){super.onResume();handler.post(tick);loadApps();}
+              @Override protected void onPause(){super.onPause();handler.removeCallbacks(tick);}
+          }
           EOF
-          chmod +x gradlew
 
-      - name: Build debug APK
+      - name: Build APK
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TenParts-Downloader-APK
+          name: AwalLauncher-v2
           path: app/build/outputs/apk/debug/app-debug.apk
