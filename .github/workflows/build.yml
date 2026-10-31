@@ -25,6 +25,7 @@ jobs:
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/xml
           mkdir -p gradle/wrapper
 
       - name: settings.gradle
@@ -69,8 +70,7 @@ jobs:
           EOF
 
       - name: Download gradle wrapper jar
-        run: |
-          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
+        run: curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
 
       - name: gradlew
         run: |
@@ -85,9 +85,7 @@ jobs:
       - name: app build.gradle
         run: |
           cat > app/build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application'
-          }
+          plugins { id 'com.android.application' }
           android {
               namespace 'com.awal.launcher'
               compileSdk 34
@@ -98,9 +96,7 @@ jobs:
                   versionCode 1
                   versionName "1.0"
               }
-              buildTypes {
-                  debug { minifyEnabled false }
-              }
+              buildTypes { debug { minifyEnabled false } }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
@@ -111,6 +107,15 @@ jobs:
               implementation 'com.google.android.material:material:1.10.0'
               implementation 'androidx.recyclerview:recyclerview:1.3.2'
           }
+          EOF
+
+      - name: device_admin.xml
+        run: |
+          cat > app/src/main/res/xml/device_admin.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-policies><force-lock/></uses-policies>
+          </device-admin>
           EOF
 
       - name: AndroidManifest.xml
@@ -125,6 +130,9 @@ jobs:
               <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
               <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
               <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+              <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES"/>
+              <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
+              <uses-feature android:name="android.hardware.sensor.compass" android:required="false"/>
               <application
                   android:allowBackup="true"
                   android:icon="@drawable/ic_launcher"
@@ -140,14 +148,18 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
                   </activity>
-                  <activity android:name=".PatternLockActivity" android:exported="false"
-                      android:theme="@style/AppTheme"/>
-                  <activity android:name=".PatternSetupActivity" android:exported="false"
-                      android:theme="@style/AppTheme"/>
+                  <activity android:name=".PatternLockActivity" android:exported="false" android:theme="@style/AppTheme"/>
+                  <activity android:name=".PatternSetupActivity" android:exported="false" android:theme="@style/AppTheme"/>
+                  <activity android:name=".SpeedometerActivity" android:exported="false" android:theme="@style/AppTheme"/>
+                  <activity android:name=".CompassActivity" android:exported="false" android:theme="@style/AppTheme"/>
+                  <activity android:name=".DockManagerActivity" android:exported="false" android:theme="@style/AppTheme"/>
+                  <receiver android:name=".AdminReceiver" android:exported="true"
+                      android:permission="android.permission.BIND_DEVICE_ADMIN">
+                      <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin"/>
+                      <intent-filter><action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/></intent-filter>
+                  </receiver>
                   <receiver android:name=".BootReceiver" android:exported="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.BOOT_COMPLETED"/>
-                      </intent-filter>
+                      <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter>
                   </receiver>
               </application>
           </manifest>
@@ -158,16 +170,10 @@ jobs:
           cat > app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <color name="glass_white">#33FFFFFF</color>
-              <color name="glass_border">#55FFFFFF</color>
               <color name="text_white">#FFFFFFFF</color>
               <color name="text_dim">#CCFFFFFF</color>
               <color name="accent_blue">#4FC3F7</color>
               <color name="bg_dark">#CC000015</color>
-              <color name="dock_bg">#44FFFFFF</color>
-              <color name="pattern_default">#88FFFFFF</color>
-              <color name="pattern_set">#FF4FC3F7</color>
-              <color name="pattern_error">#FFEF5350</color>
           </resources>
           EOF
 
@@ -175,10 +181,7 @@ jobs:
         run: |
           cat > app/src/main/res/values/strings.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="app_name">Awal Launcher</string>
-              <string name="creator">Mohammod Abdul Awal\nDept. of English, National University\nawal.sorkar.144@gmail.com</string>
-          </resources>
+          <resources><string name="app_name">Awal Launcher</string></resources>
           EOF
 
       - name: styles.xml
@@ -196,26 +199,18 @@ jobs:
           </resources>
           EOF
 
-      - name: ic_launcher drawable
+      - name: drawables
         run: |
           cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="108dp" android:height="108dp"
-              android:viewportWidth="108" android:viewportHeight="108">
-              <path android:fillColor="#1565C0"
-                  android:pathData="M0,0h108v108h-108z"/>
-              <path android:fillColor="#90CAF9"
-                  android:pathData="M54,20C35.2,20 20,35.2 20,54s15.2,34 34,34 34,-15.2 34,-34S72.8,20 54,20z"/>
-              <path android:fillColor="#1565C0"
-                  android:pathData="M54,34C42.9,34 34,42.9 34,54s8.9,20 20,20 20,-8.9 20,-20S65.1,34 54,34z"/>
-              <path android:fillColor="#FFFFFF"
-                  android:pathData="M54,44C48.5,44 44,48.5 44,54s4.5,10 10,10 10,-4.5 10,-10S59.5,44 54,44z"/>
+              android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#1565C0" android:pathData="M0,0h108v108h-108z"/>
+              <path android:fillColor="#90CAF9" android:pathData="M54,20C35.2,20 20,35.2 20,54s15.2,34 34,34 34,-15.2 34,-34S72.8,20 54,20z"/>
+              <path android:fillColor="#1565C0" android:pathData="M54,34C42.9,34 34,42.9 34,54s8.9,20 20,20 20,-8.9 20,-20S65.1,34 54,34z"/>
+              <path android:fillColor="#FFFFFF" android:pathData="M54,44C48.5,44 44,48.5 44,54s4.5,10 10,10 10,-4.5 10,-10S59.5,44 54,44z"/>
           </vector>
           EOF
-
-      - name: glass_card drawable
-        run: |
           cat > app/src/main/res/drawable/glass_card.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <shape xmlns:android="http://schemas.android.com/apk/res/android">
@@ -224,9 +219,6 @@ jobs:
               <corners android:radius="20dp"/>
           </shape>
           EOF
-
-      - name: glass_circle drawable
-        run: |
           cat > app/src/main/res/drawable/glass_circle.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
@@ -234,9 +226,6 @@ jobs:
               <stroke android:width="1dp" android:color="#66FFFFFF"/>
           </shape>
           EOF
-
-      - name: dock_bg drawable
-        run: |
           cat > app/src/main/res/drawable/dock_bg.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <shape xmlns:android="http://schemas.android.com/apk/res/android">
@@ -245,133 +234,94 @@ jobs:
               <corners android:radius="32dp"/>
           </shape>
           EOF
+          cat > app/src/main/res/drawable/red_circle.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+              <solid android:color="#FFEF5350"/>
+          </shape>
+          EOF
 
-      - name: activity_main layout
+      - name: layouts
         run: |
           cat > app/src/main/res/layout/activity_main.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:id="@+id/rootLayout"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
+              android:layout_width="match_parent" android:layout_height="match_parent"
               android:background="@color/bg_dark">
-
-              <LinearLayout
-                  android:id="@+id/statusBar"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
+              <LinearLayout android:id="@+id/statusBar"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"
                   android:orientation="horizontal"
-                  android:paddingTop="44dp"
-                  android:paddingHorizontal="20dp"
-                  android:paddingBottom="4dp">
+                  android:paddingTop="44dp" android:paddingHorizontal="20dp" android:paddingBottom="4dp">
                   <TextView android:id="@+id/statusTime"
-                      android:layout_width="0dp" android:layout_height="wrap_content"
-                      android:layout_weight="1"
-                      android:textColor="@color/text_white" android:textSize="14sp"
-                      android:fontFamily="sans-serif-medium" android:text="12:00"/>
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:textColor="@color/text_white" android:textSize="14sp" android:fontFamily="sans-serif-medium" android:text="12:00"/>
                   <TextView android:id="@+id/statusDate"
                       android:layout_width="wrap_content" android:layout_height="wrap_content"
-                      android:textColor="@color/text_dim" android:textSize="13sp"
-                      android:text="Mon, Jan 1"/>
+                      android:textColor="@color/text_dim" android:textSize="13sp" android:text="Mon, Jan 1"/>
               </LinearLayout>
-
-              <LinearLayout
-                  android:id="@+id/clockPanel"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
+              <LinearLayout android:id="@+id/clockPanel"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"
                   android:layout_below="@id/statusBar"
-                  android:orientation="vertical"
-                  android:paddingHorizontal="20dp"
-                  android:paddingBottom="8dp">
+                  android:orientation="vertical" android:paddingHorizontal="20dp" android:paddingBottom="8dp">
                   <TextView android:id="@+id/bigClock"
                       android:layout_width="wrap_content" android:layout_height="wrap_content"
                       android:textColor="@color/text_white" android:textSize="72sp"
-                      android:fontFamily="sans-serif-thin" android:text="12:00"
-                      android:letterSpacing="-0.05"/>
+                      android:fontFamily="sans-serif-thin" android:text="12:00" android:letterSpacing="-0.05"/>
                   <TextView android:id="@+id/fullDate"
                       android:layout_width="wrap_content" android:layout_height="wrap_content"
-                      android:textColor="@color/text_dim" android:textSize="15sp"
-                      android:text="Monday, January 1"/>
+                      android:textColor="@color/text_dim" android:textSize="15sp" android:text="Monday, January 1"/>
               </LinearLayout>
-
-              <HorizontalScrollView
-                  android:id="@+id/widgetScroll"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
+              <HorizontalScrollView android:id="@+id/widgetScroll"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"
                   android:layout_below="@id/clockPanel"
-                  android:scrollbars="none"
-                  android:paddingHorizontal="12dp"
-                  android:paddingBottom="8dp">
-                  <LinearLayout
-                      android:id="@+id/widgetRow"
-                      android:layout_width="wrap_content"
-                      android:layout_height="130dp"
-                      android:orientation="horizontal"
-                      android:gravity="center_vertical"/>
+                  android:scrollbars="none" android:paddingHorizontal="12dp" android:paddingBottom="8dp">
+                  <LinearLayout android:id="@+id/widgetRow"
+                      android:layout_width="wrap_content" android:layout_height="130dp"
+                      android:orientation="horizontal" android:gravity="center_vertical"/>
               </HorizontalScrollView>
-
-              <androidx.recyclerview.widget.RecyclerView
-                  android:id="@+id/appGrid"
-                  android:layout_width="match_parent"
-                  android:layout_height="match_parent"
-                  android:layout_below="@id/widgetScroll"
-                  android:layout_above="@id/dockArea"
-                  android:padding="4dp"
-                  android:clipToPadding="false"/>
-
-              <LinearLayout
-                  android:id="@+id/dockArea"
-                  android:layout_width="match_parent"
-                  android:layout_height="wrap_content"
+              <androidx.recyclerview.widget.RecyclerView android:id="@+id/appGrid"
+                  android:layout_width="match_parent" android:layout_height="match_parent"
+                  android:layout_below="@id/widgetScroll" android:layout_above="@id/dockArea"
+                  android:padding="4dp" android:clipToPadding="false"/>
+              <LinearLayout android:id="@+id/dockArea"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"
                   android:layout_alignParentBottom="true"
-                  android:orientation="vertical"
-                  android:paddingBottom="20dp"
-                  android:paddingHorizontal="16dp">
-
-                  <LinearLayout
-                      android:id="@+id/dockRow"
-                      android:layout_width="match_parent"
-                      android:layout_height="80dp"
-                      android:orientation="horizontal"
-                      android:gravity="center"
-                      android:background="@drawable/dock_bg"
-                      android:padding="8dp"/>
-
-                  <LinearLayout
-                      android:layout_width="match_parent"
-                      android:layout_height="52dp"
-                      android:orientation="horizontal"
-                      android:gravity="center"
-                      android:layout_marginTop="8dp">
+                  android:orientation="vertical" android:paddingBottom="20dp" android:paddingHorizontal="16dp">
+                  <LinearLayout android:id="@+id/dockRow"
+                      android:layout_width="match_parent" android:layout_height="80dp"
+                      android:orientation="horizontal" android:gravity="center"
+                      android:background="@drawable/dock_bg" android:padding="8dp"/>
+                  <LinearLayout android:layout_width="match_parent" android:layout_height="52dp"
+                      android:orientation="horizontal" android:gravity="center" android:layout_marginTop="8dp">
                       <TextView android:id="@+id/powerBtn"
                           android:layout_width="52dp" android:layout_height="52dp"
-                          android:gravity="center" android:text="⏻"
-                          android:textSize="22sp" android:textColor="@color/text_white"
-                          android:background="@drawable/glass_circle"/>
+                          android:gravity="center" android:text="⏻" android:textSize="22sp"
+                          android:textColor="@color/text_white" android:background="@drawable/glass_circle"/>
                   </LinearLayout>
               </LinearLayout>
           </RelativeLayout>
           EOF
 
-      - name: item_app layout
-        run: |
           cat > app/src/main/res/layout/item_app.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="wrap_content"
-              android:layout_height="wrap_content"
-              android:orientation="vertical"
-              android:gravity="center"
-              android:padding="6dp">
+              android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:orientation="vertical" android:gravity="center" android:padding="6dp">
               <FrameLayout android:layout_width="56dp" android:layout_height="56dp">
                   <ImageView android:id="@+id/appIcon"
                       android:layout_width="52dp" android:layout_height="52dp"
-                      android:layout_gravity="center"
-                      android:scaleType="fitCenter"/>
+                      android:layout_gravity="center" android:scaleType="fitCenter"/>
+                  <TextView android:id="@+id/deleteBadge"
+                      android:layout_width="20dp" android:layout_height="20dp"
+                      android:layout_gravity="top|start"
+                      android:gravity="center" android:text="✕"
+                      android:textColor="#FFFFFFFF" android:textSize="11sp"
+                      android:background="@drawable/red_circle"
+                      android:visibility="gone"/>
                   <ImageView android:id="@+id/lockBadge"
                       android:layout_width="18dp" android:layout_height="18dp"
-                      android:layout_gravity="bottom|end"
-                      android:visibility="gone"/>
+                      android:layout_gravity="bottom|end" android:visibility="gone"/>
               </FrameLayout>
               <TextView android:id="@+id/appName"
                   android:layout_width="68dp" android:layout_height="wrap_content"
@@ -381,282 +331,182 @@ jobs:
           </LinearLayout>
           EOF
 
-      - name: activity_pattern layout
-        run: |
           cat > app/src/main/res/layout/activity_pattern.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent"
-              android:orientation="vertical"
-              android:gravity="center"
-              android:background="@color/bg_dark"
-              android:padding="32dp">
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:orientation="vertical" android:gravity="center"
+              android:background="@color/bg_dark" android:padding="32dp">
               <ImageView android:id="@+id/appIconBig"
                   android:layout_width="72dp" android:layout_height="72dp"
-                  android:scaleType="fitCenter"
-                  android:layout_marginBottom="12dp"/>
+                  android:scaleType="fitCenter" android:layout_marginBottom="12dp"/>
               <TextView android:id="@+id/patternTitle"
                   android:layout_width="wrap_content" android:layout_height="wrap_content"
                   android:textColor="#FFFFFFFF" android:textSize="20sp"
-                  android:text="Draw Pattern to Unlock"
-                  android:layout_marginBottom="8dp"/>
+                  android:text="Draw Pattern" android:layout_marginBottom="8dp"/>
               <TextView android:id="@+id/patternMsg"
                   android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:textColor="#CCFFFFFF" android:textSize="14sp"
-                  android:layout_marginBottom="24dp"/>
+                  android:textColor="#CCFFFFFF" android:textSize="14sp" android:layout_marginBottom="24dp"/>
               <com.awal.launcher.PatternView
                   android:id="@+id/patternView"
-                  android:layout_width="280dp"
-                  android:layout_height="280dp"/>
+                  android:layout_width="280dp" android:layout_height="280dp"/>
               <TextView android:id="@+id/btnCancel"
                   android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="Cancel"
-                  android:textColor="@color/accent_blue"
-                  android:textSize="16sp"
-                  android:padding="16dp"
-                  android:layout_marginTop="16dp"/>
+                  android:text="Cancel" android:textColor="@color/accent_blue"
+                  android:textSize="16sp" android:padding="16dp" android:layout_marginTop="16dp"/>
           </LinearLayout>
           EOF
 
-      - name: AppInfo.java
+          cat > app/src/main/res/layout/activity_speedometer.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:orientation="vertical" android:gravity="center"
+              android:background="#FF000015" android:padding="24dp">
+              <TextView android:id="@+id/speedValue"
+                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="0" android:textSize="96sp"
+                  android:textColor="#FFFFFFFF" android:fontFamily="sans-serif-thin"/>
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="km/h" android:textSize="24sp" android:textColor="#CC4FC3F7"/>
+              <TextView android:id="@+id/maxSpeed"
+                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="Max: 0 km/h" android:textSize="16sp"
+                  android:textColor="#CCFFFFFF" android:layout_marginTop="16dp"/>
+              <TextView android:id="@+id/gpsStatus"
+                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="Waiting for GPS..." android:textSize="13sp"
+                  android:textColor="#88FFFFFF" android:layout_marginTop="8dp"/>
+              <TextView android:id="@+id/btnReset"
+                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="Reset Max" android:textColor="#FF4FC3F7"
+                  android:textSize="16sp" android:padding="16dp" android:layout_marginTop="24dp"
+                  android:background="@drawable/glass_card"/>
+              <TextView android:id="@+id/btnBack"
+                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="← Back" android:textColor="#CCFFFFFF"
+                  android:textSize="14sp" android:padding="12dp" android:layout_marginTop="8dp"/>
+          </LinearLayout>
+          EOF
+
+          cat > app/src/main/res/layout/activity_compass.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:orientation="vertical" android:gravity="center"
+              android:background="#FF000015" android:padding="24dp">
+              <TextView android:id="@+id/compassDirection"
+                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="N" android:textSize="72sp"
+                  android:textColor="#FF4FC3F7" android:fontFamily="sans-serif-thin"/>
+              <com.awal.launcher.CompassView
+                  android:id="@+id/compassView"
+                  android:layout_width="280dp" android:layout_height="280dp"
+                  android:layout_marginTop="8dp"/>
+              <TextView android:id="@+id/compassDegree"
+                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="0°" android:textSize="28sp"
+                  android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
+              <TextView android:id="@+id/btnBack"
+                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                  android:text="← Back" android:textColor="#CCFFFFFF"
+                  android:textSize="14sp" android:padding="16dp" android:layout_marginTop="16dp"/>
+          </LinearLayout>
+          EOF
+
+          cat > app/src/main/res/layout/activity_dock_manager.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:orientation="vertical" android:background="#EE000015">
+              <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
+                  android:orientation="horizontal" android:gravity="center_vertical"
+                  android:paddingHorizontal="16dp" android:paddingTop="8dp">
+                  <TextView android:id="@+id/btnDockBack"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="← " android:textColor="#FF4FC3F7" android:textSize="20sp" android:padding="8dp"/>
+                  <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:text="Manage Dock" android:textColor="#FFFFFFFF" android:textSize="18sp"/>
+              </LinearLayout>
+              <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                  android:text="Current Dock Apps (tap to remove):"
+                  android:textColor="#CCFFFFFF" android:textSize="13sp"
+                  android:paddingHorizontal="16dp" android:paddingVertical="8dp"/>
+              <LinearLayout android:id="@+id/currentDockView"
+                  android:layout_width="match_parent" android:layout_height="80dp"
+                  android:orientation="horizontal" android:background="#33FFFFFF"
+                  android:gravity="center" android:paddingHorizontal="8dp"/>
+              <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                  android:text="All Apps (tap to add to dock):"
+                  android:textColor="#CCFFFFFF" android:textSize="13sp"
+                  android:paddingHorizontal="16dp" android:paddingTop="16dp" android:paddingBottom="8dp"/>
+              <androidx.recyclerview.widget.RecyclerView android:id="@+id/allAppsForDock"
+                  android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+                  android:padding="4dp" android:clipToPadding="false"/>
+          </LinearLayout>
+          EOF
+
+          cat > app/src/main/res/layout/item_dock_app.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:orientation="vertical" android:gravity="center" android:padding="8dp">
+              <ImageView android:id="@+id/dockIcon"
+                  android:layout_width="48dp" android:layout_height="48dp"
+                  android:scaleType="fitCenter"/>
+              <TextView android:id="@+id/dockName"
+                  android:layout_width="64dp" android:layout_height="wrap_content"
+                  android:gravity="center" android:textColor="#FFFFFFFF"
+                  android:textSize="10sp" android:maxLines="1" android:ellipsize="end"
+                  android:layout_marginTop="2dp"/>
+          </LinearLayout>
+          EOF
+
+      - name: Java sources
         run: |
           cat > app/src/main/java/com/awal/launcher/AppInfo.java << 'EOF'
           package com.awal.launcher;
           import android.graphics.drawable.Drawable;
           public class AppInfo {
-              public String label, packageName;
+              public String label,packageName;
               public Drawable icon;
               public int launchCount;
               public boolean patternLocked;
-              public AppInfo(String l, String p, Drawable i, int c, boolean locked) {
-                  label=l; packageName=p; icon=i; launchCount=c; patternLocked=locked;
-              }
+              public AppInfo(String l,String p,Drawable i,int c,boolean lk){label=l;packageName=p;icon=i;launchCount=c;patternLocked=lk;}
           }
           EOF
 
-      - name: PatternView.java
-        run: |
-          cat > app/src/main/java/com/awal/launcher/PatternView.java << 'EOF'
+          cat > app/src/main/java/com/awal/launcher/AdminReceiver.java << 'EOF'
           package com.awal.launcher;
+          import android.app.admin.DeviceAdminReceiver;
           import android.content.Context;
-          import android.graphics.Canvas;
-          import android.graphics.Paint;
-          import android.graphics.Path;
-          import android.util.AttributeSet;
-          import android.view.MotionEvent;
-          import android.view.View;
-          import java.util.ArrayList;
-          import java.util.List;
-
-          public class PatternView extends View {
-              public interface PatternListener { void onComplete(List<Integer> pattern); }
-              private Paint circlePaint, linePaint, activePaint;
-              private List<Integer> selected = new ArrayList<>();
-              private List<Integer> order = new ArrayList<>();
-              private float touchX, touchY;
-              private boolean drawing;
-              private PatternListener listener;
-              private int state = 0; // 0=default,1=set,2=error
-              private static final int COLS=3, ROWS=3;
-              private float[] cx = new float[9], cy = new float[9];
-
-              public PatternView(Context c) { super(c); init(); }
-              public PatternView(Context c, AttributeSet a) { super(c,a); init(); }
-
-              private void init() {
-                  circlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                  circlePaint.setStyle(Paint.Style.STROKE);
-                  circlePaint.setStrokeWidth(2f);
-                  circlePaint.setColor(0x88FFFFFF);
-                  linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                  linePaint.setStyle(Paint.Style.STROKE);
-                  linePaint.setStrokeWidth(3f);
-                  linePaint.setColor(0xFF4FC3F7);
-                  activePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                  activePaint.setStyle(Paint.Style.FILL);
-                  activePaint.setColor(0xFF4FC3F7);
-              }
-
-              public void setListener(PatternListener l) { listener=l; }
-              public void setError() { state=2; linePaint.setColor(0xFFEF5350); activePaint.setColor(0xFFEF5350); invalidate(); postDelayed(this::reset,600); }
-              public void reset() { selected.clear(); order.clear(); drawing=false; state=0; linePaint.setColor(0xFF4FC3F7); activePaint.setColor(0xFF4FC3F7); invalidate(); }
-
-              @Override
-              protected void onSizeChanged(int w, int h, int ow, int oh) {
-                  float pw=w/3f, ph=h/3f;
-                  for(int i=0;i<9;i++) { cx[i]=pw*(i%3)+pw/2; cy[i]=ph*(i/3)+ph/2; }
-              }
-
-              @Override
-              protected void onDraw(Canvas c) {
-                  float r=28f;
-                  for(int i=0;i<9;i++) {
-                      circlePaint.setColor(selected.contains(i)?0xFF4FC3F7:0x88FFFFFF);
-                      if(state==2) circlePaint.setColor(selected.contains(i)?0xFFEF5350:0x88FFFFFF);
-                      c.drawCircle(cx[i],cy[i],r,circlePaint);
-                      if(selected.contains(i)) c.drawCircle(cx[i],cy[i],8f,activePaint);
-                  }
-                  Path path = new Path();
-                  for(int k=0;k<order.size();k++) {
-                      int idx=order.get(k);
-                      if(k==0) path.moveTo(cx[idx],cy[idx]);
-                      else path.lineTo(cx[idx],cy[idx]);
-                  }
-                  if(drawing && !order.isEmpty()) path.lineTo(touchX,touchY);
-                  c.drawPath(path,linePaint);
-              }
-
-              @Override
-              public boolean onTouchEvent(MotionEvent e) {
-                  switch(e.getAction()) {
-                      case MotionEvent.ACTION_DOWN: drawing=true; selected.clear(); order.clear(); checkHit(e.getX(),e.getY()); break;
-                      case MotionEvent.ACTION_MOVE: touchX=e.getX(); touchY=e.getY(); checkHit(e.getX(),e.getY()); invalidate(); break;
-                      case MotionEvent.ACTION_UP:
-                          drawing=false; invalidate();
-                          if(listener!=null && order.size()>=4) listener.onComplete(new ArrayList<>(order));
-                          else if(order.size()<4) { state=2; invalidate(); postDelayed(this::reset,600); }
-                          break;
-                  }
-                  return true;
-              }
-
-              private void checkHit(float x, float y) {
-                  for(int i=0;i<9;i++) {
-                      if(!selected.contains(i)) {
-                          float d=(float)Math.hypot(x-cx[i],y-cy[i]);
-                          if(d<36f) { selected.add(i); order.add(i); invalidate(); break; }
-                      }
-                  }
-              }
-          }
-          EOF
-
-      - name: PatternLockActivity.java
-        run: |
-          cat > app/src/main/java/com/awal/launcher/PatternLockActivity.java << 'EOF'
-          package com.awal.launcher;
-          import android.app.Activity;
           import android.content.Intent;
-          import android.content.SharedPreferences;
-          import android.content.pm.PackageManager;
-          import android.graphics.drawable.Drawable;
-          import android.os.Bundle;
-          import android.widget.ImageView;
-          import android.widget.TextView;
-          import java.util.List;
-
-          public class PatternLockActivity extends Activity {
-              private PatternView pv;
-              private TextView msg;
-              private String savedPattern;
-              private String pkg;
-
-              @Override
-              protected void onCreate(Bundle s) {
-                  super.onCreate(s);
-                  setContentView(R.layout.activity_pattern);
-                  pkg = getIntent().getStringExtra("package");
-                  SharedPreferences prefs = getSharedPreferences("patterns", MODE_PRIVATE);
-                  savedPattern = prefs.getString("pattern_"+pkg, null);
-                  pv = findViewById(R.id.patternView);
-                  msg = findViewById(R.id.patternMsg);
-                  TextView title = findViewById(R.id.patternTitle);
-                  title.setText("Draw Pattern to Unlock");
-                  try {
-                      Drawable icon = getPackageManager().getApplicationIcon(pkg);
-                      ((ImageView)findViewById(R.id.appIconBig)).setImageDrawable(icon);
-                  } catch(PackageManager.NameNotFoundException ignored){}
-                  pv.setListener(pattern -> {
-                      String p = listToStr(pattern);
-                      if(p.equals(savedPattern)) {
-                          setResult(RESULT_OK);
-                          finish();
-                      } else {
-                          msg.setText("Wrong pattern. Try again.");
-                          pv.setError();
-                      }
-                  });
-                  findViewById(R.id.btnCancel).setOnClickListener(v -> finish());
-              }
-
-              private String listToStr(List<Integer> l) {
-                  StringBuilder sb=new StringBuilder();
-                  for(int i:l) sb.append(i);
-                  return sb.toString();
-              }
+          public class AdminReceiver extends DeviceAdminReceiver {
+              @Override public void onEnabled(Context c,Intent i){}
+              @Override public void onDisabled(Context c,Intent i){}
           }
           EOF
 
-      - name: PatternSetupActivity.java
-        run: |
-          cat > app/src/main/java/com/awal/launcher/PatternSetupActivity.java << 'EOF'
+          cat > app/src/main/java/com/awal/launcher/BootReceiver.java << 'EOF'
           package com.awal.launcher;
-          import android.app.Activity;
-          import android.content.SharedPreferences;
-          import android.os.Bundle;
-          import android.widget.TextView;
-          import java.util.List;
-
-          public class PatternSetupActivity extends Activity {
-              private PatternView pv;
-              private TextView msg, title;
-              private String firstPattern;
-              private String pkg;
-              private int step = 1;
-
-              @Override
-              protected void onCreate(Bundle s) {
-                  super.onCreate(s);
-                  setContentView(R.layout.activity_pattern);
-                  pkg = getIntent().getStringExtra("package");
-                  pv = findViewById(R.id.patternView);
-                  msg = findViewById(R.id.patternMsg);
-                  title = findViewById(R.id.patternTitle);
-                  title.setText("Set Pattern Lock");
-                  msg.setText("Draw a pattern (min 4 dots)");
-                  pv.setListener(pattern -> {
-                      String p = listToStr(pattern);
-                      if(step==1) {
-                          firstPattern=p; step=2;
-                          pv.reset();
-                          title.setText("Confirm Pattern");
-                          msg.setText("Draw the same pattern again");
-                      } else {
-                          if(p.equals(firstPattern)) {
-                              SharedPreferences prefs = getSharedPreferences("patterns", MODE_PRIVATE);
-                              prefs.edit().putString("pattern_"+pkg, p).apply();
-                              setResult(RESULT_OK);
-                              finish();
-                          } else {
-                              step=1; firstPattern=null;
-                              msg.setText("Patterns don't match. Start again.");
-                              title.setText("Set Pattern Lock");
-                              pv.setError();
-                          }
-                      }
-                  });
-                  findViewById(R.id.btnCancel).setOnClickListener(v -> finish());
-              }
-
-              private String listToStr(List<Integer> l) {
-                  StringBuilder sb=new StringBuilder();
-                  for(int i:l) sb.append(i);
-                  return sb.toString();
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          public class BootReceiver extends BroadcastReceiver {
+              @Override public void onReceive(Context c,Intent i){
+                  if(Intent.ACTION_BOOT_COMPLETED.equals(i.getAction())){
+                      Intent it=new Intent(c,MainActivity.class);it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);c.startActivity(it);
+                  }
               }
           }
           EOF
 
-      - name: WeatherData.java
-        run: |
           cat > app/src/main/java/com/awal/launcher/WeatherData.java << 'EOF'
           package com.awal.launcher;
           public class WeatherData {
-              public String day, condition, icon;
-              public int tempHigh, tempLow;
-              public WeatherData(String d, String c, int h, int l, String i) {
-                  day=d; condition=c; tempHigh=h; tempLow=l; icon=i;
-              }
+              public String day,condition,icon;
+              public int tempHigh,tempLow;
+              public WeatherData(String d,String c,int h,int l,String i){day=d;condition=c;tempHigh=h;tempLow=l;icon=i;}
           }
           EOF
 
@@ -678,20 +528,17 @@ jobs:
           import java.util.List;
           import java.util.concurrent.ExecutorService;
           import java.util.concurrent.Executors;
-
           public class WeatherManager {
-              private static final String PREFS="weather_prefs", KEY="weather_json", LAST="last_fetch";
+              private static final String PREFS="wp",KEY="wj",LAST="wl";
               private static final long GAP=24*60*60*1000L;
               private Context ctx;
               private ExecutorService exec=Executors.newSingleThreadExecutor();
-              public interface Callback { void onWeather(List<WeatherData> d); }
-
+              public interface Callback{void onWeather(List<WeatherData> d);}
               public WeatherManager(Context c){ctx=c;}
-
-              public void get(String loc, Callback cb){
+              public void get(String loc,Callback cb){
                   SharedPreferences p=ctx.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
                   String cached=p.getString(KEY,null);
-                  if(cached!=null && System.currentTimeMillis()-p.getLong(LAST,0)<GAP){cb.onWeather(parse(cached));return;}
+                  if(cached!=null&&System.currentTimeMillis()-p.getLong(LAST,0)<GAP){cb.onWeather(parse(cached));return;}
                   exec.execute(()->{
                       try{
                           URL url=new URL("https://wttr.in/"+loc.replace(" ","+")+"?format=j1");
@@ -705,12 +552,11 @@ jobs:
                           List<WeatherData> list=parse(json);
                           new Handler(Looper.getMainLooper()).post(()->cb.onWeather(list));
                       }catch(Exception e){
-                          if(cached!=null) new Handler(Looper.getMainLooper()).post(()->cb.onWeather(parse(cached)));
+                          if(cached!=null)new Handler(Looper.getMainLooper()).post(()->cb.onWeather(parse(cached)));
                           else new Handler(Looper.getMainLooper()).post(()->cb.onWeather(fallback()));
                       }
                   });
               }
-
               private List<WeatherData> parse(String json){
                   List<WeatherData> list=new ArrayList<>();
                   try{
@@ -723,12 +569,12 @@ jobs:
                           JSONArray h=d.getJSONArray("hourly");
                           String desc=h.getJSONObject(4).getJSONArray("weatherDesc").getJSONObject(0).getString("value");
                           int code=Integer.parseInt(h.getJSONObject(4).getString("weatherCode"));
-                          list.add(new WeatherData(names[i],desc,hi,lo,icon(code)));
+                          list.add(new WeatherData(names[i],desc,hi,lo,ic(code)));
                       }
                   }catch(Exception e){return fallback();}
                   return list;
               }
-              private String icon(int c){
+              private String ic(int c){
                   if(c>=200&&c<300)return"⛈";if(c>=300&&c<400)return"🌦";
                   if(c>=500&&c<600)return"🌧";if(c>=600&&c<700)return"❄";
                   if(c==800)return"☀";if(c>800)return"⛅";return"🌤";
@@ -738,6 +584,349 @@ jobs:
                   for(String d:new String[]{"Today","Tomorrow","Day 3","Day 4","Day 5","Day 6","Day 7"})
                       l.add(new WeatherData(d,"--",0,0,"🌤"));
                   return l;
+              }
+          }
+          EOF
+
+      - name: PatternView.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/PatternView.java << 'EOF'
+          package com.awal.launcher;
+          import android.content.Context;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.util.AttributeSet;
+          import android.view.MotionEvent;
+          import android.view.View;
+          import java.util.ArrayList;
+          import java.util.List;
+          public class PatternView extends View {
+              public interface PatternListener{void onComplete(List<Integer> p);}
+              private Paint cp,lp,ap;
+              private List<Integer> sel=new ArrayList<>(),ord=new ArrayList<>();
+              private float tx,ty;
+              private boolean drawing;
+              private PatternListener listener;
+              private int state=0;
+              private float[] cx=new float[9],cy=new float[9];
+              public PatternView(Context c){super(c);init();}
+              public PatternView(Context c,AttributeSet a){super(c,a);init();}
+              private void init(){
+                  cp=new Paint(Paint.ANTI_ALIAS_FLAG);cp.setStyle(Paint.Style.STROKE);cp.setStrokeWidth(2f);cp.setColor(0x88FFFFFF);
+                  lp=new Paint(Paint.ANTI_ALIAS_FLAG);lp.setStyle(Paint.Style.STROKE);lp.setStrokeWidth(4f);lp.setColor(0xFF4FC3F7);
+                  ap=new Paint(Paint.ANTI_ALIAS_FLAG);ap.setStyle(Paint.Style.FILL);ap.setColor(0xFF4FC3F7);
+              }
+              public void setListener(PatternListener l){listener=l;}
+              public void setError(){state=2;lp.setColor(0xFFEF5350);ap.setColor(0xFFEF5350);invalidate();postDelayed(this::reset,700);}
+              public void reset(){sel.clear();ord.clear();drawing=false;state=0;lp.setColor(0xFF4FC3F7);ap.setColor(0xFF4FC3F7);invalidate();}
+              @Override protected void onSizeChanged(int w,int h,int ow,int oh){
+                  float pw=w/3f,ph=h/3f;
+                  for(int i=0;i<9;i++){cx[i]=pw*(i%3)+pw/2;cy[i]=ph*(i/3)+ph/2;}
+              }
+              @Override protected void onDraw(Canvas c){
+                  for(int i=0;i<9;i++){
+                      cp.setColor(sel.contains(i)?(state==2?0xFFEF5350:0xFF4FC3F7):0x88FFFFFF);
+                      c.drawCircle(cx[i],cy[i],28f,cp);
+                      if(sel.contains(i))c.drawCircle(cx[i],cy[i],10f,ap);
+                  }
+                  Path path=new Path();
+                  for(int k=0;k<ord.size();k++){int idx=ord.get(k);if(k==0)path.moveTo(cx[idx],cy[idx]);else path.lineTo(cx[idx],cy[idx]);}
+                  if(drawing&&!ord.isEmpty())path.lineTo(tx,ty);
+                  c.drawPath(path,lp);
+              }
+              @Override public boolean onTouchEvent(MotionEvent e){
+                  switch(e.getAction()){
+                      case MotionEvent.ACTION_DOWN:drawing=true;sel.clear();ord.clear();hit(e.getX(),e.getY());break;
+                      case MotionEvent.ACTION_MOVE:tx=e.getX();ty=e.getY();hit(e.getX(),e.getY());invalidate();break;
+                      case MotionEvent.ACTION_UP:drawing=false;invalidate();
+                          if(listener!=null&&ord.size()>=4)listener.onComplete(new ArrayList<>(ord));
+                          else{state=2;invalidate();postDelayed(this::reset,700);}break;
+                  }
+                  return true;
+              }
+              private void hit(float x,float y){
+                  for(int i=0;i<9;i++)if(!sel.contains(i)&&Math.hypot(x-cx[i],y-cy[i])<36){sel.add(i);ord.add(i);invalidate();break;}
+              }
+          }
+          EOF
+
+      - name: CompassView.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/CompassView.java << 'EOF'
+          package com.awal.launcher;
+          import android.content.Context;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.util.AttributeSet;
+          import android.view.View;
+          public class CompassView extends View {
+              private Paint p1,p2,p3,p4;
+              private float bearing=0;
+              public CompassView(Context c){super(c);init();}
+              public CompassView(Context c,AttributeSet a){super(c,a);init();}
+              private void init(){
+                  p1=new Paint(Paint.ANTI_ALIAS_FLAG);p1.setStyle(Paint.Style.STROKE);p1.setColor(0x55FFFFFF);p1.setStrokeWidth(2f);
+                  p2=new Paint(Paint.ANTI_ALIAS_FLAG);p2.setStyle(Paint.Style.FILL);p2.setColor(0xFFEF5350);
+                  p3=new Paint(Paint.ANTI_ALIAS_FLAG);p3.setStyle(Paint.Style.FILL);p3.setColor(0xFF90A4AE);
+                  p4=new Paint(Paint.ANTI_ALIAS_FLAG);p4.setColor(0xCCFFFFFF);p4.setTextSize(28f);p4.setTextAlign(Paint.Align.CENTER);
+              }
+              public void setBearing(float b){bearing=b;invalidate();}
+              @Override protected void onDraw(Canvas c){
+                  int w=getWidth(),h=getHeight();
+                  float cx=w/2f,cy=h/2f,r=Math.min(w,h)/2f-16f;
+                  c.drawCircle(cx,cy,r,p1);
+                  c.save();c.rotate(-bearing,cx,cy);
+                  float[] dirs={"N","E","S","W"};float[] angles={0,90,180,270};
+                  for(int i=0;i<4;i++){float rad=(float)Math.toRadians(angles[i]);c.drawText(dirs[i],cx+(float)Math.sin(rad)*(r-36),cy-(float)Math.cos(rad)*(r-36)+(p4.getTextSize()/3),p4);}
+                  android.graphics.Path np=new android.graphics.Path();np.moveTo(cx,cy-r+24);np.lineTo(cx-18,cy+r/4);np.lineTo(cx+18,cy+r/4);np.close();c.drawPath(np,p2);
+                  android.graphics.Path sp=new android.graphics.Path();sp.moveTo(cx,cy+r-24);sp.lineTo(cx-18,cy-r/4);sp.lineTo(cx+18,cy-r/4);sp.close();c.drawPath(sp,p3);
+                  c.restore();
+              }
+          }
+          EOF
+
+      - name: CompassActivity.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/CompassActivity.java << 'EOF'
+          package com.awal.launcher;
+          import android.app.Activity;
+          import android.hardware.Sensor;
+          import android.hardware.SensorEvent;
+          import android.hardware.SensorEventListener;
+          import android.hardware.SensorManager;
+          import android.os.Bundle;
+          import android.widget.TextView;
+          public class CompassActivity extends Activity implements SensorEventListener {
+              private SensorManager sm;
+              private Sensor acc,mag;
+              private float[] grav,geom;
+              private CompassView cv;
+              private TextView degTV,dirTV;
+              private static final String[] DIRS={"N","NE","E","SE","S","SW","W","NW"};
+              @Override protected void onCreate(Bundle s){
+                  super.onCreate(s);setContentView(R.layout.activity_compass);
+                  cv=findViewById(R.id.compassView);degTV=findViewById(R.id.compassDegree);dirTV=findViewById(R.id.compassDirection);
+                  sm=(SensorManager)getSystemService(SENSOR_SERVICE);
+                  acc=sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);mag=sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+                  findViewById(R.id.btnBack).setOnClickListener(v->finish());
+              }
+              @Override protected void onResume(){super.onResume();sm.registerListener(this,acc,SensorManager.SENSOR_DELAY_UI);sm.registerListener(this,mag,SensorManager.SENSOR_DELAY_UI);}
+              @Override protected void onPause(){super.onPause();sm.unregisterListener(this);}
+              @Override public void onSensorChanged(SensorEvent e){
+                  if(e.sensor.getType()==Sensor.TYPE_ACCELEROMETER)grav=e.values.clone();
+                  if(e.sensor.getType()==Sensor.TYPE_MAGNETIC_FIELD)geom=e.values.clone();
+                  if(grav!=null&&geom!=null){
+                      float[] R=new float[9],I=new float[9];
+                      if(SensorManager.getRotationMatrix(R,I,grav,geom)){
+                          float[] or=new float[3];SensorManager.getOrientation(R,or);
+                          float deg=(float)Math.toDegrees(or[0]);if(deg<0)deg+=360;
+                          cv.setBearing(deg);degTV.setText(String.format("%.0f°",deg));
+                          dirTV.setText(DIRS[(int)((deg+22.5)/45)%8]);
+                      }
+                  }
+              }
+              @Override public void onAccuracyChanged(Sensor s,int a){}
+          }
+          EOF
+
+      - name: SpeedometerActivity.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/SpeedometerActivity.java << 'EOF'
+          package com.awal.launcher;
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.pm.PackageManager;
+          import android.location.Location;
+          import android.location.LocationListener;
+          import android.location.LocationManager;
+          import android.os.Bundle;
+          import android.widget.TextView;
+          public class SpeedometerActivity extends Activity implements LocationListener {
+              private TextView speedTV,maxTV,statusTV;
+              private LocationManager lm;
+              private float maxSpeed=0;
+              @Override protected void onCreate(Bundle s){
+                  super.onCreate(s);setContentView(R.layout.activity_speedometer);
+                  speedTV=findViewById(R.id.speedValue);maxTV=findViewById(R.id.maxSpeed);statusTV=findViewById(R.id.gpsStatus);
+                  lm=(LocationManager)getSystemService(LOCATION_SERVICE);
+                  if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED){
+                      lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,0,this);statusTV.setText("GPS active");
+                  }else{requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},1);statusTV.setText("GPS permission needed");}
+                  findViewById(R.id.btnReset).setOnClickListener(v->{maxSpeed=0;maxTV.setText("Max: 0 km/h");});
+                  findViewById(R.id.btnBack).setOnClickListener(v->finish());
+              }
+              @Override public void onLocationChanged(Location loc){
+                  float kmh=loc.getSpeed()*3.6f;speedTV.setText(String.format("%.0f",kmh));
+                  if(kmh>maxSpeed){maxSpeed=kmh;maxTV.setText(String.format("Max: %.0f km/h",maxSpeed));}
+                  statusTV.setText(String.format("GPS: %.4f, %.4f",loc.getLatitude(),loc.getLongitude()));
+              }
+              @Override protected void onPause(){super.onPause();lm.removeUpdates(this);}
+              @Override public void onStatusChanged(String p,int s,Bundle e){}
+              @Override public void onProviderEnabled(String p){statusTV.setText("GPS active");}
+              @Override public void onProviderDisabled(String p){statusTV.setText("GPS disabled");}
+          }
+          EOF
+
+      - name: PatternLockActivity.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/PatternLockActivity.java << 'EOF'
+          package com.awal.launcher;
+          import android.app.Activity;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.os.Bundle;
+          import android.widget.ImageView;
+          import android.widget.TextView;
+          import java.util.List;
+          public class PatternLockActivity extends Activity {
+              private PatternView pv;private TextView msg;private String saved,pkg;
+              @Override protected void onCreate(Bundle s){
+                  super.onCreate(s);setContentView(R.layout.activity_pattern);
+                  pkg=getIntent().getStringExtra("package");
+                  saved=getSharedPreferences("patterns",MODE_PRIVATE).getString("pattern_"+pkg,null);
+                  pv=findViewById(R.id.patternView);msg=findViewById(R.id.patternMsg);
+                  ((TextView)findViewById(R.id.patternTitle)).setText("Draw Pattern to Unlock");
+                  try{((ImageView)findViewById(R.id.appIconBig)).setImageDrawable(getPackageManager().getApplicationIcon(pkg));}
+                  catch(PackageManager.NameNotFoundException ignored){}
+                  pv.setListener(p->{if(str(p).equals(saved)){setResult(RESULT_OK);finish();}else{msg.setText("Wrong pattern");pv.setError();}});
+                  findViewById(R.id.btnCancel).setOnClickListener(v->finish());
+              }
+              private String str(List<Integer> l){StringBuilder sb=new StringBuilder();for(int i:l)sb.append(i);return sb.toString();}
+          }
+          EOF
+
+      - name: PatternSetupActivity.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/PatternSetupActivity.java << 'EOF'
+          package com.awal.launcher;
+          import android.app.Activity;
+          import android.content.SharedPreferences;
+          import android.os.Bundle;
+          import android.widget.TextView;
+          import java.util.List;
+          public class PatternSetupActivity extends Activity {
+              private PatternView pv;private TextView msg,title;private String first,pkg;private int step=1;
+              @Override protected void onCreate(Bundle s){
+                  super.onCreate(s);setContentView(R.layout.activity_pattern);
+                  pkg=getIntent().getStringExtra("package");
+                  pv=findViewById(R.id.patternView);msg=findViewById(R.id.patternMsg);title=findViewById(R.id.patternTitle);
+                  title.setText("Set Pattern Lock");msg.setText("Draw a pattern (min 4 dots)");
+                  pv.setListener(p->{
+                      String ps=str(p);
+                      if(step==1){first=ps;step=2;pv.reset();title.setText("Confirm Pattern");msg.setText("Draw same pattern again");}
+                      else{if(ps.equals(first)){getSharedPreferences("patterns",MODE_PRIVATE).edit().putString("pattern_"+pkg,ps).apply();setResult(RESULT_OK);finish();}
+                          else{step=1;first=null;msg.setText("Patterns don't match.");title.setText("Set Pattern Lock");pv.setError();}}
+                  });
+                  findViewById(R.id.btnCancel).setOnClickListener(v->finish());
+              }
+              private String str(List<Integer> l){StringBuilder sb=new StringBuilder();for(int i:l)sb.append(i);return sb.toString();}
+          }
+          EOF
+
+      - name: DockManagerActivity.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/DockManagerActivity.java << 'EOF'
+          package com.awal.launcher;
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.PackageManager;
+          import android.content.pm.ResolveInfo;
+          import android.graphics.drawable.GradientDrawable;
+          import android.os.Bundle;
+          import android.view.LayoutInflater;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import androidx.annotation.NonNull;
+          import androidx.recyclerview.widget.GridLayoutManager;
+          import androidx.recyclerview.widget.RecyclerView;
+          import java.util.ArrayList;
+          import java.util.Arrays;
+          import java.util.LinkedHashSet;
+          import java.util.List;
+          import java.util.Set;
+
+          public class DockManagerActivity extends Activity {
+              private SharedPreferences prefs;
+              private List<AppInfo> allApps=new ArrayList<>();
+              private LinearLayout currentDockView;
+              private List<String> dockPkgs=new ArrayList<>();
+              private static final int MAX_DOCK=6;
+
+              @Override protected void onCreate(Bundle s){
+                  super.onCreate(s);setContentView(R.layout.activity_dock_manager);
+                  prefs=getSharedPreferences("dock_prefs",MODE_PRIVATE);
+                  currentDockView=findViewById(R.id.currentDockView);
+                  Set<String> saved=prefs.getStringSet("dock_apps",null);
+                  if(saved!=null)dockPkgs.addAll(saved);
+                  RecyclerView rv=findViewById(R.id.allAppsForDock);
+                  rv.setLayoutManager(new GridLayoutManager(this,4));
+                  loadAllApps(rv);
+                  findViewById(R.id.btnDockBack).setOnClickListener(v->{
+                      prefs.edit().putStringSet("dock_apps",new LinkedHashSet<>(dockPkgs)).apply();
+                      setResult(RESULT_OK);finish();
+                  });
+              }
+
+              private void loadAllApps(RecyclerView rv){
+                  new Thread(()->{
+                      Intent intent=new Intent(Intent.ACTION_MAIN,null);intent.addCategory(Intent.CATEGORY_LAUNCHER);
+                      PackageManager pm=getPackageManager();
+                      List<ResolveInfo> res=pm.queryIntentActivities(intent,0);
+                      for(ResolveInfo ri:res){
+                          String pkg=ri.activityInfo.packageName;
+                          if(!pkg.equals(getPackageName()))
+                              allApps.add(new AppInfo(ri.loadLabel(pm).toString(),pkg,ri.loadIcon(pm),0,false));
+                      }
+                      allApps.sort((a,b)->a.label.compareToIgnoreCase(b.label));
+                      runOnUiThread(()->{
+                          rv.setAdapter(new RecyclerView.Adapter<RecyclerView.ViewHolder>(){
+                              @NonNull @Override public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup p,int t){
+                                  return new RecyclerView.ViewHolder(LayoutInflater.from(p.getContext()).inflate(R.layout.item_dock_app,p,false)){};
+                              }
+                              @Override public void onBindViewHolder(@NonNull RecyclerView.ViewHolder h,int pos){
+                                  AppInfo a=allApps.get(pos);
+                                  ((ImageView)h.itemView.findViewById(R.id.dockIcon)).setImageDrawable(a.icon);
+                                  ((TextView)h.itemView.findViewById(R.id.dockName)).setText(a.label);
+                                  boolean inDock=dockPkgs.contains(a.packageName);
+                                  h.itemView.setAlpha(inDock?0.4f:1f);
+                                  h.itemView.setOnClickListener(v->{
+                                      if(dockPkgs.contains(a.packageName)){Toast.makeText(DockManagerActivity.this,"Already in dock",Toast.LENGTH_SHORT).show();return;}
+                                      if(dockPkgs.size()>=MAX_DOCK){Toast.makeText(DockManagerActivity.this,"Max "+MAX_DOCK+" apps in dock",Toast.LENGTH_SHORT).show();return;}
+                                      dockPkgs.add(a.packageName);notifyItemChanged(pos);refreshDockPreview();
+                                  });
+                              }
+                              @Override public int getItemCount(){return allApps.size();}
+                          });
+                          refreshDockPreview();
+                      });
+                  }).start();
+              }
+
+              private void refreshDockPreview(){
+                  currentDockView.removeAllViews();
+                  PackageManager pm=getPackageManager();
+                  for(String pkg:new ArrayList<>(dockPkgs)){
+                      LinearLayout cell=new LinearLayout(this);
+                      cell.setOrientation(LinearLayout.VERTICAL);cell.setGravity(android.view.Gravity.CENTER);
+                      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f);cell.setLayoutParams(lp);
+                      try{
+                          ImageView iv=new ImageView(this);iv.setImageDrawable(pm.getApplicationIcon(pkg));
+                          iv.setLayoutParams(new LinearLayout.LayoutParams(48,48));iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                          cell.addView(iv);
+                          TextView rm=new TextView(this);rm.setText("✕ remove");rm.setTextColor(0xFFEF5350);rm.setTextSize(9);
+                          rm.setGravity(android.view.Gravity.CENTER);cell.addView(rm);
+                      }catch(PackageManager.NameNotFoundException ignored){}
+                      cell.setOnClickListener(v->{dockPkgs.remove(pkg);refreshDockPreview();
+                          if(currentDockView.getParent()!=null)((RecyclerView)((ViewGroup)currentDockView.getParent().getParent()).findViewWithTag(null)).getAdapter().notifyDataSetChanged();
+                      });
+                      currentDockView.addView(cell);
+                  }
               }
           }
           EOF
@@ -755,57 +944,45 @@ jobs:
           import androidx.annotation.NonNull;
           import androidx.recyclerview.widget.RecyclerView;
           import java.util.List;
-
           public class AppAdapter extends RecyclerView.Adapter<AppAdapter.VH> {
               private List<AppInfo> apps;
               private OnClick click;
-              private OnLongClick longClick;
+              private OnLong lc;
+              private boolean editMode=false;
+              private OnDelete dc;
               public interface OnClick{void on(AppInfo a);}
-              public interface OnLongClick{void on(AppInfo a);}
-              public AppAdapter(List<AppInfo> a,OnClick c,OnLongClick l){apps=a;click=c;longClick=l;}
+              public interface OnLong{void on(AppInfo a);}
+              public interface OnDelete{void on(AppInfo a);}
+              public AppAdapter(List<AppInfo> a,OnClick c,OnLong l,OnDelete d){apps=a;click=c;lc=l;dc=d;}
               public void update(List<AppInfo> a){apps=a;notifyDataSetChanged();}
-
-              @NonNull @Override
-              public VH onCreateViewHolder(@NonNull ViewGroup p,int t){
+              public void setEditMode(boolean e){editMode=e;notifyDataSetChanged();}
+              public boolean isEditMode(){return editMode;}
+              @NonNull @Override public VH onCreateViewHolder(@NonNull ViewGroup p,int t){
                   return new VH(LayoutInflater.from(p.getContext()).inflate(R.layout.item_app,p,false));
               }
-              @Override
-              public void onBindViewHolder(@NonNull VH h,int pos){
+              @Override public void onBindViewHolder(@NonNull VH h,int pos){
                   AppInfo a=apps.get(pos);
                   h.icon.setImageDrawable(a.icon);
                   h.name.setText(a.label);
                   if(a.patternLocked){
-                      GradientDrawable badge=new GradientDrawable();
-                      badge.setShape(GradientDrawable.OVAL);
-                      badge.setColor(0xFF4FC3F7);
-                      h.lock.setBackground(badge);
-                      h.lock.setVisibility(View.VISIBLE);
-                  } else { h.lock.setVisibility(View.GONE); }
-                  h.itemView.setOnClickListener(v->click.on(a));
-                  h.itemView.setOnLongClickListener(v->{longClick.on(a);return true;});
+                      GradientDrawable bg=new GradientDrawable();bg.setShape(GradientDrawable.OVAL);bg.setColor(0xFF4FC3F7);
+                      h.lock.setBackground(bg);h.lock.setVisibility(View.VISIBLE);
+                  }else{h.lock.setVisibility(View.GONE);}
+                  if(editMode){
+                      h.del.setVisibility(View.VISIBLE);
+                      h.del.setOnClickListener(v->dc.on(a));
+                      h.itemView.setOnClickListener(null);
+                      h.itemView.setOnLongClickListener(null);
+                  }else{
+                      h.del.setVisibility(View.GONE);
+                      h.itemView.setOnClickListener(v->click.on(a));
+                      h.itemView.setOnLongClickListener(v->{lc.on(a);return true;});
+                  }
               }
               @Override public int getItemCount(){return apps.size();}
               static class VH extends RecyclerView.ViewHolder{
-                  ImageView icon,lock; TextView name;
-                  VH(View v){super(v);icon=v.findViewById(R.id.appIcon);name=v.findViewById(R.id.appName);lock=v.findViewById(R.id.lockBadge);}
-              }
-          }
-          EOF
-
-      - name: BootReceiver.java
-        run: |
-          cat > app/src/main/java/com/awal/launcher/BootReceiver.java << 'EOF'
-          package com.awal.launcher;
-          import android.content.BroadcastReceiver;
-          import android.content.Context;
-          import android.content.Intent;
-          public class BootReceiver extends BroadcastReceiver {
-              @Override public void onReceive(Context c, Intent i){
-                  if(Intent.ACTION_BOOT_COMPLETED.equals(i.getAction())){
-                      Intent it=new Intent(c,MainActivity.class);
-                      it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                      c.startActivity(it);
-                  }
+                  ImageView icon,lock;TextView name,del;
+                  VH(View v){super(v);icon=v.findViewById(R.id.appIcon);name=v.findViewById(R.id.appName);lock=v.findViewById(R.id.lockBadge);del=v.findViewById(R.id.deleteBadge);}
               }
           }
           EOF
@@ -816,13 +993,15 @@ jobs:
           package com.awal.launcher;
           import android.app.Activity;
           import android.app.AlertDialog;
+          import android.app.admin.DevicePolicyManager;
+          import android.content.ComponentName;
           import android.content.Intent;
           import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
           import android.content.pm.ResolveInfo;
-          import android.graphics.drawable.Drawable;
           import android.graphics.drawable.GradientDrawable;
           import android.media.AudioManager;
+          import android.net.Uri;
           import android.os.Bundle;
           import android.os.Handler;
           import android.view.GestureDetector;
@@ -833,28 +1012,35 @@ jobs:
           import android.widget.ImageView;
           import android.widget.LinearLayout;
           import android.widget.TextView;
+          import android.widget.Toast;
           import androidx.recyclerview.widget.GridLayoutManager;
           import androidx.recyclerview.widget.RecyclerView;
           import java.text.SimpleDateFormat;
           import java.util.ArrayList;
           import java.util.Collections;
           import java.util.Date;
+          import java.util.LinkedHashSet;
           import java.util.List;
           import java.util.Locale;
+          import java.util.Set;
 
           public class MainActivity extends Activity {
-              private static final int REQ_PATTERN=101, REQ_SETUP=102;
+              private static final int REQ_PATTERN=101,REQ_SETUP=102,REQ_ADMIN=103,REQ_DOCK=104;
               private Handler handler=new Handler();
               private TextView bigClock,fullDate,statusTime,statusDate;
               private RecyclerView appGrid;
               private AppAdapter adapter;
               private List<AppInfo> appList=new ArrayList<>();
-              private SharedPreferences usagePrefs,patternPrefs;
+              private SharedPreferences usagePrefs,patternPrefs,dockPrefs;
               private WeatherManager weatherMgr;
               private LinearLayout dockRow,widgetRow;
               private GestureDetector powerGesture;
               private AudioManager audioMgr;
+              private DevicePolicyManager dpm;
+              private ComponentName adminComp;
               private AppInfo pendingLaunch;
+              private List<WeatherData> cachedWeather;
+              private boolean editMode=false;
 
               private Runnable tick=new Runnable(){@Override public void run(){clock();handler.postDelayed(this,1000);}};
 
@@ -866,237 +1052,208 @@ jobs:
                   setContentView(R.layout.activity_main);
                   usagePrefs=getSharedPreferences("usage",MODE_PRIVATE);
                   patternPrefs=getSharedPreferences("patterns",MODE_PRIVATE);
+                  dockPrefs=getSharedPreferences("dock_prefs",MODE_PRIVATE);
                   audioMgr=(AudioManager)getSystemService(AUDIO_SERVICE);
+                  dpm=(DevicePolicyManager)getSystemService(DEVICE_POLICY_SERVICE);
+                  adminComp=new ComponentName(this,AdminReceiver.class);
                   weatherMgr=new WeatherManager(this);
-                  bigClock=findViewById(R.id.bigClock);
-                  fullDate=findViewById(R.id.fullDate);
-                  statusTime=findViewById(R.id.statusTime);
-                  statusDate=findViewById(R.id.statusDate);
-                  appGrid=findViewById(R.id.appGrid);
-                  dockRow=findViewById(R.id.dockRow);
-                  widgetRow=findViewById(R.id.widgetRow);
+                  bigClock=findViewById(R.id.bigClock);fullDate=findViewById(R.id.fullDate);
+                  statusTime=findViewById(R.id.statusTime);statusDate=findViewById(R.id.statusDate);
+                  appGrid=findViewById(R.id.appGrid);dockRow=findViewById(R.id.dockRow);widgetRow=findViewById(R.id.widgetRow);
                   appGrid.setLayoutManager(new GridLayoutManager(this,4));
-                  adapter=new AppAdapter(appList,this::onAppClick,this::onAppLongClick);
+                  adapter=new AppAdapter(appList,this::onAppClick,this::onAppLong,this::onAppDelete);
                   appGrid.setAdapter(adapter);
-                  setupWidgets();
-                  setupPower();
-                  loadApps();
-                  loadWeather();
+                  setupWidgets();setupPower();loadApps();loadWeather();
+                  if(!dpm.isAdminActive(adminComp)){
+                      Intent i=new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+                      i.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN,adminComp);
+                      i.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,"Needed to lock screen.");
+                      startActivityForResult(i,REQ_ADMIN);
+                  }
               }
 
               private void setupWidgets(){
                   String[][] w={{"☀","weather"},{"🗓","calendar"},{"🧮","calc"},{"🧭","compass"},{"🚗","speed"}};
                   for(String[] item:w){
                       LinearLayout card=new LinearLayout(this);
-                      card.setOrientation(LinearLayout.VERTICAL);
-                      card.setGravity(android.view.Gravity.CENTER);
+                      card.setOrientation(LinearLayout.VERTICAL);card.setGravity(android.view.Gravity.CENTER);
                       GradientDrawable bg=new GradientDrawable();
                       bg.setCornerRadius(20*getResources().getDisplayMetrics().density);
-                      bg.setColor(0x2AFFFFFF);
-                      bg.setStroke(1,(int)0x55FFFFFF);
-                      card.setBackground(bg);
-                      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(120,130);
-                      lp.setMargins(8,0,8,0);
-                      card.setLayoutParams(lp);
-                      TextView tv=new TextView(this);
-                      tv.setText(item[0]);tv.setTextSize(32);
-                      tv.setGravity(android.view.Gravity.CENTER);
-                      card.addView(tv);
-                      TextView label=new TextView(this);
-                      label.setTextColor(0xCCFFFFFF);
-                      label.setTextSize(10);
-                      label.setGravity(android.view.Gravity.CENTER);
-                      if("weather".equals(item[1]))label.setTag("weather_label");
-                      card.addView(label);
-                      final String type=item[1];
-                      card.setOnClickListener(v->handleWidget(type));
+                      bg.setColor(0x2AFFFFFF);bg.setStroke(1,0x55FFFFFF);card.setBackground(bg);
+                      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(120,130);lp.setMargins(8,0,8,0);card.setLayoutParams(lp);
+                      TextView tv=new TextView(this);tv.setText(item[0]);tv.setTextSize(32);tv.setGravity(android.view.Gravity.CENTER);card.addView(tv);
+                      TextView lbl=new TextView(this);lbl.setTextColor(0xCCFFFFFF);lbl.setTextSize(10);lbl.setGravity(android.view.Gravity.CENTER);
+                      if("weather".equals(item[1]))lbl.setTag("weather_label");
+                      card.addView(lbl);
+                      final String t=item[1];card.setOnClickListener(v->handleWidget(t));
                       widgetRow.addView(card);
                   }
               }
 
               private void handleWidget(String t){
-                  if("calendar".equals(t)){showCalendar();}
-                  else if("weather".equals(t)){showWeatherFull();}
-                  else{new AlertDialog.Builder(this).setTitle(t.toUpperCase())
-                      .setMessage("Feature active.\nMore detail in full version.")
-                      .setPositiveButton("OK",null).show();}
+                  switch(t){
+                      case"weather":showWeatherFull();break;
+                      case"calendar":showCal();break;
+                      case"compass":startActivity(new Intent(this,CompassActivity.class));break;
+                      case"speed":startActivity(new Intent(this,SpeedometerActivity.class));break;
+                      case"calc":
+                          try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR));}
+                          catch(Exception e){Toast.makeText(this,"No calculator app found",Toast.LENGTH_SHORT).show();}break;
+                  }
               }
 
-              private void showCalendar(){
-                  new AlertDialog.Builder(this)
-                      .setTitle("Calendar")
-                      .setMessage(buildCalendar())
-                      .setPositiveButton("OK",null).show();
-              }
-
-              private String buildCalendar(){
+              private void showCal(){
                   java.util.Calendar c=java.util.Calendar.getInstance();
                   java.text.SimpleDateFormat mf=new java.text.SimpleDateFormat("MMMM yyyy",Locale.ENGLISH);
                   StringBuilder sb=new StringBuilder(mf.format(c.getTime())+"\n\nSu Mo Tu We Th Fr Sa\n");
                   int today=c.get(java.util.Calendar.DAY_OF_MONTH);
                   c.set(java.util.Calendar.DAY_OF_MONTH,1);
-                  int first=c.get(java.util.Calendar.DAY_OF_WEEK)-1;
-                  int max=c.getActualMaximum(java.util.Calendar.DAY_OF_MONTH);
-                  int col=0;
+                  int first=c.get(java.util.Calendar.DAY_OF_WEEK)-1,max=c.getActualMaximum(java.util.Calendar.DAY_OF_MONTH),col=0;
                   for(int i=0;i<first;i++){sb.append("   ");col++;}
-                  for(int d=1;d<=max;d++){
-                      sb.append(d==today?String.format("[%2d]",d):String.format(" %2d ",d));
-                      if(++col%7==0)sb.append("\n");
-                  }
-                  return sb.toString();
+                  for(int d=1;d<=max;d++){sb.append(d==today?String.format("[%2d]",d):String.format(" %2d ",d));if(++col%7==0)sb.append("\n");}
+                  new AlertDialog.Builder(this).setTitle("Calendar").setMessage(sb).setPositiveButton("OK",null).show();
               }
 
-              private List<WeatherData> cachedWeather;
               private void showWeatherFull(){
-                  if(cachedWeather==null){new AlertDialog.Builder(this).setMessage("Loading...").show();return;}
+                  if(cachedWeather==null){Toast.makeText(this,"Loading...",Toast.LENGTH_SHORT).show();return;}
                   StringBuilder sb=new StringBuilder("7-Day Forecast\n\n");
-                  for(WeatherData d:cachedWeather)
-                      sb.append(d.icon+" "+d.day+": "+d.condition+" "+d.tempHigh+"°/"+d.tempLow+"°C\n");
+                  for(WeatherData d:cachedWeather)sb.append(d.icon+" "+d.day+": "+d.condition+" "+d.tempHigh+"°/"+d.tempLow+"°C\n");
                   new AlertDialog.Builder(this).setTitle("Weather").setMessage(sb).setPositiveButton("OK",null).show();
               }
 
               private void setupPower(){
-                  TextView powerBtn=findViewById(R.id.powerBtn);
+                  TextView pb=findViewById(R.id.powerBtn);
                   powerGesture=new GestureDetector(this,new GestureDetector.SimpleOnGestureListener(){
                       @Override public boolean onFling(MotionEvent e1,MotionEvent e2,float vx,float vy){
                           float dx=e2.getX()-e1.getX(),dy=e2.getY()-e1.getY();
                           if(Math.abs(dx)>Math.abs(dy)){
-                              audioMgr.adjustStreamVolume(AudioManager.STREAM_MUSIC,
-                                  dx>0?AudioManager.ADJUST_RAISE:AudioManager.ADJUST_LOWER,
-                                  AudioManager.FLAG_SHOW_UI);
-                          } else {
-                              try{
-                                  int cur=android.provider.Settings.System.getInt(getContentResolver(),android.provider.Settings.System.SCREEN_BRIGHTNESS);
-                                  int next=dy<0?Math.min(255,cur+25):Math.max(0,cur-25);
-                                  android.provider.Settings.System.putInt(getContentResolver(),android.provider.Settings.System.SCREEN_BRIGHTNESS,next);
-                              }catch(Exception ignored){}
-                          }
+                              audioMgr.adjustStreamVolume(AudioManager.STREAM_MUSIC,dx>0?AudioManager.ADJUST_RAISE:AudioManager.ADJUST_LOWER,AudioManager.FLAG_SHOW_UI);
+                          }else{
+                              try{int cur=android.provider.Settings.System.getInt(getContentResolver(),android.provider.Settings.System.SCREEN_BRIGHTNESS);
+                                  android.provider.Settings.System.putInt(getContentResolver(),android.provider.Settings.System.SCREEN_BRIGHTNESS,dy<0?Math.min(255,cur+25):Math.max(0,cur-25));
+                              }catch(Exception ignored){}}
                           return true;
                       }
                   });
-                  powerBtn.setOnTouchListener((v,ev)->{powerGesture.onTouchEvent(ev);return false;});
-                  powerBtn.setOnClickListener(v->{
-                      android.app.KeyguardManager km=(android.app.KeyguardManager)getSystemService(KEYGUARD_SERVICE);
-                      moveTaskToBack(true);
+                  pb.setOnTouchListener((v,ev)->{powerGesture.onTouchEvent(ev);return false;});
+                  pb.setOnClickListener(v->{
+                      if(dpm.isAdminActive(adminComp)){dpm.lockNow();}
+                      else{Intent i=new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+                          i.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN,adminComp);
+                          i.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,"Allow to lock screen.");
+                          startActivityForResult(i,REQ_ADMIN);}
+                  });
+                  pb.setOnLongClickListener(v->{
+                      startActivityForResult(new Intent(this,DockManagerActivity.class),REQ_DOCK);
+                      return true;
                   });
               }
 
               private void loadApps(){
                   new Thread(()->{
-                      Intent intent=new Intent(Intent.ACTION_MAIN,null);
-                      intent.addCategory(Intent.CATEGORY_LAUNCHER);
+                      Intent intent=new Intent(Intent.ACTION_MAIN,null);intent.addCategory(Intent.CATEGORY_LAUNCHER);
                       PackageManager pm=getPackageManager();
                       List<ResolveInfo> res=pm.queryIntentActivities(intent,0);
                       List<AppInfo> list=new ArrayList<>();
-                      List<AppInfo> dock=new ArrayList<>();
-                      String[] dockPkgs={"com.android.dialer","com.android.messaging",
-                          "com.android.chrome","com.android.camera2","com.android.settings"};
                       for(ResolveInfo ri:res){
                           String pkg=ri.activityInfo.packageName;
                           if(pkg.equals(getPackageName()))continue;
-                          String lbl=ri.loadLabel(pm).toString();
-                          int cnt=usagePrefs.getInt(pkg,0);
-                          boolean locked=patternPrefs.getString("pattern_"+pkg,null)!=null;
-                          AppInfo ai=new AppInfo(lbl,pkg,ri.loadIcon(pm),cnt,locked);
-                          list.add(ai);
-                          for(String dp:dockPkgs){if(pkg.contains(dp.split("\\.")[2]))dock.add(ai);}
+                          list.add(new AppInfo(ri.loadLabel(pm).toString(),pkg,ri.loadIcon(pm),usagePrefs.getInt(pkg,0),patternPrefs.getString("pattern_"+pkg,null)!=null));
                       }
-                      Collections.sort(list,(a,b)->{
-                          if(b.launchCount!=a.launchCount)return b.launchCount-a.launchCount;
-                          return a.label.compareToIgnoreCase(b.label);
-                      });
-                      final List<AppInfo> dockFinal=dock.size()>5?dock.subList(0,5):dock;
-                      runOnUiThread(()->{
-                          appList.clear();appList.addAll(list);adapter.update(appList);
-                          buildDock(dockFinal,pm);
-                      });
+                      Collections.sort(list,(a,b)->{if(b.launchCount!=a.launchCount)return b.launchCount-a.launchCount;return a.label.compareToIgnoreCase(b.label);});
+                      runOnUiThread(()->{appList.clear();appList.addAll(list);adapter.update(appList);buildDock(pm);});
                   }).start();
               }
 
-              private void buildDock(List<AppInfo> dock, PackageManager pm){
+              private void buildDock(PackageManager pm){
                   dockRow.removeAllViews();
-                  for(AppInfo a:dock){
-                      LinearLayout cell=new LinearLayout(this);
-                      cell.setOrientation(LinearLayout.VERTICAL);
-                      cell.setGravity(android.view.Gravity.CENTER);
-                      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f);
-                      cell.setLayoutParams(lp);
-                      ImageView iv=new ImageView(this);
-                      iv.setImageDrawable(a.icon);
-                      iv.setLayoutParams(new LinearLayout.LayoutParams(52,52));
-                      iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                      cell.addView(iv);
-                      cell.setOnClickListener(v->onAppClick(a));
-                      dockRow.addView(cell);
+                  Set<String> saved=dockPrefs.getStringSet("dock_apps",null);
+                  List<String> pkgs=new ArrayList<>();
+                  if(saved!=null&&!saved.isEmpty()){pkgs.addAll(saved);}
+                  else{String[] def={"dialer","messaging","chrome","camera2","settings"};
+                      for(AppInfo a:appList){for(String d:def){if(a.packageName.contains(d)&&pkgs.size()<5)pkgs.add(a.packageName);}}}
+                  for(String pkg:pkgs){
+                      for(AppInfo a:appList){
+                          if(a.packageName.equals(pkg)){
+                              LinearLayout cell=new LinearLayout(this);
+                              cell.setOrientation(LinearLayout.VERTICAL);cell.setGravity(android.view.Gravity.CENTER);
+                              LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f);cell.setLayoutParams(lp);
+                              ImageView iv=new ImageView(this);iv.setImageDrawable(a.icon);
+                              iv.setLayoutParams(new LinearLayout.LayoutParams(52,52));iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                              cell.addView(iv);cell.setOnClickListener(v->onAppClick(a));dockRow.addView(cell);break;
+                          }
+                      }
                   }
               }
 
               private void onAppClick(AppInfo a){
-                  if(a.patternLocked){
-                      pendingLaunch=a;
-                      Intent i=new Intent(this,PatternLockActivity.class);
-                      i.putExtra("package",a.packageName);
-                      startActivityForResult(i,REQ_PATTERN);
-                  } else { launchApp(a); }
+                  if(editMode)return;
+                  if(a.patternLocked){pendingLaunch=a;Intent i=new Intent(this,PatternLockActivity.class);i.putExtra("package",a.packageName);startActivityForResult(i,REQ_PATTERN);}
+                  else launchApp(a);
               }
 
-              private void onAppLongClick(AppInfo a){
-                  String[] opts=a.patternLocked?
-                      new String[]{"Open","Remove Pattern Lock"}:
-                      new String[]{"Open","Set Pattern Lock"};
-                  new AlertDialog.Builder(this)
-                      .setTitle(a.label)
-                      .setItems(opts,(d,which)->{
-                          if(which==0){onAppClick(a);}
-                          else if(a.patternLocked){
-                              patternPrefs.edit().remove("pattern_"+a.packageName).apply();
-                              a.patternLocked=false;
-                              adapter.update(appList);
-                          } else {
-                              pendingLaunch=null;
-                              Intent i=new Intent(this,PatternSetupActivity.class);
-                              i.putExtra("package",a.packageName);
-                              startActivityForResult(i,REQ_SETUP);
-                          }
+              private void onAppLong(AppInfo a){
+                  if(editMode){exitEditMode();return;}
+                  new AlertDialog.Builder(this).setTitle(a.label)
+                      .setItems(new String[]{
+                          "Open",
+                          a.patternLocked?"Remove Pattern Lock":"Set Pattern Lock",
+                          "Uninstall"
+                      },(d,w)->{
+                          if(w==0)onAppClick(a);
+                          else if(w==1){
+                              if(a.patternLocked){patternPrefs.edit().remove("pattern_"+a.packageName).apply();a.patternLocked=false;adapter.update(appList);}
+                              else{pendingLaunch=null;Intent i=new Intent(this,PatternSetupActivity.class);i.putExtra("package",a.packageName);startActivityForResult(i,REQ_SETUP);}
+                          }else if(w==2){uninstallApp(a);}
                       }).show();
               }
 
+              private void onAppDelete(AppInfo a){uninstallApp(a);}
+
+              private void uninstallApp(AppInfo a){
+                  new AlertDialog.Builder(this)
+                      .setTitle("Uninstall "+a.label+"?")
+                      .setMessage("This will remove the app from your device.")
+                      .setPositiveButton("Uninstall",(d,w)->{
+                          Intent i=new Intent(Intent.ACTION_DELETE);
+                          i.setData(Uri.parse("package:"+a.packageName));
+                          startActivity(i);
+                      })
+                      .setNegativeButton("Cancel",null).show();
+              }
+
+              private void exitEditMode(){
+                  editMode=false;adapter.setEditMode(false);
+                  Toast.makeText(this,"Edit mode off",Toast.LENGTH_SHORT).show();
+              }
+
+              @Override public void onBackPressed(){
+                  if(editMode){exitEditMode();}
+              }
+
               @Override protected void onActivityResult(int req,int res,Intent data){
-                  if(req==REQ_PATTERN && res==RESULT_OK && pendingLaunch!=null){
-                      launchApp(pendingLaunch); pendingLaunch=null;
-                  } else if(req==REQ_SETUP && res==RESULT_OK){
-                      for(AppInfo a:appList){
-                          a.patternLocked=patternPrefs.getString("pattern_"+a.packageName,null)!=null;
-                      }
-                      adapter.update(appList);
-                  }
+                  if(req==REQ_PATTERN&&res==RESULT_OK&&pendingLaunch!=null){launchApp(pendingLaunch);pendingLaunch=null;}
+                  else if(req==REQ_SETUP&&res==RESULT_OK){for(AppInfo a:appList)a.patternLocked=patternPrefs.getString("pattern_"+a.packageName,null)!=null;adapter.update(appList);}
+                  else if(req==REQ_DOCK&&res==RESULT_OK){loadApps();}
               }
 
               private void launchApp(AppInfo a){
-                  int c=usagePrefs.getInt(a.packageName,0)+1;
-                  usagePrefs.edit().putInt(a.packageName,c).apply();
-                  a.launchCount=c;
-                  Collections.sort(appList,(x,y)->{
-                      if(y.launchCount!=x.launchCount)return y.launchCount-x.launchCount;
-                      return x.label.compareToIgnoreCase(y.label);
-                  });
+                  int c=usagePrefs.getInt(a.packageName,0)+1;usagePrefs.edit().putInt(a.packageName,c).apply();a.launchCount=c;
+                  Collections.sort(appList,(x,y)->{if(y.launchCount!=x.launchCount)return y.launchCount-x.launchCount;return x.label.compareToIgnoreCase(y.label);});
                   adapter.update(new ArrayList<>(appList));
-                  Intent i=getPackageManager().getLaunchIntentForPackage(a.packageName);
-                  if(i!=null)startActivity(i);
+                  Intent i=getPackageManager().getLaunchIntentForPackage(a.packageName);if(i!=null)startActivity(i);
               }
 
               private void loadWeather(){
-                  SharedPreferences p=getSharedPreferences("launcher_prefs",MODE_PRIVATE);
-                  String loc=p.getString("weather_location","Dhaka");
+                  String loc=getSharedPreferences("launcher_prefs",MODE_PRIVATE).getString("weather_location","Dhaka");
                   weatherMgr.get(loc,data->{
                       cachedWeather=data;
                       if(!data.isEmpty()){
                           WeatherData t=data.get(0);
                           View wCard=widgetRow.getChildAt(0);
                           if(wCard instanceof LinearLayout){
-                              View label=((LinearLayout)wCard).getChildAt(1);
-                              if(label instanceof TextView)
-                                  ((TextView)label).setText(t.icon+t.tempHigh+"°C");
+                              View lbl=((LinearLayout)wCard).getChildAt(1);
+                              if(lbl instanceof TextView)((TextView)lbl).setText(t.icon+t.tempHigh+"°C");
                           }
                       }
                   });
@@ -1121,5 +1278,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AwalLauncher-v2
+          name: AwalLauncher-v4
           path: app/build/outputs/apk/debug/app-debug.apk
