@@ -25,6 +25,7 @@ jobs:
           mkdir -p app/src/main/res/layout
           mkdir -p app/src/main/res/values
           mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/anim
           mkdir -p app/src/main/res/xml
           mkdir -p gradle/wrapper
 
@@ -45,9 +46,7 @@ jobs:
       - name: root build.gradle
         run: |
           cat > build.gradle << 'EOF'
-          plugins {
-              id 'com.android.application' version '8.1.2' apply false
-          }
+          plugins { id 'com.android.application' version '8.1.2' apply false }
           EOF
 
       - name: gradle.properties
@@ -118,6 +117,38 @@ jobs:
           </device-admin>
           EOF
 
+      - name: animations
+        run: |
+          cat > app/src/main/res/anim/fade_in.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <set xmlns:android="http://schemas.android.com/apk/res/android">
+              <alpha android:fromAlpha="0.0" android:toAlpha="1.0"
+                  android:duration="350" android:interpolator="@android:anim/decelerate_interpolator"/>
+              <scale android:fromXScale="0.92" android:toXScale="1.0"
+                  android:fromYScale="0.92" android:toYScale="1.0"
+                  android:pivotX="50%" android:pivotY="50%"
+                  android:duration="350" android:interpolator="@android:anim/decelerate_interpolator"/>
+          </set>
+          EOF
+          cat > app/src/main/res/anim/slide_up.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <set xmlns:android="http://schemas.android.com/apk/res/android">
+              <translate android:fromYDelta="60dp" android:toYDelta="0"
+                  android:duration="400" android:interpolator="@android:anim/decelerate_interpolator"/>
+              <alpha android:fromAlpha="0.0" android:toAlpha="1.0"
+                  android:duration="400" android:interpolator="@android:anim/decelerate_interpolator"/>
+          </set>
+          EOF
+          cat > app/src/main/res/anim/slide_down_out.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <set xmlns:android="http://schemas.android.com/apk/res/android">
+              <translate android:fromYDelta="0" android:toYDelta="80dp"
+                  android:duration="300" android:interpolator="@android:anim/accelerate_interpolator"/>
+              <alpha android:fromAlpha="1.0" android:toAlpha="0.0"
+                  android:duration="300"/>
+          </set>
+          EOF
+
       - name: AndroidManifest.xml
         run: |
           cat > app/src/main/AndroidManifest.xml << 'EOF'
@@ -148,11 +179,13 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
                   </activity>
-                  <activity android:name=".PatternLockActivity" android:exported="false" android:theme="@style/AppTheme"/>
-                  <activity android:name=".PatternSetupActivity" android:exported="false" android:theme="@style/AppTheme"/>
-                  <activity android:name=".SpeedometerActivity" android:exported="false" android:theme="@style/AppTheme"/>
-                  <activity android:name=".CompassActivity" android:exported="false" android:theme="@style/AppTheme"/>
-                  <activity android:name=".DockManagerActivity" android:exported="false" android:theme="@style/AppTheme"/>
+                  <activity android:name=".CalendarActivity" android:exported="false" android:theme="@style/AppTheme.Transparent"/>
+                  <activity android:name=".WeatherActivity" android:exported="false" android:theme="@style/AppTheme.Transparent"/>
+                  <activity android:name=".PatternLockActivity" android:exported="false" android:theme="@style/AppTheme.Transparent"/>
+                  <activity android:name=".PatternSetupActivity" android:exported="false" android:theme="@style/AppTheme.Transparent"/>
+                  <activity android:name=".SpeedometerActivity" android:exported="false" android:theme="@style/AppTheme.Transparent"/>
+                  <activity android:name=".CompassActivity" android:exported="false" android:theme="@style/AppTheme.Transparent"/>
+                  <activity android:name=".DockManagerActivity" android:exported="false" android:theme="@style/AppTheme.Transparent"/>
                   <receiver android:name=".AdminReceiver" android:exported="true"
                       android:permission="android.permission.BIND_DEVICE_ADMIN">
                       <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin"/>
@@ -165,7 +198,7 @@ jobs:
           </manifest>
           EOF
 
-      - name: colors.xml
+      - name: values
         run: |
           cat > app/src/main/res/values/colors.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -173,19 +206,16 @@ jobs:
               <color name="text_white">#FFFFFFFF</color>
               <color name="text_dim">#CCFFFFFF</color>
               <color name="accent_blue">#4FC3F7</color>
+              <color name="accent_teal">#26C6DA</color>
               <color name="bg_dark">#CC000015</color>
+              <color name="glass_fill">#2AFFFFFF</color>
+              <color name="glass_stroke">#55FFFFFF</color>
           </resources>
           EOF
-
-      - name: strings.xml
-        run: |
           cat > app/src/main/res/values/strings.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources><string name="app_name">Awal Launcher</string></resources>
           EOF
-
-      - name: styles.xml
-        run: |
           cat > app/src/main/res/values/styles.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
@@ -195,6 +225,10 @@ jobs:
                   <item name="android:windowTranslucentStatus">true</item>
                   <item name="android:windowTranslucentNavigation">true</item>
                   <item name="android:statusBarColor">@android:color/transparent</item>
+              </style>
+              <style name="AppTheme.Transparent" parent="AppTheme">
+                  <item name="android:windowIsTranslucent">true</item>
+                  <item name="android:windowBackground">@android:color/transparent</item>
               </style>
           </resources>
           EOF
@@ -210,6 +244,14 @@ jobs:
               <path android:fillColor="#1565C0" android:pathData="M54,34C42.9,34 34,42.9 34,54s8.9,20 20,20 20,-8.9 20,-20S65.1,34 54,34z"/>
               <path android:fillColor="#FFFFFF" android:pathData="M54,44C48.5,44 44,48.5 44,54s4.5,10 10,10 10,-4.5 10,-10S59.5,44 54,44z"/>
           </vector>
+          EOF
+          cat > app/src/main/res/drawable/glass_panel.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android">
+              <solid android:color="#30FFFFFF"/>
+              <stroke android:width="1dp" android:color="#60FFFFFF"/>
+              <corners android:radius="24dp"/>
+          </shape>
           EOF
           cat > app/src/main/res/drawable/glass_card.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -240,8 +282,22 @@ jobs:
               <solid android:color="#FFEF5350"/>
           </shape>
           EOF
+          cat > app/src/main/res/drawable/today_circle.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+              <solid android:color="#FF4FC3F7"/>
+          </shape>
+          EOF
+          cat > app/src/main/res/drawable/widget_pill.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android">
+              <solid android:color="#22FFFFFF"/>
+              <stroke android:width="1dp" android:color="#44FFFFFF"/>
+              <corners android:radius="12dp"/>
+          </shape>
+          EOF
 
-      - name: layouts
+      - name: main layout
         run: |
           cat > app/src/main/res/layout/activity_main.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -255,7 +311,8 @@ jobs:
                   android:paddingTop="44dp" android:paddingHorizontal="20dp" android:paddingBottom="4dp">
                   <TextView android:id="@+id/statusTime"
                       android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                      android:textColor="@color/text_white" android:textSize="14sp" android:fontFamily="sans-serif-medium" android:text="12:00"/>
+                      android:textColor="@color/text_white" android:textSize="14sp"
+                      android:fontFamily="sans-serif-medium" android:text="12:00"/>
                   <TextView android:id="@+id/statusDate"
                       android:layout_width="wrap_content" android:layout_height="wrap_content"
                       android:textColor="@color/text_dim" android:textSize="13sp" android:text="Mon, Jan 1"/>
@@ -303,6 +360,8 @@ jobs:
           </RelativeLayout>
           EOF
 
+      - name: item layouts
+        run: |
           cat > app/src/main/res/layout/item_app.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -314,11 +373,9 @@ jobs:
                       android:layout_gravity="center" android:scaleType="fitCenter"/>
                   <TextView android:id="@+id/deleteBadge"
                       android:layout_width="20dp" android:layout_height="20dp"
-                      android:layout_gravity="top|start"
-                      android:gravity="center" android:text="✕"
-                      android:textColor="#FFFFFFFF" android:textSize="11sp"
-                      android:background="@drawable/red_circle"
-                      android:visibility="gone"/>
+                      android:layout_gravity="top|start" android:gravity="center"
+                      android:text="✕" android:textColor="#FFFFFFFF" android:textSize="11sp"
+                      android:background="@drawable/red_circle" android:visibility="gone"/>
                   <ImageView android:id="@+id/lockBadge"
                       android:layout_width="18dp" android:layout_height="18dp"
                       android:layout_gravity="bottom|end" android:visibility="gone"/>
@@ -331,138 +388,278 @@ jobs:
           </LinearLayout>
           EOF
 
-          cat > app/src/main/res/layout/activity_pattern.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent" android:layout_height="match_parent"
-              android:orientation="vertical" android:gravity="center"
-              android:background="@color/bg_dark" android:padding="32dp">
-              <ImageView android:id="@+id/appIconBig"
-                  android:layout_width="72dp" android:layout_height="72dp"
-                  android:scaleType="fitCenter" android:layout_marginBottom="12dp"/>
-              <TextView android:id="@+id/patternTitle"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:textColor="#FFFFFFFF" android:textSize="20sp"
-                  android:text="Draw Pattern" android:layout_marginBottom="8dp"/>
-              <TextView android:id="@+id/patternMsg"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:textColor="#CCFFFFFF" android:textSize="14sp" android:layout_marginBottom="24dp"/>
-              <com.awal.launcher.PatternView
-                  android:id="@+id/patternView"
-                  android:layout_width="280dp" android:layout_height="280dp"/>
-              <TextView android:id="@+id/btnCancel"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="Cancel" android:textColor="@color/accent_blue"
-                  android:textSize="16sp" android:padding="16dp" android:layout_marginTop="16dp"/>
-          </LinearLayout>
-          EOF
-
-          cat > app/src/main/res/layout/activity_speedometer.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent" android:layout_height="match_parent"
-              android:orientation="vertical" android:gravity="center"
-              android:background="#FF000015" android:padding="24dp">
-              <TextView android:id="@+id/speedValue"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="0" android:textSize="96sp"
-                  android:textColor="#FFFFFFFF" android:fontFamily="sans-serif-thin"/>
-              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="km/h" android:textSize="24sp" android:textColor="#CC4FC3F7"/>
-              <TextView android:id="@+id/maxSpeed"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="Max: 0 km/h" android:textSize="16sp"
-                  android:textColor="#CCFFFFFF" android:layout_marginTop="16dp"/>
-              <TextView android:id="@+id/gpsStatus"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="Waiting for GPS..." android:textSize="13sp"
-                  android:textColor="#88FFFFFF" android:layout_marginTop="8dp"/>
-              <TextView android:id="@+id/btnReset"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="Reset Max" android:textColor="#FF4FC3F7"
-                  android:textSize="16sp" android:padding="16dp" android:layout_marginTop="24dp"
-                  android:background="@drawable/glass_card"/>
-              <TextView android:id="@+id/btnBack"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="← Back" android:textColor="#CCFFFFFF"
-                  android:textSize="14sp" android:padding="12dp" android:layout_marginTop="8dp"/>
-          </LinearLayout>
-          EOF
-
-          cat > app/src/main/res/layout/activity_compass.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent" android:layout_height="match_parent"
-              android:orientation="vertical" android:gravity="center"
-              android:background="#FF000015" android:padding="24dp">
-              <TextView android:id="@+id/compassDirection"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="N" android:textSize="72sp"
-                  android:textColor="#FF4FC3F7" android:fontFamily="sans-serif-thin"/>
-              <com.awal.launcher.CompassView
-                  android:id="@+id/compassView"
-                  android:layout_width="280dp" android:layout_height="280dp"
-                  android:layout_marginTop="8dp"/>
-              <TextView android:id="@+id/compassDegree"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="0°" android:textSize="28sp"
-                  android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"/>
-              <TextView android:id="@+id/btnBack"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="← Back" android:textColor="#CCFFFFFF"
-                  android:textSize="14sp" android:padding="16dp" android:layout_marginTop="16dp"/>
-          </LinearLayout>
-          EOF
-
-          cat > app/src/main/res/layout/activity_dock_manager.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent" android:layout_height="match_parent"
-              android:orientation="vertical" android:background="#EE000015">
-              <LinearLayout android:layout_width="match_parent" android:layout_height="56dp"
-                  android:orientation="horizontal" android:gravity="center_vertical"
-                  android:paddingHorizontal="16dp" android:paddingTop="8dp">
-                  <TextView android:id="@+id/btnDockBack"
-                      android:layout_width="wrap_content" android:layout_height="wrap_content"
-                      android:text="← " android:textColor="#FF4FC3F7" android:textSize="20sp" android:padding="8dp"/>
-                  <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                      android:text="Manage Dock" android:textColor="#FFFFFFFF" android:textSize="18sp"/>
-              </LinearLayout>
-              <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                  android:text="Current Dock Apps (tap to remove):"
-                  android:textColor="#CCFFFFFF" android:textSize="13sp"
-                  android:paddingHorizontal="16dp" android:paddingVertical="8dp"/>
-              <LinearLayout android:id="@+id/currentDockView"
-                  android:layout_width="match_parent" android:layout_height="80dp"
-                  android:orientation="horizontal" android:background="#33FFFFFF"
-                  android:gravity="center" android:paddingHorizontal="8dp"/>
-              <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                  android:text="All Apps (tap to add to dock):"
-                  android:textColor="#CCFFFFFF" android:textSize="13sp"
-                  android:paddingHorizontal="16dp" android:paddingTop="16dp" android:paddingBottom="8dp"/>
-              <androidx.recyclerview.widget.RecyclerView android:id="@+id/allAppsForDock"
-                  android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
-                  android:padding="4dp" android:clipToPadding="false"/>
-          </LinearLayout>
-          EOF
-
           cat > app/src/main/res/layout/item_dock_app.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="wrap_content" android:layout_height="wrap_content"
               android:orientation="vertical" android:gravity="center" android:padding="8dp">
               <ImageView android:id="@+id/dockIcon"
-                  android:layout_width="48dp" android:layout_height="48dp"
-                  android:scaleType="fitCenter"/>
+                  android:layout_width="48dp" android:layout_height="48dp" android:scaleType="fitCenter"/>
               <TextView android:id="@+id/dockName"
                   android:layout_width="64dp" android:layout_height="wrap_content"
                   android:gravity="center" android:textColor="#FFFFFFFF"
-                  android:textSize="10sp" android:maxLines="1" android:ellipsize="end"
-                  android:layout_marginTop="2dp"/>
+                  android:textSize="10sp" android:maxLines="1" android:ellipsize="end" android:layout_marginTop="2dp"/>
           </LinearLayout>
           EOF
 
-      - name: Java sources
+      - name: calendar layout
+        run: |
+          cat > app/src/main/res/layout/activity_calendar.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:background="#AA000020">
+              <LinearLayout
+                  android:id="@+id/calCard"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"
+                  android:layout_gravity="center"
+                  android:layout_marginHorizontal="20dp"
+                  android:orientation="vertical"
+                  android:background="@drawable/glass_panel"
+                  android:padding="20dp">
+                  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:orientation="horizontal" android:gravity="center_vertical"
+                      android:layout_marginBottom="16dp">
+                      <TextView android:id="@+id/btnPrev"
+                          android:layout_width="40dp" android:layout_height="40dp"
+                          android:gravity="center" android:text="‹" android:textSize="28sp"
+                          android:textColor="#FFFFFFFF" android:background="@drawable/glass_circle"/>
+                      <TextView android:id="@+id/monthYear"
+                          android:layout_width="0dp" android:layout_height="wrap_content"
+                          android:layout_weight="1" android:gravity="center"
+                          android:textColor="#FFFFFFFF" android:textSize="18sp"
+                          android:fontFamily="sans-serif-medium" android:text="October 2026"/>
+                      <TextView android:id="@+id/btnNext"
+                          android:layout_width="40dp" android:layout_height="40dp"
+                          android:gravity="center" android:text="›" android:textSize="28sp"
+                          android:textColor="#FFFFFFFF" android:background="@drawable/glass_circle"/>
+                  </LinearLayout>
+                  <GridLayout android:id="@+id/dayHeaders"
+                      android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:columnCount="7" android:layout_marginBottom="4dp"/>
+                  <GridLayout android:id="@+id/calGrid"
+                      android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:columnCount="7"/>
+                  <TextView android:id="@+id/btnClose"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:layout_gravity="center" android:layout_marginTop="16dp"
+                      android:text="Close" android:textColor="@color/accent_blue"
+                      android:textSize="15sp" android:padding="8dp"/>
+              </LinearLayout>
+          </FrameLayout>
+          EOF
+
+      - name: weather layout
+        run: |
+          cat > app/src/main/res/layout/activity_weather.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:background="#AA000020">
+              <LinearLayout
+                  android:id="@+id/weatherCard"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"
+                  android:layout_gravity="center"
+                  android:layout_marginHorizontal="20dp"
+                  android:orientation="vertical"
+                  android:background="@drawable/glass_panel"
+                  android:padding="20dp">
+                  <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:layout_gravity="center" android:text="7-Day Forecast"
+                      android:textColor="#FFFFFFFF" android:textSize="18sp"
+                      android:fontFamily="sans-serif-medium" android:layout_marginBottom="16dp"/>
+                  <LinearLayout android:id="@+id/weatherList"
+                      android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:orientation="vertical"/>
+                  <TextView android:id="@+id/btnClose"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:layout_gravity="center" android:layout_marginTop="16dp"
+                      android:text="Close" android:textColor="@color/accent_blue"
+                      android:textSize="15sp" android:padding="8dp"/>
+              </LinearLayout>
+          </FrameLayout>
+          EOF
+
+      - name: pattern layout
+        run: |
+          cat > app/src/main/res/layout/activity_pattern.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:background="#BB000015">
+              <LinearLayout
+                  android:id="@+id/patternCard"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"
+                  android:layout_gravity="center"
+                  android:layout_marginHorizontal="24dp"
+                  android:orientation="vertical" android:gravity="center"
+                  android:background="@drawable/glass_panel" android:padding="28dp">
+                  <ImageView android:id="@+id/appIconBig"
+                      android:layout_width="64dp" android:layout_height="64dp"
+                      android:scaleType="fitCenter" android:layout_marginBottom="12dp"/>
+                  <TextView android:id="@+id/patternTitle"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:textColor="#FFFFFFFF" android:textSize="18sp"
+                      android:fontFamily="sans-serif-medium"
+                      android:text="Draw Pattern" android:layout_marginBottom="6dp"/>
+                  <TextView android:id="@+id/patternMsg"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:textColor="#AAFFFFFF" android:textSize="13sp"
+                      android:layout_marginBottom="20dp"/>
+                  <com.awal.launcher.PatternView
+                      android:id="@+id/patternView"
+                      android:layout_width="260dp" android:layout_height="260dp"/>
+                  <TextView android:id="@+id/btnCancel"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="Cancel" android:textColor="@color/accent_blue"
+                      android:textSize="15sp" android:padding="12dp" android:layout_marginTop="8dp"/>
+              </LinearLayout>
+          </FrameLayout>
+          EOF
+
+      - name: speedometer layout
+        run: |
+          cat > app/src/main/res/layout/activity_speedometer.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:background="#AA000020">
+              <LinearLayout
+                  android:id="@+id/speedCard"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"
+                  android:layout_gravity="center"
+                  android:layout_marginHorizontal="20dp"
+                  android:orientation="vertical" android:gravity="center"
+                  android:background="@drawable/glass_panel" android:padding="28dp">
+                  <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="🚗  Speedometer" android:textColor="#FFFFFFFF"
+                      android:textSize="18sp" android:fontFamily="sans-serif-medium"
+                      android:layout_marginBottom="16dp"/>
+                  <TextView android:id="@+id/speedValue"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="0" android:textSize="88sp"
+                      android:textColor="#FFFFFFFF" android:fontFamily="sans-serif-thin"/>
+                  <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="km/h" android:textSize="20sp" android:textColor="#CC4FC3F7"
+                      android:layout_marginBottom="12dp"/>
+                  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:orientation="horizontal" android:gravity="center"
+                      android:background="@drawable/widget_pill" android:padding="10dp"
+                      android:layout_marginBottom="8dp">
+                      <TextView android:id="@+id/maxSpeed"
+                          android:layout_width="wrap_content" android:layout_height="wrap_content"
+                          android:text="Max: 0 km/h" android:textSize="15sp" android:textColor="#CCFFFFFF"/>
+                  </LinearLayout>
+                  <TextView android:id="@+id/gpsStatus"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="Waiting for GPS..." android:textSize="12sp"
+                      android:textColor="#88FFFFFF" android:layout_marginBottom="16dp"/>
+                  <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:orientation="horizontal">
+                      <TextView android:id="@+id/btnReset"
+                          android:layout_width="wrap_content" android:layout_height="wrap_content"
+                          android:text="Reset Max" android:textColor="@color/accent_blue"
+                          android:textSize="14sp" android:padding="12dp"
+                          android:background="@drawable/glass_card" android:layout_marginEnd="12dp"/>
+                      <TextView android:id="@+id/btnBack"
+                          android:layout_width="wrap_content" android:layout_height="wrap_content"
+                          android:text="Close" android:textColor="#AAFFFFFF"
+                          android:textSize="14sp" android:padding="12dp"
+                          android:background="@drawable/glass_card"/>
+                  </LinearLayout>
+              </LinearLayout>
+          </FrameLayout>
+          EOF
+
+      - name: compass layout
+        run: |
+          cat > app/src/main/res/layout/activity_compass.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:background="#AA000020">
+              <LinearLayout
+                  android:id="@+id/compassCard"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"
+                  android:layout_gravity="center"
+                  android:layout_marginHorizontal="20dp"
+                  android:orientation="vertical" android:gravity="center"
+                  android:background="@drawable/glass_panel" android:padding="24dp">
+                  <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="🧭  Compass" android:textColor="#FFFFFFFF"
+                      android:textSize="18sp" android:fontFamily="sans-serif-medium"
+                      android:layout_marginBottom="12dp"/>
+                  <TextView android:id="@+id/compassDirection"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="N" android:textSize="56sp"
+                      android:textColor="#FF4FC3F7" android:fontFamily="sans-serif-thin"
+                      android:layout_marginBottom="4dp"/>
+                  <com.awal.launcher.CompassView
+                      android:id="@+id/compassView"
+                      android:layout_width="260dp" android:layout_height="260dp"/>
+                  <TextView android:id="@+id/compassDegree"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="0°" android:textSize="24sp"
+                      android:textColor="#CCFFFFFF" android:layout_marginTop="8dp"
+                      android:layout_marginBottom="16dp"/>
+                  <TextView android:id="@+id/btnBack"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:text="Close" android:textColor="@color/accent_blue"
+                      android:textSize="15sp" android:padding="12dp"
+                      android:background="@drawable/glass_card"/>
+              </LinearLayout>
+          </FrameLayout>
+          EOF
+
+      - name: dock manager layout
+        run: |
+          cat > app/src/main/res/layout/activity_dock_manager.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:background="#BB000015">
+              <LinearLayout
+                  android:layout_width="match_parent" android:layout_height="match_parent"
+                  android:layout_marginHorizontal="16dp" android:layout_marginVertical="60dp"
+                  android:orientation="vertical"
+                  android:background="@drawable/glass_panel" android:padding="16dp">
+                  <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:orientation="horizontal" android:gravity="center_vertical"
+                      android:layout_marginBottom="12dp">
+                      <TextView android:id="@+id/btnDockBack"
+                          android:layout_width="40dp" android:layout_height="40dp"
+                          android:gravity="center" android:text="‹" android:textSize="28sp"
+                          android:textColor="@color/accent_blue" android:background="@drawable/glass_circle"/>
+                      <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                          android:layout_weight="1" android:layout_marginStart="12dp"
+                          android:text="Manage Dock" android:textColor="#FFFFFFFF"
+                          android:textSize="17sp" android:fontFamily="sans-serif-medium"/>
+                      <TextView android:id="@+id/dockCount"
+                          android:layout_width="wrap_content" android:layout_height="wrap_content"
+                          android:textColor="#AAFFFFFF" android:textSize="12sp" android:text="0/6"/>
+                  </LinearLayout>
+                  <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:text="Current Dock  (tap to remove)"
+                      android:textColor="#AAFFFFFF" android:textSize="12sp"
+                      android:layout_marginBottom="8dp"/>
+                  <LinearLayout android:id="@+id/currentDockView"
+                      android:layout_width="match_parent" android:layout_height="72dp"
+                      android:orientation="horizontal"
+                      android:background="@drawable/widget_pill"
+                      android:gravity="center" android:paddingHorizontal="8dp"
+                      android:layout_marginBottom="16dp"/>
+                  <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:text="All Apps  (tap to add)"
+                      android:textColor="#AAFFFFFF" android:textSize="12sp"
+                      android:layout_marginBottom="8dp"/>
+                  <androidx.recyclerview.widget.RecyclerView android:id="@+id/allAppsForDock"
+                      android:layout_width="match_parent" android:layout_height="0dp"
+                      android:layout_weight="1" android:padding="4dp" android:clipToPadding="false"/>
+              </LinearLayout>
+          </FrameLayout>
+          EOF
+
+      - name: Java data classes
         run: |
           cat > app/src/main/java/com/awal/launcher/AppInfo.java << 'EOF'
           package com.awal.launcher;
@@ -475,7 +672,14 @@ jobs:
               public AppInfo(String l,String p,Drawable i,int c,boolean lk){label=l;packageName=p;icon=i;launchCount=c;patternLocked=lk;}
           }
           EOF
-
+          cat > app/src/main/java/com/awal/launcher/WeatherData.java << 'EOF'
+          package com.awal.launcher;
+          public class WeatherData {
+              public String day,condition,icon;
+              public int tempHigh,tempLow;
+              public WeatherData(String d,String c,int h,int l,String i){day=d;condition=c;tempHigh=h;tempLow=l;icon=i;}
+          }
+          EOF
           cat > app/src/main/java/com/awal/launcher/AdminReceiver.java << 'EOF'
           package com.awal.launcher;
           import android.app.admin.DeviceAdminReceiver;
@@ -486,7 +690,6 @@ jobs:
               @Override public void onDisabled(Context c,Intent i){}
           }
           EOF
-
           cat > app/src/main/java/com/awal/launcher/BootReceiver.java << 'EOF'
           package com.awal.launcher;
           import android.content.BroadcastReceiver;
@@ -498,15 +701,6 @@ jobs:
                       Intent it=new Intent(c,MainActivity.class);it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);c.startActivity(it);
                   }
               }
-          }
-          EOF
-
-          cat > app/src/main/java/com/awal/launcher/WeatherData.java << 'EOF'
-          package com.awal.launcher;
-          public class WeatherData {
-              public String day,condition,icon;
-              public int tempHigh,tempLow;
-              public WeatherData(String d,String c,int h,int l,String i){day=d;condition=c;tempHigh=h;tempLow=l;icon=i;}
           }
           EOF
 
@@ -549,8 +743,7 @@ jobs:
                           while((ln=br.readLine())!=null)sb.append(ln);
                           String json=sb.toString();
                           p.edit().putString(KEY,json).putLong(LAST,System.currentTimeMillis()).apply();
-                          List<WeatherData> list=parse(json);
-                          new Handler(Looper.getMainLooper()).post(()->cb.onWeather(list));
+                          new Handler(Looper.getMainLooper()).post(()->cb.onWeather(parse(json)));
                       }catch(Exception e){
                           if(cached!=null)new Handler(Looper.getMainLooper()).post(()->cb.onWeather(parse(cached)));
                           else new Handler(Looper.getMainLooper()).post(()->cb.onWeather(fallback()));
@@ -588,6 +781,210 @@ jobs:
           }
           EOF
 
+      - name: CalendarActivity.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/CalendarActivity.java << 'EOF'
+          package com.awal.launcher;
+          import android.app.Activity;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.os.Bundle;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.animation.AnimationUtils;
+          import android.widget.GridLayout;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+          import java.text.SimpleDateFormat;
+          import java.util.Calendar;
+          import java.util.Locale;
+
+          public class CalendarActivity extends Activity {
+              private GridLayout calGrid, dayHeaders;
+              private TextView monthYear;
+              private Calendar showing;
+              private int todayDay, todayMonth, todayYear;
+
+              @Override protected void onCreate(Bundle s) {
+                  super.onCreate(s);
+                  setContentView(R.layout.activity_calendar);
+                  calGrid = findViewById(R.id.calGrid);
+                  dayHeaders = findViewById(R.id.dayHeaders);
+                  monthYear = findViewById(R.id.monthYear);
+                  Calendar now = Calendar.getInstance();
+                  todayDay = now.get(Calendar.DAY_OF_MONTH);
+                  todayMonth = now.get(Calendar.MONTH);
+                  todayYear = now.get(Calendar.YEAR);
+                  showing = (Calendar) now.clone();
+                  View card = findViewById(R.id.calCard);
+                  card.startAnimation(AnimationUtils.loadAnimation(this, R.anim.fade_in));
+                  buildHeaders();
+                  buildGrid();
+                  findViewById(R.id.btnPrev).setOnClickListener(v -> { showing.add(Calendar.MONTH, -1); buildGrid(); });
+                  findViewById(R.id.btnNext).setOnClickListener(v -> { showing.add(Calendar.MONTH, 1); buildGrid(); });
+                  findViewById(R.id.btnClose).setOnClickListener(v -> finish());
+                  findViewById(R.id.calCard).setOnClickListener(null);
+                  getWindow().getDecorView().setOnClickListener(v -> finish());
+              }
+
+              private void buildHeaders() {
+                  dayHeaders.removeAllViews();
+                  String[] days = {"Su","Mo","Tu","We","Th","Fr","Sa"};
+                  int w = getResources().getDisplayMetrics().widthPixels;
+                  int cell = (w - 80) / 7;
+                  for (String d : days) {
+                      TextView tv = new TextView(this);
+                      tv.setText(d);
+                      tv.setTextColor(0xAA4FC3F7);
+                      tv.setTextSize(12);
+                      tv.setGravity(Gravity.CENTER);
+                      tv.setTypeface(null, Typeface.BOLD);
+                      GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
+                      lp.width = cell; lp.height = GridLayout.LayoutParams.WRAP_CONTENT;
+                      tv.setLayoutParams(lp);
+                      dayHeaders.addView(tv);
+                  }
+              }
+
+              private void buildGrid() {
+                  calGrid.removeAllViews();
+                  SimpleDateFormat fmt = new SimpleDateFormat("MMMM yyyy", Locale.ENGLISH);
+                  monthYear.setText(fmt.format(showing.getTime()));
+                  int w = getResources().getDisplayMetrics().widthPixels;
+                  int cell = (w - 80) / 7;
+                  Calendar c = (Calendar) showing.clone();
+                  c.set(Calendar.DAY_OF_MONTH, 1);
+                  int first = c.get(Calendar.DAY_OF_WEEK) - 1;
+                  int max = c.getActualMaximum(Calendar.DAY_OF_MONTH);
+                  int curM = showing.get(Calendar.MONTH);
+                  int curY = showing.get(Calendar.YEAR);
+                  for (int i = 0; i < first; i++) addCell("", cell, false, false);
+                  for (int d = 1; d <= max; d++) {
+                      boolean isToday = (d == todayDay && curM == todayMonth && curY == todayYear);
+                      addCell(String.valueOf(d), cell, isToday, true);
+                  }
+              }
+
+              private void addCell(String text, int size, boolean today, boolean active) {
+                  FrameLayout fl = new FrameLayout(this);
+                  GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
+                  lp.width = size; lp.height = size;
+                  fl.setLayoutParams(lp);
+                  if (!text.isEmpty()) {
+                      TextView tv = new TextView(this);
+                      tv.setText(text);
+                      tv.setGravity(Gravity.CENTER);
+                      tv.setLayoutParams(new FrameLayout.LayoutParams(
+                          FrameLayout.LayoutParams.MATCH_PARENT,
+                          FrameLayout.LayoutParams.MATCH_PARENT));
+                      if (today) {
+                          tv.setBackground(getDrawable(R.drawable.today_circle));
+                          tv.setTextColor(Color.WHITE);
+                          tv.setTypeface(null, Typeface.BOLD);
+                          tv.setTextSize(13);
+                      } else {
+                          tv.setTextColor(active ? 0xFFFFFFFF : 0x44FFFFFF);
+                          tv.setTextSize(13);
+                      }
+                      fl.addView(tv);
+                  }
+                  calGrid.addView(fl);
+              }
+          }
+          // Needed inner FrameLayout
+          class FrameLayout extends android.widget.FrameLayout {
+              public FrameLayout(android.content.Context c){super(c);}
+          }
+          EOF
+
+      - name: WeatherActivity.java
+        run: |
+          cat > app/src/main/java/com/awal/launcher/WeatherActivity.java << 'EOF'
+          package com.awal.launcher;
+          import android.app.Activity;
+          import android.graphics.drawable.GradientDrawable;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.view.animation.AnimationUtils;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+          import java.util.ArrayList;
+          import java.util.List;
+
+          public class WeatherActivity extends Activity {
+              @Override protected void onCreate(Bundle s) {
+                  super.onCreate(s);
+                  setContentView(R.layout.activity_weather);
+                  View card = findViewById(R.id.weatherCard);
+                  card.startAnimation(AnimationUtils.loadAnimation(this, R.anim.slide_up));
+                  List<WeatherData> data = new ArrayList<>();
+                  if (getIntent().hasExtra("count")) {
+                      int n = getIntent().getIntExtra("count", 0);
+                      for (int i = 0; i < n; i++) {
+                          String day = getIntent().getStringExtra("day_" + i);
+                          String cond = getIntent().getStringExtra("cond_" + i);
+                          String icon = getIntent().getStringExtra("icon_" + i);
+                          int hi = getIntent().getIntExtra("hi_" + i, 0);
+                          int lo = getIntent().getIntExtra("lo_" + i, 0);
+                          data.add(new WeatherData(day, cond, hi, lo, icon));
+                      }
+                  }
+                  LinearLayout list = findViewById(R.id.weatherList);
+                  for (int i = 0; i < data.size(); i++) {
+                      WeatherData d = data.get(i);
+                      LinearLayout row = new LinearLayout(this);
+                      row.setOrientation(LinearLayout.HORIZONTAL);
+                      row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                          LinearLayout.LayoutParams.MATCH_PARENT,
+                          LinearLayout.LayoutParams.WRAP_CONTENT);
+                      lp.setMargins(0, 4, 0, 4);
+                      row.setLayoutParams(lp);
+                      if (i == 0) {
+                          GradientDrawable bg = new GradientDrawable();
+                          bg.setCornerRadius(12 * getResources().getDisplayMetrics().density);
+                          bg.setColor(0x334FC3F7);
+                          bg.setStroke(1, 0x664FC3F7);
+                          row.setBackground(bg);
+                      } else {
+                          GradientDrawable bg = new GradientDrawable();
+                          bg.setCornerRadius(12 * getResources().getDisplayMetrics().density);
+                          bg.setColor(0x11FFFFFF);
+                          row.setBackground(bg);
+                      }
+                      row.setPadding(16, 10, 16, 10);
+                      TextView icon = new TextView(this);
+                      icon.setText(d.icon); icon.setTextSize(28);
+                      icon.setLayoutParams(new LinearLayout.LayoutParams(56, LinearLayout.LayoutParams.WRAP_CONTENT));
+                      row.addView(icon);
+                      LinearLayout info = new LinearLayout(this);
+                      info.setOrientation(LinearLayout.VERTICAL);
+                      info.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                      TextView dayTv = new TextView(this);
+                      dayTv.setText(d.day);
+                      dayTv.setTextColor(i == 0 ? 0xFF4FC3F7 : 0xFFFFFFFF);
+                      dayTv.setTextSize(14);
+                      info.addView(dayTv);
+                      TextView condTv = new TextView(this);
+                      condTv.setText(d.condition);
+                      condTv.setTextColor(0xAAFFFFFF);
+                      condTv.setTextSize(11);
+                      info.addView(condTv);
+                      row.addView(info);
+                      TextView temp = new TextView(this);
+                      temp.setText(d.tempHigh + "° / " + d.tempLow + "°");
+                      temp.setTextColor(0xCCFFFFFF);
+                      temp.setTextSize(13);
+                      temp.setGravity(android.view.Gravity.END | android.view.Gravity.CENTER_VERTICAL);
+                      row.addView(temp);
+                      list.addView(row);
+                  }
+                  findViewById(R.id.btnClose).setOnClickListener(v -> finish());
+                  getWindow().getDecorView().setOnClickListener(v -> finish());
+              }
+          }
+          EOF
+
       - name: PatternView.java
         run: |
           cat > app/src/main/java/com/awal/launcher/PatternView.java << 'EOF'
@@ -603,7 +1000,7 @@ jobs:
           import java.util.List;
           public class PatternView extends View {
               public interface PatternListener{void onComplete(List<Integer> p);}
-              private Paint cp,lp,ap;
+              private Paint cp,lp,ap,glow;
               private List<Integer> sel=new ArrayList<>(),ord=new ArrayList<>();
               private float tx,ty;
               private boolean drawing;
@@ -613,22 +1010,27 @@ jobs:
               public PatternView(Context c){super(c);init();}
               public PatternView(Context c,AttributeSet a){super(c,a);init();}
               private void init(){
-                  cp=new Paint(Paint.ANTI_ALIAS_FLAG);cp.setStyle(Paint.Style.STROKE);cp.setStrokeWidth(2f);cp.setColor(0x88FFFFFF);
-                  lp=new Paint(Paint.ANTI_ALIAS_FLAG);lp.setStyle(Paint.Style.STROKE);lp.setStrokeWidth(4f);lp.setColor(0xFF4FC3F7);
+                  cp=new Paint(Paint.ANTI_ALIAS_FLAG);cp.setStyle(Paint.Style.STROKE);cp.setStrokeWidth(2f);cp.setColor(0x66FFFFFF);
+                  lp=new Paint(Paint.ANTI_ALIAS_FLAG);lp.setStyle(Paint.Style.STROKE);lp.setStrokeWidth(4f);lp.setColor(0xFF4FC3F7);lp.setShadowLayer(8f,0,0,0x884FC3F7);
                   ap=new Paint(Paint.ANTI_ALIAS_FLAG);ap.setStyle(Paint.Style.FILL);ap.setColor(0xFF4FC3F7);
+                  glow=new Paint(Paint.ANTI_ALIAS_FLAG);glow.setStyle(Paint.Style.FILL);glow.setColor(0x334FC3F7);
+                  setLayerType(LAYER_TYPE_SOFTWARE,null);
               }
               public void setListener(PatternListener l){listener=l;}
-              public void setError(){state=2;lp.setColor(0xFFEF5350);ap.setColor(0xFFEF5350);invalidate();postDelayed(this::reset,700);}
-              public void reset(){sel.clear();ord.clear();drawing=false;state=0;lp.setColor(0xFF4FC3F7);ap.setColor(0xFF4FC3F7);invalidate();}
+              public void setError(){state=2;lp.setColor(0xFFEF5350);lp.setShadowLayer(8f,0,0,0x88EF5350);ap.setColor(0xFFEF5350);invalidate();postDelayed(this::reset,700);}
+              public void reset(){sel.clear();ord.clear();drawing=false;state=0;lp.setColor(0xFF4FC3F7);lp.setShadowLayer(8f,0,0,0x884FC3F7);ap.setColor(0xFF4FC3F7);invalidate();}
               @Override protected void onSizeChanged(int w,int h,int ow,int oh){
                   float pw=w/3f,ph=h/3f;
                   for(int i=0;i<9;i++){cx[i]=pw*(i%3)+pw/2;cy[i]=ph*(i/3)+ph/2;}
               }
               @Override protected void onDraw(Canvas c){
                   for(int i=0;i<9;i++){
-                      cp.setColor(sel.contains(i)?(state==2?0xFFEF5350:0xFF4FC3F7):0x88FFFFFF);
+                      boolean active=sel.contains(i);
+                      int col=state==2?(active?0xFFEF5350:0x66FFFFFF):(active?0xFF4FC3F7:0x66FFFFFF);
+                      cp.setColor(col);
+                      if(active){c.drawCircle(cx[i],cy[i],36f,glow);}
                       c.drawCircle(cx[i],cy[i],28f,cp);
-                      if(sel.contains(i))c.drawCircle(cx[i],cy[i],10f,ap);
+                      if(active)c.drawCircle(cx[i],cy[i],10f,ap);
                   }
                   Path path=new Path();
                   for(int k=0;k<ord.size();k++){int idx=ord.get(k);if(k==0)path.moveTo(cx[idx],cy[idx]);else path.lineTo(cx[idx],cy[idx]);}
@@ -646,7 +1048,7 @@ jobs:
                   return true;
               }
               private void hit(float x,float y){
-                  for(int i=0;i<9;i++)if(!sel.contains(i)&&Math.hypot(x-cx[i],y-cy[i])<36){sel.add(i);ord.add(i);invalidate();break;}
+                  for(int i=0;i<9;i++)if(!sel.contains(i)&&Math.hypot(x-cx[i],y-cy[i])<38){sel.add(i);ord.add(i);invalidate();break;}
               }
           }
           EOF
@@ -658,30 +1060,58 @@ jobs:
           import android.content.Context;
           import android.graphics.Canvas;
           import android.graphics.Paint;
+          import android.graphics.RadialGradient;
+          import android.graphics.Shader;
           import android.util.AttributeSet;
           import android.view.View;
           public class CompassView extends View {
-              private Paint p1,p2,p3,p4;
+              private Paint ring,north,south,txt,center,tickP;
               private float bearing=0;
               public CompassView(Context c){super(c);init();}
               public CompassView(Context c,AttributeSet a){super(c,a);init();}
               private void init(){
-                  p1=new Paint(Paint.ANTI_ALIAS_FLAG);p1.setStyle(Paint.Style.STROKE);p1.setColor(0x55FFFFFF);p1.setStrokeWidth(2f);
-                  p2=new Paint(Paint.ANTI_ALIAS_FLAG);p2.setStyle(Paint.Style.FILL);p2.setColor(0xFFEF5350);
-                  p3=new Paint(Paint.ANTI_ALIAS_FLAG);p3.setStyle(Paint.Style.FILL);p3.setColor(0xFF90A4AE);
-                  p4=new Paint(Paint.ANTI_ALIAS_FLAG);p4.setColor(0xCCFFFFFF);p4.setTextSize(28f);p4.setTextAlign(Paint.Align.CENTER);
+                  ring=new Paint(Paint.ANTI_ALIAS_FLAG);ring.setStyle(Paint.Style.STROKE);ring.setColor(0x44FFFFFF);ring.setStrokeWidth(2f);
+                  north=new Paint(Paint.ANTI_ALIAS_FLAG);north.setStyle(Paint.Style.FILL);north.setColor(0xFFEF5350);north.setShadowLayer(10f,0,0,0x88EF5350);
+                  south=new Paint(Paint.ANTI_ALIAS_FLAG);south.setStyle(Paint.Style.FILL);south.setColor(0xFF90A4AE);
+                  txt=new Paint(Paint.ANTI_ALIAS_FLAG);txt.setColor(0xCCFFFFFF);txt.setTextSize(22f);txt.setTextAlign(Paint.Align.CENTER);txt.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                  center=new Paint(Paint.ANTI_ALIAS_FLAG);center.setStyle(Paint.Style.FILL);center.setColor(0xFFFFFFFF);
+                  tickP=new Paint(Paint.ANTI_ALIAS_FLAG);tickP.setStyle(Paint.Style.STROKE);tickP.setColor(0x55FFFFFF);tickP.setStrokeWidth(1.5f);
+                  setLayerType(LAYER_TYPE_SOFTWARE,null);
               }
-              public void setBearing(float b){bearing=b;invalidate();}
+              public void setBearing(float b){
+                  float diff=b-bearing;
+                  if(diff>180)diff-=360;if(diff<-180)diff+=360;
+                  bearing+=diff*0.15f;
+                  invalidate();
+              }
               @Override protected void onDraw(Canvas c){
                   int w=getWidth(),h=getHeight();
-                  float cx=w/2f,cy=h/2f,r=Math.min(w,h)/2f-16f;
-                  c.drawCircle(cx,cy,r,p1);
+                  float cx=w/2f,cy=h/2f,r=Math.min(w,h)/2f-12f;
+                  c.drawCircle(cx,cy,r,ring);
+                  c.drawCircle(cx,cy,r*0.85f,ring);
                   c.save();c.rotate(-bearing,cx,cy);
-                  float[] dirs={"N","E","S","W"};float[] angles={0,90,180,270};
-                  for(int i=0;i<4;i++){float rad=(float)Math.toRadians(angles[i]);c.drawText(dirs[i],cx+(float)Math.sin(rad)*(r-36),cy-(float)Math.cos(rad)*(r-36)+(p4.getTextSize()/3),p4);}
-                  android.graphics.Path np=new android.graphics.Path();np.moveTo(cx,cy-r+24);np.lineTo(cx-18,cy+r/4);np.lineTo(cx+18,cy+r/4);np.close();c.drawPath(np,p2);
-                  android.graphics.Path sp=new android.graphics.Path();sp.moveTo(cx,cy+r-24);sp.lineTo(cx-18,cy-r/4);sp.lineTo(cx+18,cy-r/4);sp.close();c.drawPath(sp,p3);
+                  for(int i=0;i<36;i++){
+                      float a=(float)Math.toRadians(i*10);
+                      float inner=i%9==0?r*0.72f:r*0.78f;
+                      c.drawLine(cx+(float)Math.sin(a)*inner,cy-(float)Math.cos(a)*inner,
+                                 cx+(float)Math.sin(a)*(r-4),cy-(float)Math.cos(a)*(r-4),tickP);
+                  }
+                  String[] dirs={"N","E","S","W"};float[] ang={0,90,180,270};
+                  for(int i=0;i<4;i++){
+                      float rad=(float)Math.toRadians(ang[i]);
+                      float tx2=cx+(float)Math.sin(rad)*(r*0.62f);
+                      float ty2=cy-(float)Math.cos(rad)*(r*0.62f)+txt.getTextSize()/3;
+                      txt.setColor(i==0?0xFF4FC3F7:0xCCFFFFFF);
+                      c.drawText(dirs[i],tx2,ty2,txt);
+                  }
+                  android.graphics.Path np=new android.graphics.Path();
+                  np.moveTo(cx,cy-r+16);np.lineTo(cx-14,cy+8);np.lineTo(cx+14,cy+8);np.close();
+                  c.drawPath(np,north);
+                  android.graphics.Path sp=new android.graphics.Path();
+                  sp.moveTo(cx,cy+r-16);sp.lineTo(cx-14,cy-8);sp.lineTo(cx+14,cy-8);sp.close();
+                  c.drawPath(sp,south);
                   c.restore();
+                  c.drawCircle(cx,cy,8f,center);
               }
           }
           EOF
@@ -696,6 +1126,7 @@ jobs:
           import android.hardware.SensorEventListener;
           import android.hardware.SensorManager;
           import android.os.Bundle;
+          import android.view.animation.AnimationUtils;
           import android.widget.TextView;
           public class CompassActivity extends Activity implements SensorEventListener {
               private SensorManager sm;
@@ -709,7 +1140,9 @@ jobs:
                   cv=findViewById(R.id.compassView);degTV=findViewById(R.id.compassDegree);dirTV=findViewById(R.id.compassDirection);
                   sm=(SensorManager)getSystemService(SENSOR_SERVICE);
                   acc=sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);mag=sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+                  findViewById(R.id.compassCard).startAnimation(AnimationUtils.loadAnimation(this,R.anim.fade_in));
                   findViewById(R.id.btnBack).setOnClickListener(v->finish());
+                  getWindow().getDecorView().setOnClickListener(v->finish());
               }
               @Override protected void onResume(){super.onResume();sm.registerListener(this,acc,SensorManager.SENSOR_DELAY_UI);sm.registerListener(this,mag,SensorManager.SENSOR_DELAY_UI);}
               @Override protected void onPause(){super.onPause();sm.unregisterListener(this);}
@@ -741,6 +1174,7 @@ jobs:
           import android.location.LocationListener;
           import android.location.LocationManager;
           import android.os.Bundle;
+          import android.view.animation.AnimationUtils;
           import android.widget.TextView;
           public class SpeedometerActivity extends Activity implements LocationListener {
               private TextView speedTV,maxTV,statusTV;
@@ -753,22 +1187,25 @@ jobs:
                   if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED){
                       lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,1000,0,this);statusTV.setText("GPS active");
                   }else{requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},1);statusTV.setText("GPS permission needed");}
+                  findViewById(R.id.speedCard).startAnimation(AnimationUtils.loadAnimation(this,R.anim.slide_up));
                   findViewById(R.id.btnReset).setOnClickListener(v->{maxSpeed=0;maxTV.setText("Max: 0 km/h");});
                   findViewById(R.id.btnBack).setOnClickListener(v->finish());
+                  getWindow().getDecorView().setOnClickListener(v->finish());
               }
               @Override public void onLocationChanged(Location loc){
-                  float kmh=loc.getSpeed()*3.6f;speedTV.setText(String.format("%.0f",kmh));
+                  float kmh=loc.getSpeed()*3.6f;
+                  speedTV.setText(String.format("%.0f",kmh));
                   if(kmh>maxSpeed){maxSpeed=kmh;maxTV.setText(String.format("Max: %.0f km/h",maxSpeed));}
-                  statusTV.setText(String.format("GPS: %.4f, %.4f",loc.getLatitude(),loc.getLongitude()));
+                  statusTV.setText(String.format("%.4f, %.4f",loc.getLatitude(),loc.getLongitude()));
               }
               @Override protected void onPause(){super.onPause();lm.removeUpdates(this);}
-              @Override public void onStatusChanged(String p,int s,Bundle e){}
+              @Override public void onStatusChanged(String p,int st,Bundle e){}
               @Override public void onProviderEnabled(String p){statusTV.setText("GPS active");}
               @Override public void onProviderDisabled(String p){statusTV.setText("GPS disabled");}
           }
           EOF
 
-      - name: PatternLockActivity.java
+      - name: PatternActivities.java
         run: |
           cat > app/src/main/java/com/awal/launcher/PatternLockActivity.java << 'EOF'
           package com.awal.launcher;
@@ -776,6 +1213,7 @@ jobs:
           import android.content.SharedPreferences;
           import android.content.pm.PackageManager;
           import android.os.Bundle;
+          import android.view.animation.AnimationUtils;
           import android.widget.ImageView;
           import android.widget.TextView;
           import java.util.List;
@@ -787,22 +1225,22 @@ jobs:
                   saved=getSharedPreferences("patterns",MODE_PRIVATE).getString("pattern_"+pkg,null);
                   pv=findViewById(R.id.patternView);msg=findViewById(R.id.patternMsg);
                   ((TextView)findViewById(R.id.patternTitle)).setText("Draw Pattern to Unlock");
+                  msg.setText("Connect at least 4 dots");
                   try{((ImageView)findViewById(R.id.appIconBig)).setImageDrawable(getPackageManager().getApplicationIcon(pkg));}
                   catch(PackageManager.NameNotFoundException ignored){}
-                  pv.setListener(p->{if(str(p).equals(saved)){setResult(RESULT_OK);finish();}else{msg.setText("Wrong pattern");pv.setError();}});
+                  findViewById(R.id.patternCard).startAnimation(AnimationUtils.loadAnimation(this,R.anim.fade_in));
+                  pv.setListener(p->{if(str(p).equals(saved)){setResult(RESULT_OK);finish();}else{msg.setText("Wrong pattern. Try again.");pv.setError();}});
                   findViewById(R.id.btnCancel).setOnClickListener(v->finish());
               }
               private String str(List<Integer> l){StringBuilder sb=new StringBuilder();for(int i:l)sb.append(i);return sb.toString();}
           }
           EOF
-
-      - name: PatternSetupActivity.java
-        run: |
           cat > app/src/main/java/com/awal/launcher/PatternSetupActivity.java << 'EOF'
           package com.awal.launcher;
           import android.app.Activity;
           import android.content.SharedPreferences;
           import android.os.Bundle;
+          import android.view.animation.AnimationUtils;
           import android.widget.TextView;
           import java.util.List;
           public class PatternSetupActivity extends Activity {
@@ -812,11 +1250,12 @@ jobs:
                   pkg=getIntent().getStringExtra("package");
                   pv=findViewById(R.id.patternView);msg=findViewById(R.id.patternMsg);title=findViewById(R.id.patternTitle);
                   title.setText("Set Pattern Lock");msg.setText("Draw a pattern (min 4 dots)");
+                  findViewById(R.id.patternCard).startAnimation(AnimationUtils.loadAnimation(this,R.anim.fade_in));
                   pv.setListener(p->{
                       String ps=str(p);
-                      if(step==1){first=ps;step=2;pv.reset();title.setText("Confirm Pattern");msg.setText("Draw same pattern again");}
+                      if(step==1){first=ps;step=2;pv.reset();title.setText("Confirm Pattern");msg.setText("Draw the same pattern again");}
                       else{if(ps.equals(first)){getSharedPreferences("patterns",MODE_PRIVATE).edit().putString("pattern_"+pkg,ps).apply();setResult(RESULT_OK);finish();}
-                          else{step=1;first=null;msg.setText("Patterns don't match.");title.setText("Set Pattern Lock");pv.setError();}}
+                          else{step=1;first=null;msg.setText("Patterns don't match. Try again.");title.setText("Set Pattern Lock");pv.setError();}}
                   });
                   findViewById(R.id.btnCancel).setOnClickListener(v->finish());
               }
@@ -838,6 +1277,7 @@ jobs:
           import android.view.LayoutInflater;
           import android.view.View;
           import android.view.ViewGroup;
+          import android.view.animation.AnimationUtils;
           import android.widget.ImageView;
           import android.widget.LinearLayout;
           import android.widget.TextView;
@@ -846,22 +1286,21 @@ jobs:
           import androidx.recyclerview.widget.GridLayoutManager;
           import androidx.recyclerview.widget.RecyclerView;
           import java.util.ArrayList;
-          import java.util.Arrays;
           import java.util.LinkedHashSet;
           import java.util.List;
           import java.util.Set;
-
           public class DockManagerActivity extends Activity {
               private SharedPreferences prefs;
               private List<AppInfo> allApps=new ArrayList<>();
               private LinearLayout currentDockView;
               private List<String> dockPkgs=new ArrayList<>();
-              private static final int MAX_DOCK=6;
-
+              private TextView dockCount;
+              private static final int MAX=6;
               @Override protected void onCreate(Bundle s){
                   super.onCreate(s);setContentView(R.layout.activity_dock_manager);
                   prefs=getSharedPreferences("dock_prefs",MODE_PRIVATE);
                   currentDockView=findViewById(R.id.currentDockView);
+                  dockCount=findViewById(R.id.dockCount);
                   Set<String> saved=prefs.getStringSet("dock_apps",null);
                   if(saved!=null)dockPkgs.addAll(saved);
                   RecyclerView rv=findViewById(R.id.allAppsForDock);
@@ -872,7 +1311,6 @@ jobs:
                       setResult(RESULT_OK);finish();
                   });
               }
-
               private void loadAllApps(RecyclerView rv){
                   new Thread(()->{
                       Intent intent=new Intent(Intent.ACTION_MAIN,null);intent.addCategory(Intent.CATEGORY_LAUNCHER);
@@ -893,23 +1331,23 @@ jobs:
                                   AppInfo a=allApps.get(pos);
                                   ((ImageView)h.itemView.findViewById(R.id.dockIcon)).setImageDrawable(a.icon);
                                   ((TextView)h.itemView.findViewById(R.id.dockName)).setText(a.label);
-                                  boolean inDock=dockPkgs.contains(a.packageName);
-                                  h.itemView.setAlpha(inDock?0.4f:1f);
+                                  boolean in=dockPkgs.contains(a.packageName);
+                                  h.itemView.setAlpha(in?0.35f:1f);
                                   h.itemView.setOnClickListener(v->{
                                       if(dockPkgs.contains(a.packageName)){Toast.makeText(DockManagerActivity.this,"Already in dock",Toast.LENGTH_SHORT).show();return;}
-                                      if(dockPkgs.size()>=MAX_DOCK){Toast.makeText(DockManagerActivity.this,"Max "+MAX_DOCK+" apps in dock",Toast.LENGTH_SHORT).show();return;}
-                                      dockPkgs.add(a.packageName);notifyItemChanged(pos);refreshDockPreview();
+                                      if(dockPkgs.size()>=MAX){Toast.makeText(DockManagerActivity.this,"Max "+MAX+" apps",Toast.LENGTH_SHORT).show();return;}
+                                      dockPkgs.add(a.packageName);notifyItemChanged(pos);refreshDock();
                                   });
                               }
                               @Override public int getItemCount(){return allApps.size();}
                           });
-                          refreshDockPreview();
+                          refreshDock();
                       });
                   }).start();
               }
-
-              private void refreshDockPreview(){
+              private void refreshDock(){
                   currentDockView.removeAllViews();
+                  dockCount.setText(dockPkgs.size()+"/"+MAX);
                   PackageManager pm=getPackageManager();
                   for(String pkg:new ArrayList<>(dockPkgs)){
                       LinearLayout cell=new LinearLayout(this);
@@ -917,14 +1355,12 @@ jobs:
                       LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f);cell.setLayoutParams(lp);
                       try{
                           ImageView iv=new ImageView(this);iv.setImageDrawable(pm.getApplicationIcon(pkg));
-                          iv.setLayoutParams(new LinearLayout.LayoutParams(48,48));iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                          iv.setLayoutParams(new LinearLayout.LayoutParams(44,44));iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
                           cell.addView(iv);
-                          TextView rm=new TextView(this);rm.setText("✕ remove");rm.setTextColor(0xFFEF5350);rm.setTextSize(9);
+                          TextView rm=new TextView(this);rm.setText("✕");rm.setTextColor(0xFFEF5350);rm.setTextSize(10);
                           rm.setGravity(android.view.Gravity.CENTER);cell.addView(rm);
                       }catch(PackageManager.NameNotFoundException ignored){}
-                      cell.setOnClickListener(v->{dockPkgs.remove(pkg);refreshDockPreview();
-                          if(currentDockView.getParent()!=null)((RecyclerView)((ViewGroup)currentDockView.getParent().getParent()).findViewWithTag(null)).getAdapter().notifyDataSetChanged();
-                      });
+                      cell.setOnClickListener(v->{dockPkgs.remove(pkg);refreshDock();});
                       currentDockView.addView(cell);
                   }
               }
@@ -939,6 +1375,7 @@ jobs:
           import android.view.LayoutInflater;
           import android.view.View;
           import android.view.ViewGroup;
+          import android.view.animation.AnimationUtils;
           import android.widget.ImageView;
           import android.widget.TextView;
           import androidx.annotation.NonNull;
@@ -946,17 +1383,14 @@ jobs:
           import java.util.List;
           public class AppAdapter extends RecyclerView.Adapter<AppAdapter.VH> {
               private List<AppInfo> apps;
-              private OnClick click;
-              private OnLong lc;
+              private OnClick click;private OnLong lc;private OnDelete dc;
               private boolean editMode=false;
-              private OnDelete dc;
               public interface OnClick{void on(AppInfo a);}
               public interface OnLong{void on(AppInfo a);}
               public interface OnDelete{void on(AppInfo a);}
               public AppAdapter(List<AppInfo> a,OnClick c,OnLong l,OnDelete d){apps=a;click=c;lc=l;dc=d;}
               public void update(List<AppInfo> a){apps=a;notifyDataSetChanged();}
               public void setEditMode(boolean e){editMode=e;notifyDataSetChanged();}
-              public boolean isEditMode(){return editMode;}
               @NonNull @Override public VH onCreateViewHolder(@NonNull ViewGroup p,int t){
                   return new VH(LayoutInflater.from(p.getContext()).inflate(R.layout.item_app,p,false));
               }
@@ -964,6 +1398,7 @@ jobs:
                   AppInfo a=apps.get(pos);
                   h.icon.setImageDrawable(a.icon);
                   h.name.setText(a.label);
+                  h.itemView.startAnimation(AnimationUtils.loadAnimation(h.itemView.getContext(),R.anim.fade_in));
                   if(a.patternLocked){
                       GradientDrawable bg=new GradientDrawable();bg.setShape(GradientDrawable.OVAL);bg.setColor(0xFF4FC3F7);
                       h.lock.setBackground(bg);h.lock.setVisibility(View.VISIBLE);
@@ -971,8 +1406,7 @@ jobs:
                   if(editMode){
                       h.del.setVisibility(View.VISIBLE);
                       h.del.setOnClickListener(v->dc.on(a));
-                      h.itemView.setOnClickListener(null);
-                      h.itemView.setOnLongClickListener(null);
+                      h.itemView.setOnClickListener(null);h.itemView.setOnLongClickListener(null);
                   }else{
                       h.del.setVisibility(View.GONE);
                       h.itemView.setOnClickListener(v->click.on(a));
@@ -1009,6 +1443,7 @@ jobs:
           import android.view.View;
           import android.view.Window;
           import android.view.WindowManager;
+          import android.view.animation.AnimationUtils;
           import android.widget.ImageView;
           import android.widget.LinearLayout;
           import android.widget.TextView;
@@ -1040,7 +1475,6 @@ jobs:
               private ComponentName adminComp;
               private AppInfo pendingLaunch;
               private List<WeatherData> cachedWeather;
-              private boolean editMode=false;
 
               private Runnable tick=new Runnable(){@Override public void run(){clock();handler.postDelayed(this,1000);}};
 
@@ -1061,64 +1495,60 @@ jobs:
                   statusTime=findViewById(R.id.statusTime);statusDate=findViewById(R.id.statusDate);
                   appGrid=findViewById(R.id.appGrid);dockRow=findViewById(R.id.dockRow);widgetRow=findViewById(R.id.widgetRow);
                   appGrid.setLayoutManager(new GridLayoutManager(this,4));
-                  adapter=new AppAdapter(appList,this::onAppClick,this::onAppLong,this::onAppDelete);
+                  adapter=new AppAdapter(appList,this::onAppClick,this::onAppLong,this::uninstallApp);
                   appGrid.setAdapter(adapter);
                   setupWidgets();setupPower();loadApps();loadWeather();
+                  findViewById(R.id.clockPanel).startAnimation(AnimationUtils.loadAnimation(this,R.anim.fade_in));
                   if(!dpm.isAdminActive(adminComp)){
                       Intent i=new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
                       i.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN,adminComp);
-                      i.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,"Needed to lock screen.");
+                      i.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,"Needed to lock screen with power button.");
                       startActivityForResult(i,REQ_ADMIN);
                   }
               }
 
               private void setupWidgets(){
                   String[][] w={{"☀","weather"},{"🗓","calendar"},{"🧮","calc"},{"🧭","compass"},{"🚗","speed"}};
-                  for(String[] item:w){
+                  float dp=getResources().getDisplayMetrics().density;
+                  for(int wi=0;wi<w.length;wi++){
+                      final String[] item=w[wi];
                       LinearLayout card=new LinearLayout(this);
                       card.setOrientation(LinearLayout.VERTICAL);card.setGravity(android.view.Gravity.CENTER);
-                      GradientDrawable bg=new GradientDrawable();
-                      bg.setCornerRadius(20*getResources().getDisplayMetrics().density);
-                      bg.setColor(0x2AFFFFFF);bg.setStroke(1,0x55FFFFFF);card.setBackground(bg);
+                      GradientDrawable bg=new GradientDrawable();bg.setCornerRadius(20*dp);bg.setColor(0x2AFFFFFF);bg.setStroke(1,0x55FFFFFF);card.setBackground(bg);
                       LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(120,130);lp.setMargins(8,0,8,0);card.setLayoutParams(lp);
                       TextView tv=new TextView(this);tv.setText(item[0]);tv.setTextSize(32);tv.setGravity(android.view.Gravity.CENTER);card.addView(tv);
                       TextView lbl=new TextView(this);lbl.setTextColor(0xCCFFFFFF);lbl.setTextSize(10);lbl.setGravity(android.view.Gravity.CENTER);
                       if("weather".equals(item[1]))lbl.setTag("weather_label");
                       card.addView(lbl);
-                      final String t=item[1];card.setOnClickListener(v->handleWidget(t));
+                      final String t=item[1];
+                      card.setOnClickListener(v->{
+                          v.animate().scaleX(0.92f).scaleY(0.92f).setDuration(80).withEndAction(()->
+                              v.animate().scaleX(1f).scaleY(1f).setDuration(80).withEndAction(()->handleWidget(t)).start()
+                          ).start();
+                      });
                       widgetRow.addView(card);
                   }
               }
 
               private void handleWidget(String t){
                   switch(t){
-                      case"weather":showWeatherFull();break;
-                      case"calendar":showCal();break;
+                      case"weather":
+                          if(cachedWeather==null){Toast.makeText(this,"Loading weather...",Toast.LENGTH_SHORT).show();return;}
+                          Intent wi=new Intent(this,WeatherActivity.class);
+                          wi.putExtra("count",cachedWeather.size());
+                          for(int i=0;i<cachedWeather.size();i++){
+                              WeatherData d=cachedWeather.get(i);
+                              wi.putExtra("day_"+i,d.day);wi.putExtra("cond_"+i,d.condition);
+                              wi.putExtra("icon_"+i,d.icon);wi.putExtra("hi_"+i,d.tempHigh);wi.putExtra("lo_"+i,d.tempLow);
+                          }
+                          startActivity(wi);break;
+                      case"calendar":startActivity(new Intent(this,CalendarActivity.class));break;
                       case"compass":startActivity(new Intent(this,CompassActivity.class));break;
                       case"speed":startActivity(new Intent(this,SpeedometerActivity.class));break;
                       case"calc":
                           try{startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR));}
-                          catch(Exception e){Toast.makeText(this,"No calculator app found",Toast.LENGTH_SHORT).show();}break;
+                          catch(Exception e){Toast.makeText(this,"No calculator app",Toast.LENGTH_SHORT).show();}break;
                   }
-              }
-
-              private void showCal(){
-                  java.util.Calendar c=java.util.Calendar.getInstance();
-                  java.text.SimpleDateFormat mf=new java.text.SimpleDateFormat("MMMM yyyy",Locale.ENGLISH);
-                  StringBuilder sb=new StringBuilder(mf.format(c.getTime())+"\n\nSu Mo Tu We Th Fr Sa\n");
-                  int today=c.get(java.util.Calendar.DAY_OF_MONTH);
-                  c.set(java.util.Calendar.DAY_OF_MONTH,1);
-                  int first=c.get(java.util.Calendar.DAY_OF_WEEK)-1,max=c.getActualMaximum(java.util.Calendar.DAY_OF_MONTH),col=0;
-                  for(int i=0;i<first;i++){sb.append("   ");col++;}
-                  for(int d=1;d<=max;d++){sb.append(d==today?String.format("[%2d]",d):String.format(" %2d ",d));if(++col%7==0)sb.append("\n");}
-                  new AlertDialog.Builder(this).setTitle("Calendar").setMessage(sb).setPositiveButton("OK",null).show();
-              }
-
-              private void showWeatherFull(){
-                  if(cachedWeather==null){Toast.makeText(this,"Loading...",Toast.LENGTH_SHORT).show();return;}
-                  StringBuilder sb=new StringBuilder("7-Day Forecast\n\n");
-                  for(WeatherData d:cachedWeather)sb.append(d.icon+" "+d.day+": "+d.condition+" "+d.tempHigh+"°/"+d.tempLow+"°C\n");
-                  new AlertDialog.Builder(this).setTitle("Weather").setMessage(sb).setPositiveButton("OK",null).show();
               }
 
               private void setupPower(){
@@ -1137,16 +1567,11 @@ jobs:
                   });
                   pb.setOnTouchListener((v,ev)->{powerGesture.onTouchEvent(ev);return false;});
                   pb.setOnClickListener(v->{
+                      pb.animate().alpha(0.4f).setDuration(100).withEndAction(()->pb.animate().alpha(1f).setDuration(100).start()).start();
                       if(dpm.isAdminActive(adminComp)){dpm.lockNow();}
-                      else{Intent i=new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
-                          i.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN,adminComp);
-                          i.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,"Allow to lock screen.");
-                          startActivityForResult(i,REQ_ADMIN);}
+                      else{Intent i=new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);i.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN,adminComp);i.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,"Allow to lock screen.");startActivityForResult(i,REQ_ADMIN);}
                   });
-                  pb.setOnLongClickListener(v->{
-                      startActivityForResult(new Intent(this,DockManagerActivity.class),REQ_DOCK);
-                      return true;
-                  });
+                  pb.setOnLongClickListener(v->{startActivityForResult(new Intent(this,DockManagerActivity.class),REQ_DOCK);return true;});
               }
 
               private void loadApps(){
@@ -1170,7 +1595,7 @@ jobs:
                   Set<String> saved=dockPrefs.getStringSet("dock_apps",null);
                   List<String> pkgs=new ArrayList<>();
                   if(saved!=null&&!saved.isEmpty()){pkgs.addAll(saved);}
-                  else{String[] def={"dialer","messaging","chrome","camera2","settings"};
+                  else{String[] def={"dialer","messaging","chrome","camera","settings"};
                       for(AppInfo a:appList){for(String d:def){if(a.packageName.contains(d)&&pkgs.size()<5)pkgs.add(a.packageName);}}}
                   for(String pkg:pkgs){
                       for(AppInfo a:appList){
@@ -1180,55 +1605,39 @@ jobs:
                               LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.MATCH_PARENT,1f);cell.setLayoutParams(lp);
                               ImageView iv=new ImageView(this);iv.setImageDrawable(a.icon);
                               iv.setLayoutParams(new LinearLayout.LayoutParams(52,52));iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                              cell.addView(iv);cell.setOnClickListener(v->onAppClick(a));dockRow.addView(cell);break;
+                              cell.addView(iv);
+                              cell.setOnClickListener(v->{
+                                  v.animate().scaleX(0.85f).scaleY(0.85f).setDuration(80).withEndAction(()->
+                                      v.animate().scaleX(1f).scaleY(1f).setDuration(80).withEndAction(()->onAppClick(a)).start()
+                                  ).start();
+                              });
+                              dockRow.addView(cell);break;
                           }
                       }
                   }
               }
 
               private void onAppClick(AppInfo a){
-                  if(editMode)return;
                   if(a.patternLocked){pendingLaunch=a;Intent i=new Intent(this,PatternLockActivity.class);i.putExtra("package",a.packageName);startActivityForResult(i,REQ_PATTERN);}
                   else launchApp(a);
               }
 
               private void onAppLong(AppInfo a){
-                  if(editMode){exitEditMode();return;}
                   new AlertDialog.Builder(this).setTitle(a.label)
-                      .setItems(new String[]{
-                          "Open",
-                          a.patternLocked?"Remove Pattern Lock":"Set Pattern Lock",
-                          "Uninstall"
-                      },(d,w)->{
+                      .setItems(new String[]{"Open",a.patternLocked?"Remove Lock":"Set Pattern Lock","Uninstall"},(d,w)->{
                           if(w==0)onAppClick(a);
                           else if(w==1){
                               if(a.patternLocked){patternPrefs.edit().remove("pattern_"+a.packageName).apply();a.patternLocked=false;adapter.update(appList);}
                               else{pendingLaunch=null;Intent i=new Intent(this,PatternSetupActivity.class);i.putExtra("package",a.packageName);startActivityForResult(i,REQ_SETUP);}
-                          }else if(w==2){uninstallApp(a);}
+                          }else uninstallApp(a);
                       }).show();
               }
 
-              private void onAppDelete(AppInfo a){uninstallApp(a);}
-
               private void uninstallApp(AppInfo a){
-                  new AlertDialog.Builder(this)
-                      .setTitle("Uninstall "+a.label+"?")
+                  new AlertDialog.Builder(this).setTitle("Uninstall "+a.label+"?")
                       .setMessage("This will remove the app from your device.")
-                      .setPositiveButton("Uninstall",(d,w)->{
-                          Intent i=new Intent(Intent.ACTION_DELETE);
-                          i.setData(Uri.parse("package:"+a.packageName));
-                          startActivity(i);
-                      })
+                      .setPositiveButton("Uninstall",(d,w)->{Intent i=new Intent(Intent.ACTION_DELETE);i.setData(Uri.parse("package:"+a.packageName));startActivity(i);})
                       .setNegativeButton("Cancel",null).show();
-              }
-
-              private void exitEditMode(){
-                  editMode=false;adapter.setEditMode(false);
-                  Toast.makeText(this,"Edit mode off",Toast.LENGTH_SHORT).show();
-              }
-
-              @Override public void onBackPressed(){
-                  if(editMode){exitEditMode();}
               }
 
               @Override protected void onActivityResult(int req,int res,Intent data){
@@ -1253,7 +1662,7 @@ jobs:
                           View wCard=widgetRow.getChildAt(0);
                           if(wCard instanceof LinearLayout){
                               View lbl=((LinearLayout)wCard).getChildAt(1);
-                              if(lbl instanceof TextView)((TextView)lbl).setText(t.icon+t.tempHigh+"°C");
+                              if(lbl instanceof TextView)((TextView)lbl).setText(t.icon+" "+t.tempHigh+"°");
                           }
                       }
                   });
@@ -1269,6 +1678,88 @@ jobs:
 
               @Override protected void onResume(){super.onResume();handler.post(tick);loadApps();}
               @Override protected void onPause(){super.onPause();handler.removeCallbacks(tick);}
+              @Override public void onBackPressed(){}
+          }
+          EOF
+
+      - name: Fix CalendarActivity inner class issue
+        run: |
+          cat > app/src/main/java/com/awal/launcher/CalendarActivity.java << 'EOF'
+          package com.awal.launcher;
+          import android.app.Activity;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.os.Bundle;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.animation.AnimationUtils;
+          import android.widget.FrameLayout;
+          import android.widget.GridLayout;
+          import android.widget.TextView;
+          import java.text.SimpleDateFormat;
+          import java.util.Calendar;
+          import java.util.Locale;
+
+          public class CalendarActivity extends Activity {
+              private GridLayout calGrid,dayHeaders;
+              private TextView monthYear;
+              private Calendar showing;
+              private int todayDay,todayMonth,todayYear;
+
+              @Override protected void onCreate(Bundle s){
+                  super.onCreate(s);setContentView(R.layout.activity_calendar);
+                  calGrid=findViewById(R.id.calGrid);dayHeaders=findViewById(R.id.dayHeaders);monthYear=findViewById(R.id.monthYear);
+                  Calendar now=Calendar.getInstance();
+                  todayDay=now.get(Calendar.DAY_OF_MONTH);todayMonth=now.get(Calendar.MONTH);todayYear=now.get(Calendar.YEAR);
+                  showing=(Calendar)now.clone();
+                  findViewById(R.id.calCard).startAnimation(AnimationUtils.loadAnimation(this,R.anim.fade_in));
+                  buildHeaders();buildGrid();
+                  findViewById(R.id.btnPrev).setOnClickListener(v->{showing.add(Calendar.MONTH,-1);buildGrid();});
+                  findViewById(R.id.btnNext).setOnClickListener(v->{showing.add(Calendar.MONTH,1);buildGrid();});
+                  findViewById(R.id.btnClose).setOnClickListener(v->finish());
+              }
+
+              private void buildHeaders(){
+                  dayHeaders.removeAllViews();
+                  String[] days={"Su","Mo","Tu","We","Th","Fr","Sa"};
+                  int cell=getCellSize();
+                  for(String d:days){
+                      TextView tv=new TextView(this);tv.setText(d);tv.setTextColor(0xAA4FC3F7);
+                      tv.setTextSize(12);tv.setGravity(Gravity.CENTER);tv.setTypeface(null,Typeface.BOLD);
+                      GridLayout.LayoutParams lp=new GridLayout.LayoutParams();lp.width=cell;lp.height=GridLayout.LayoutParams.WRAP_CONTENT;
+                      tv.setLayoutParams(lp);dayHeaders.addView(tv);
+                  }
+              }
+
+              private void buildGrid(){
+                  calGrid.removeAllViews();
+                  monthYear.setText(new SimpleDateFormat("MMMM yyyy",Locale.ENGLISH).format(showing.getTime()));
+                  int cell=getCellSize();
+                  Calendar c=(Calendar)showing.clone();c.set(Calendar.DAY_OF_MONTH,1);
+                  int first=c.get(Calendar.DAY_OF_WEEK)-1,max=c.getActualMaximum(Calendar.DAY_OF_MONTH);
+                  int curM=showing.get(Calendar.MONTH),curY=showing.get(Calendar.YEAR);
+                  for(int i=0;i<first;i++)addCell("",cell,false);
+                  for(int d=1;d<=max;d++)addCell(String.valueOf(d),cell,d==todayDay&&curM==todayMonth&&curY==todayYear);
+              }
+
+              private int getCellSize(){
+                  int w=getResources().getDisplayMetrics().widthPixels;
+                  float dp=getResources().getDisplayMetrics().density;
+                  return (int)((w-80*dp)/7);
+              }
+
+              private void addCell(String text,int size,boolean today){
+                  FrameLayout fl=new FrameLayout(this);
+                  GridLayout.LayoutParams lp=new GridLayout.LayoutParams();lp.width=size;lp.height=size;fl.setLayoutParams(lp);
+                  if(!text.isEmpty()){
+                      TextView tv=new TextView(this);tv.setText(text);tv.setGravity(Gravity.CENTER);
+                      tv.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.MATCH_PARENT));
+                      if(today){tv.setBackground(getDrawable(R.drawable.today_circle));tv.setTextColor(Color.WHITE);tv.setTypeface(null,Typeface.BOLD);tv.setTextSize(13);}
+                      else{tv.setTextColor(0xFFFFFFFF);tv.setTextSize(13);}
+                      fl.addView(tv);
+                  }
+                  calGrid.addView(fl);
+              }
           }
           EOF
 
@@ -1278,5 +1769,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AwalLauncher-v4
+          name: AwalLauncher-v5
           path: app/build/outputs/apk/debug/app-debug.apk
