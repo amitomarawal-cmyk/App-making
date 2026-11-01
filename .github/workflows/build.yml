@@ -72,6 +72,7 @@ jobs:
             <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
             <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
             <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+            <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES"/>
             <application android:label="Awal Home" android:icon="@drawable/ic" android:theme="@style/T">
               <activity android:name=".Main" android:exported="true" android:launchMode="singleTask" android:windowSoftInputMode="stateHidden|adjustPan">
                 <intent-filter>
@@ -87,12 +88,12 @@ jobs:
                   <category android:name="android.intent.category.DEFAULT"/>
                 </intent-filter>
               </activity>
-              <service android:name=".Lock" android:exported="false" android:label="Awal Lock" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+              <receiver android:name=".Admin" android:exported="true" android:permission="android.permission.BIND_DEVICE_ADMIN">
                 <intent-filter>
-                  <action android:name="android.accessibilityservice.AccessibilityService"/>
+                  <action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/>
                 </intent-filter>
-                <meta-data android:name="android.accessibilityservice" android:resource="@xml/lock"/>
-              </service>
+                <meta-data android:name="android.app.device_admin" android:resource="@xml/adm"/>
+              </receiver>
             </application>
           </manifest>
           EOF
@@ -106,11 +107,10 @@ jobs:
             </style>
           </resources>
           EOF
-          cat > app/src/main/res/xml/lock.xml << 'EOF'
-          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-            android:accessibilityEventTypes="typeWindowStateChanged"
-            android:accessibilityFeedbackType="feedbackGeneric"
-            android:description="@string/d"/>
+          cat > app/src/main/res/xml/adm.xml << 'EOF'
+          <device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-policies><force-lock/></uses-policies>
+          </device-admin>
           EOF
           cat > app/src/main/res/drawable/ic.xml << 'EOF'
           <vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
@@ -124,17 +124,10 @@ jobs:
             <path android:fillColor="#FFFF9F0A" android:pathData="M60,60h20v20h-20z"/>
           </vector>
           EOF
-          cat > app/src/main/java/com/awal/home/Lock.java << 'EOF'
+          cat > app/src/main/java/com/awal/home/Admin.java << 'EOF'
           package com.awal.home;
-          import android.accessibilityservice.AccessibilityService;
-          import android.view.accessibility.AccessibilityEvent;
-          public class Lock extends AccessibilityService {
-            static Lock inst;
-            @Override protected void onServiceConnected() { inst = this; }
-            @Override public void onAccessibilityEvent(AccessibilityEvent e) {}
-            @Override public void onInterrupt() {}
-            @Override public boolean onUnbind(android.content.Intent i) { inst = null; return super.onUnbind(i); }
-          }
+          import android.app.admin.DeviceAdminReceiver;
+          public class Admin extends DeviceAdminReceiver {}
           EOF
           cat > app/src/main/java/com/awal/home/Pin.java << 'EOF'
           package com.awal.home;
@@ -164,8 +157,10 @@ jobs:
           EOF
           cat > app/src/main/java/com/awal/home/Main.java << 'EOF'
           package com.awal.home;
-          import android.accessibilityservice.AccessibilityService;
           import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.app.admin.DevicePolicyManager;
+          import android.net.Uri;
           import android.content.*;
           import android.content.pm.*;
           import android.graphics.*;
@@ -269,7 +264,7 @@ jobs:
                       st[0] = e.getX();
                     }
                     break;
-                  case MotionEvent.ACTION_UP: if (!mv[0]) lock(); break;
+                  case MotionEvent.ACTION_UP: if (!mv[0]) { if (e.getEventTime() - e.getDownTime() > 1000) unadmin(); else lock(); } break;
                 }
                 return true;
               });
@@ -280,11 +275,55 @@ jobs:
             }
 
             void lock() {
-              if (Build.VERSION.SDK_INT >= 28 && Lock.inst != null) Lock.inst.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN);
+              DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+              ComponentName cn = new ComponentName(this, Admin.class);
+              if (dpm.isAdminActive(cn)) dpm.lockNow();
               else {
-                Toast.makeText(this, "Enable Awal Lock in Accessibility", Toast.LENGTH_LONG).show();
-                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                Toast.makeText(this, "Tap Activate to allow screen lock", Toast.LENGTH_LONG).show();
+                startActivity(new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, cn));
               }
+            }
+
+            void unadmin() {
+              ((DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE)).removeActiveAdmin(new ComponentName(this, Admin.class));
+              Toast.makeText(this, "Lock permission removed. You can uninstall now.", Toast.LENGTH_LONG).show();
+            }
+            void ask(String title, java.util.function.Consumer<String> ok) {
+              EditText e = new EditText(this);
+              e.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+              new AlertDialog.Builder(this).setTitle(title).setView(e)
+                .setPositiveButton("OK", (d, i) -> ok.accept(e.getText().toString()))
+                .setNegativeButton("Cancel", null).show();
+            }
+            boolean pinOk(String p) { return ("" + p.hashCode()).equals(sp.getString("pin", "")); }
+            void setLk(It t, boolean on) {
+              Set<String> s = new HashSet<>(sp.getStringSet("lk", new HashSet<String>()));
+              if (on) s.add(t.key); else s.remove(t.key);
+              sp.edit().putStringSet("lk", s).apply();
+              loadApps();
+            }
+            void toggleLock(It t, boolean lk) {
+              if (!sp.contains("pin")) {
+                ask("Set a PIN", p -> { if (p.length() >= 4) { sp.edit().putString("pin", "" + p.hashCode()).apply(); setLk(t, true); } else Toast.makeText(this, "Use 4+ digits", Toast.LENGTH_SHORT).show(); });
+              } else if (!lk) setLk(t, true);
+              else ask("Enter PIN", p -> { if (pinOk(p)) setLk(t, false); else Toast.makeText(this, "Wrong PIN", Toast.LENGTH_SHORT).show(); });
+            }
+            void menu(It t) {
+              final boolean lk = sp.getStringSet("lk", new HashSet<String>()).contains(t.key);
+              final List<String> o = new ArrayList<>();
+              o.add(lk ? "Unlock app" : "Lock app");
+              if (t.sid == null) { o.add("App info"); o.add("Uninstall"); }
+              new AlertDialog.Builder(this).setTitle(t.label).setItems(o.toArray(new String[0]), (d, i) -> {
+                String s = o.get(i);
+                if (s.endsWith("lock app") || s.equals("Lock app") || s.equals("Unlock app")) toggleLock(t, lk);
+                else if (s.equals("App info")) startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + t.pkg)));
+                else startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + t.pkg)));
+              }).show();
+            }
+            void open(It t) {
+              if (sp.getStringSet("lk", new HashSet<String>()).contains(t.key) && sp.contains("pin"))
+                ask("Enter PIN", p -> { if (pinOk(p)) go(t); else Toast.makeText(this, "Wrong PIN", Toast.LENGTH_SHORT).show(); });
+              else go(t);
             }
 
             @Override protected void onResume() { super.onResume(); loadApps(); wx.auto(); cp.start(); sd.start(); }
@@ -340,17 +379,18 @@ jobs:
                 });
                 iv.setClipToOutline(true);
                 cell.addView(iv, new LinearLayout.LayoutParams(dp(58), dp(58)));
-                TextView l = tv(t.label, 11);
+                TextView l = tv((sp.getStringSet("lk", new HashSet<String>()).contains(t.key) ? "\uD83D\uDD12 " : "") + t.label, 11);
                 l.setSingleLine(true); l.setEllipsize(TextUtils.TruncateAt.END); l.setGravity(Gravity.CENTER); l.setPadding(dp(2), dp(4), dp(2), 0);
                 cell.addView(l, new LinearLayout.LayoutParams(-1, -2));
                 cell.setOnClickListener(v -> open(t));
+                cell.setOnLongClickListener(v -> { menu(t); return true; });
                 GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
                 lp.width = w;
                 grid.addView(cell, lp);
               }
             }
 
-            void open(It t) {
+            void go(It t) {
               sp.edit().putInt("c:" + t.key, sp.getInt("c:" + t.key, 0) + 1).apply();
               try {
                 if (t.sid != null) ((LauncherApps) getSystemService(LAUNCHER_APPS_SERVICE)).startShortcut(t.pkg, t.sid, null, null, android.os.Process.myUserHandle());
