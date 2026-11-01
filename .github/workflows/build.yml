@@ -85,7 +85,7 @@ jobs:
                   android:icon="@drawable/ic_launcher"
                   android:theme="@style/Theme.AppCompat.NoActionBar">
                   <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="subject_segment" />
-                  <activity android:name=".MainActivity" android:exported="true">
+                  <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="portrait">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
@@ -155,6 +155,16 @@ jobs:
                   } catch (Exception e) {
                       return null;
                   }
+              }
+
+              static class Depth { int w, h; byte[] d; }
+              static Depth readDepth(File f) {
+                  try {
+                      if (!f.exists()) return null;
+                      try (DataInputStream i = new DataInputStream(new FileInputStream(f))) {
+                          Depth x = new Depth(); x.w = i.readInt(); x.h = i.readInt(); x.d = new byte[x.w * x.h]; i.readFully(x.d); return x;
+                      }
+                  } catch (Exception e) { return null; }
               }
 
               static void enqueue(final File f) {
@@ -249,6 +259,19 @@ jobs:
                   return Bitmap.createScaledBitmap(t, w, h, true);
               }
 
+              static float[] up(byte[] d, int dw, int dh, int w, int h) {
+                  int[] p = new int[dw * dh];
+                  for (int i = 0; i < p.length; i++) { int v = d[i] & 255; p[i] = 0xFF000000 | (v << 16) | (v << 8) | v; }
+                  Bitmap s = Bitmap.createBitmap(dw, dh, Bitmap.Config.ARGB_8888);
+                  s.setPixels(p, 0, dw, 0, 0, dw, dh);
+                  Bitmap u = blur(Bitmap.createScaledBitmap(s, w, h, true), 8);
+                  int[] q = new int[w * h];
+                  u.getPixels(q, 0, w, 0, 0, w, h);
+                  float[] f = new float[w * h];
+                  for (int i = 0; i < f.length; i++) f[i] = (q[i] & 255) / 255f;
+                  return f;
+              }
+
               static int mix(int a, int b, float f) {
                   int r = (int) (((a >> 16) & 255) * (1 - f) + ((b >> 16) & 255) * f);
                   int g = (int) (((a >> 8) & 255) * (1 - f) + ((b >> 8) & 255) * f);
@@ -272,20 +295,24 @@ jobs:
                   return f;
               }
 
-              static Bitmap render(Bitmap src, byte[] mask, float st, boolean bg, int pre) {
+              static Bitmap render(Bitmap src, byte[] mask, byte[] dep, int dw, int dh, float st, boolean bg, int pre) {
                   int w = src.getWidth(), h = src.getHeight();
                   int[] o = new int[w * h], p1 = new int[w * h], p2 = new int[w * h];
                   src.getPixels(o, 0, w, 0, 0, w, h);
                   blur(src, 2 + (int) (st * 6)).getPixels(p1, 0, w, 0, 0, w, h);
                   blur(src, 4 + (int) (st * 22)).getPixels(p2, 0, w, 0, 0, w, h);
                   float[] m = mask != null ? soft(mask, w, h) : null;
+                  float[] dn = dep != null ? up(dep, dw, dh, w, h) : null; float fN = 0.6f;
+                  if (dn != null) { double s1 = 0, s2 = 0; for (int i = 0; i < dn.length; i++) { float wt; if (m != null) wt = m[i] > 0.5f ? 1f : 0f; else { int xx = i % w, yy = i / w; wt = (xx > w * 0.35f && xx < w * 0.65f && yy > h * 0.35f && yy < h * 0.65f) ? 1f : 0f; } s1 += wt * dn[i]; s2 += wt; } if (s2 > 0) fN = (float) (s1 / s2); }
                   float con = CON[pre], sat = SAT[pre], vig = VIG[pre];
                   for (int y = 0; y < h; y++) {
                       float fy = (float) y / h;
                       for (int x = 0; x < w; x++) {
                           int i = y * w + x;
                           float t;
-                          if (m != null) t = bg ? (1 - m[i]) * (0.55f + 0.45f * (1 - fy)) : m[i];
+                          float tm = m != null ? (bg ? (1 - m[i]) * (0.55f + 0.45f * (1 - fy)) : m[i]) : -1f; float tp = -1f;
+                          if (dn != null) { float dd = bg ? fN - dn[i] : dn[i] - fN; tp = Math.min(1f, Math.max(0f, dd * 2.5f)); }
+                          if (tm >= 0 && tp >= 0) t = 0.5f * (tm + tp); else if (tm >= 0) t = tm; else if (tp >= 0) t = tp;
                           else { t = Math.min(1f, Math.abs(fy - 0.6f) * 2.2f); if (!bg) t = 1 - t; }
                           int c = t < 0.5f ? mix(o[i], p1[i], t * 2) : mix(p1[i], p2[i], (t - 0.5f) * 2);
                           if (pre > 0) {
@@ -310,10 +337,19 @@ jobs:
           cat > $P/MainActivity.java << 'EOF'
           package com.awal.depthlens;
           import android.Manifest;
+          import android.content.Context;
           import android.content.Intent;
           import android.content.pm.PackageManager;
+          import android.graphics.Canvas;
+          import android.graphics.Paint;
+          import android.graphics.Rect;
+          import android.graphics.drawable.GradientDrawable;
           import android.os.Bundle;
-          import android.view.Gravity;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.util.Range;
+          import android.util.Rational;
+          import android.view.*;
           import android.widget.*;
           import androidx.appcompat.app.AppCompatActivity;
           import androidx.camera.core.*;
@@ -321,42 +357,242 @@ jobs:
           import androidx.camera.view.PreviewView;
           import androidx.core.app.ActivityCompat;
           import androidx.core.content.ContextCompat;
-          import java.io.File;
+          import java.io.*;
+          import java.nio.ByteBuffer;
+          import java.util.*;
+          import java.util.concurrent.*;
 
           public class MainActivity extends AppCompatActivity {
+              static final int FW = 96;
+              static final Rational[] RAT = {new Rational(3, 4), new Rational(9, 16), new Rational(1, 1)};
+              static final String[] RT = {"3:4", "9:16", "1:1"};
+              static final float[] RV = {0.75f, 0.5625f, 1f};
+              static final int[] FM = {ImageCapture.FLASH_MODE_OFF, ImageCapture.FLASH_MODE_AUTO, ImageCapture.FLASH_MODE_ON};
+              static final String[] FT = {"Off", "Auto", "On"};
               PreviewView pv;
+              Overlay ov;
+              ProcessCameraProvider prov;
+              Camera cam;
               ImageCapture ic;
+              SeekBar zoom, exp;
+              TextView msg;
+              int ri = 0, fl = 0, expLo = 0;
+              boolean front = false, grid = true, sweep = false;
+              volatile boolean collecting = false;
+              volatile int ffw = FW, ffh = FW;
+              final List<byte[]> frames = Collections.synchronizedList(new ArrayList<byte[]>());
+              final ExecutorService ax = Executors.newSingleThreadExecutor();
+              final Handler h = new Handler(Looper.getMainLooper());
 
               int dp(int v) { return (int) (v * getResources().getDisplayMetrics().density); }
+
+              void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
+
+              class Overlay extends View {
+                  Paint p = new Paint();
+                  float r = 0.75f, fx = -1, fy;
+                  boolean grid = true;
+
+                  Overlay(Context c) {
+                      super(c);
+                      p.setStyle(Paint.Style.STROKE);
+                      p.setAntiAlias(true);
+                  }
+
+                  void ring(float x, float y) {
+                      fx = x; fy = y;
+                      invalidate();
+                      postDelayed(() -> { fx = -1; invalidate(); }, 1200);
+                  }
+
+                  @Override
+                  protected void onDraw(Canvas c) {
+                      int W = getWidth(), H = getHeight();
+                      float w, hh;
+                      if (W / (float) H > r) { hh = H; w = H * r; } else { w = W; hh = W / r; }
+                      float l = (W - w) / 2, t = (H - hh) / 2;
+                      p.setColor(0x99FFFFFF);
+                      p.setStrokeWidth(3f);
+                      c.drawRect(l, t, l + w, t + hh, p);
+                      if (grid) {
+                          p.setStrokeWidth(2f);
+                          for (int i = 1; i < 3; i++) {
+                              c.drawLine(l + w * i / 3, t, l + w * i / 3, t + hh, p);
+                              c.drawLine(l, t + hh * i / 3, l + w, t + hh * i / 3, p);
+                          }
+                      }
+                      if (fx >= 0) {
+                          p.setColor(0xFFFFD60A);
+                          p.setStrokeWidth(4f);
+                          c.drawCircle(fx, fy, 60, p);
+                      }
+                  }
+              }
+
+              void setBg(View v, int c) {
+                  GradientDrawable d = new GradientDrawable();
+                  d.setColor(c);
+                  d.setCornerRadius(dp(20));
+                  v.setBackground(d);
+              }
+
+              TextView chip(String t) {
+                  TextView v = new TextView(this);
+                  v.setText(t);
+                  v.setTextColor(0xFFFFFFFF);
+                  v.setTextSize(13);
+                  v.setGravity(Gravity.CENTER);
+                  v.setPadding(dp(10), dp(8), dp(10), dp(8));
+                  v.setClickable(true);
+                  setBg(v, 0x88000000);
+                  return v;
+              }
+
+              LinearLayout row(String t, SeekBar s) {
+                  LinearLayout r = new LinearLayout(this);
+                  r.setGravity(Gravity.CENTER_VERTICAL);
+                  TextView l = new TextView(this);
+                  l.setText(t);
+                  l.setTextColor(0xFFFFFFFF);
+                  l.setTextSize(12);
+                  r.addView(l, dp(64), -2);
+                  r.addView(s, new LinearLayout.LayoutParams(0, -2, 1f));
+                  return r;
+              }
+
+              View cell(View v, int w, int hh) {
+                  FrameLayout f = new FrameLayout(this);
+                  f.addView(v, new FrameLayout.LayoutParams(w, hh, Gravity.CENTER));
+                  return f;
+              }
 
               @Override
               protected void onCreate(Bundle s) {
                   super.onCreate(s);
                   FrameLayout root = new FrameLayout(this);
+                  root.setBackgroundColor(0xFF000000);
                   pv = new PreviewView(this);
+                  pv.setScaleType(PreviewView.ScaleType.FIT_CENTER);
                   root.addView(pv, -1, -1);
+                  ov = new Overlay(this);
+                  root.addView(ov, -1, -1);
+
+                  LinearLayout top = new LinearLayout(this);
+                  top.setPadding(dp(8), dp(34), dp(8), 0);
+                  final TextView cR = chip("3:4"), cG = chip("\u25A6 Grid"), cF = chip("\u26A1 Off"), cS = chip("\u2194 Sweep"), cC = chip("\uD83D\uDD04");
+                  setBg(cG, 0xAA2E86DE);
+                  for (TextView c : new TextView[]{cR, cG, cF, cS, cC}) {
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+                      lp.setMargins(dp(3), 0, dp(3), 0);
+                      top.addView(c, lp);
+                  }
+                  root.addView(top, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
+
+                  msg = new TextView(this);
+                  msg.setTextSize(22);
+                  msg.setTextColor(0xFFFFD60A);
+                  msg.setGravity(Gravity.CENTER);
+                  msg.setPadding(dp(16), dp(12), dp(16), dp(12));
+                  setBg(msg, 0xAA000000);
+                  msg.setVisibility(View.GONE);
+                  root.addView(msg, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+
+                  LinearLayout bot = new LinearLayout(this);
+                  bot.setOrientation(LinearLayout.VERTICAL);
+                  bot.setPadding(dp(12), dp(8), dp(12), dp(6));
+                  bot.setBackgroundColor(0x55000000);
+                  zoom = new SeekBar(this);
+                  zoom.setMax(100);
+                  exp = new SeekBar(this);
+                  exp.setMax(1);
+                  bot.addView(row("Zoom", zoom), -1, -2);
+                  bot.addView(row("\u2600 Light", exp), -1, -2);
+                  LinearLayout br = new LinearLayout(this);
+                  br.setGravity(Gravity.CENTER_VERTICAL);
+                  br.setPadding(0, dp(8), 0, 0);
+                  TextView cGal = chip("\uD83D\uDDBC Gallery"), cA = chip("AF Auto");
+                  View sh = new View(this);
+                  GradientDrawable gd = new GradientDrawable();
+                  gd.setShape(GradientDrawable.OVAL);
+                  gd.setColor(0xFFFFFFFF);
+                  gd.setStroke(dp(5), 0xFF2E86DE);
+                  sh.setBackground(gd);
+                  sh.setClickable(true);
+                  br.addView(cell(cGal, -2, -2), new LinearLayout.LayoutParams(0, -2, 1f));
+                  br.addView(cell(sh, dp(72), dp(72)), new LinearLayout.LayoutParams(0, -2, 1f));
+                  br.addView(cell(cA, -2, -2), new LinearLayout.LayoutParams(0, -2, 1f));
+                  bot.addView(br, -1, -2);
                   TextView cr = new TextView(this);
-                  cr.setText("DepthLens  \u2022  Mohammod Abdul Awal\nStudent, Dept. of English, National University\nawal.sorkar.144@gmail.com");
-                  cr.setTextColor(0xFFFFFFFF);
-                  cr.setTextSize(11);
-                  cr.setBackgroundColor(0x66000000);
-                  cr.setPadding(dp(10), dp(30), dp(10), dp(8));
-                  root.addView(cr, -1, -2);
-                  LinearLayout bar = new LinearLayout(this);
-                  bar.setGravity(Gravity.CENTER);
-                  Button g = new Button(this);
-                  g.setText("\uD83D\uDDBC");
-                  Button c = new Button(this);
-                  c.setText("\u25CF");
-                  c.setTextSize(30);
-                  bar.addView(g);
-                  bar.addView(c);
-                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
-                  lp.bottomMargin = dp(30);
-                  root.addView(bar, lp);
+                  cr.setText("DepthLens \u2022 Mohammod Abdul Awal \u2022 Dept. of English, National University \u2022 awal.sorkar.144@gmail.com");
+                  cr.setTextColor(0x99FFFFFF);
+                  cr.setTextSize(9);
+                  cr.setGravity(Gravity.CENTER);
+                  bot.addView(cr, -1, -2);
+                  root.addView(bot, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
                   setContentView(root);
-                  g.setOnClickListener(v -> startActivity(new Intent(this, GalleryActivity.class)));
-                  c.setOnClickListener(v -> shoot());
+
+                  cR.setOnClickListener(v -> {
+                      ri = (ri + 1) % 3;
+                      cR.setText(RT[ri]);
+                      ov.r = RV[ri];
+                      ov.invalidate();
+                      bind();
+                  });
+                  cG.setOnClickListener(v -> {
+                      grid = !grid;
+                      ov.grid = grid;
+                      ov.invalidate();
+                      setBg(cG, grid ? 0xAA2E86DE : 0x88000000);
+                  });
+                  cF.setOnClickListener(v -> {
+                      fl = (fl + 1) % 3;
+                      cF.setText("\u26A1 " + FT[fl]);
+                      if (ic != null) ic.setFlashMode(FM[fl]);
+                  });
+                  cS.setOnClickListener(v -> {
+                      sweep = !sweep;
+                      setBg(cS, sweep ? 0xAA2E86DE : 0x88000000);
+                      toast(sweep ? "Sweep on: after the shot, shake phone gently" : "Sweep off");
+                  });
+                  cC.setOnClickListener(v -> { front = !front; bind(); });
+                  cA.setOnClickListener(v -> { if (cam != null) cam.getCameraControl().cancelFocusAndMetering(); });
+                  cGal.setOnClickListener(v -> startActivity(new Intent(this, GalleryActivity.class)));
+                  sh.setOnClickListener(v -> shoot());
+                  zoom.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      public void onProgressChanged(SeekBar b, int p, boolean u) {
+                          if (u && cam != null) cam.getCameraControl().setLinearZoom(p / 100f);
+                      }
+                      public void onStartTrackingTouch(SeekBar b) { }
+                      public void onStopTrackingTouch(SeekBar b) { }
+                  });
+                  exp.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      public void onProgressChanged(SeekBar b, int p, boolean u) {
+                          if (u && cam != null) cam.getCameraControl().setExposureCompensationIndex(p + expLo);
+                      }
+                      public void onStartTrackingTouch(SeekBar b) { }
+                      public void onStopTrackingTouch(SeekBar b) { }
+                  });
+                  final ScaleGestureDetector sg = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                      @Override
+                      public boolean onScale(ScaleGestureDetector d) {
+                          if (cam != null) {
+                              ZoomState z = cam.getCameraInfo().getZoomState().getValue();
+                              float r = z.getZoomRatio() * d.getScaleFactor();
+                              r = Math.max(z.getMinZoomRatio(), Math.min(z.getMaxZoomRatio(), r));
+                              cam.getCameraControl().setZoomRatio(r);
+                          }
+                          return true;
+                      }
+                  });
+                  final GestureDetector gdt = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+                      @Override
+                      public boolean onSingleTapUp(MotionEvent e) {
+                          focusAt(e.getX(), e.getY());
+                          return true;
+                      }
+                  });
+                  pv.setOnTouchListener((v, e) -> { sg.onTouchEvent(e); gdt.onTouchEvent(e); return true; });
+
                   if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) startCam();
                   else ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1);
               }
@@ -368,17 +604,75 @@ jobs:
               }
 
               void startCam() {
-                  var f = ProcessCameraProvider.getInstance(this);
+                  final var f = ProcessCameraProvider.getInstance(this);
                   f.addListener(() -> {
-                      try {
-                          ProcessCameraProvider p = f.get();
-                          Preview pr = new Preview.Builder().build();
-                          pr.setSurfaceProvider(pv.getSurfaceProvider());
-                          ic = new ImageCapture.Builder().build();
-                          p.unbindAll();
-                          p.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, pr, ic);
-                      } catch (Exception e) { }
+                      try { prov = f.get(); bind(); } catch (Exception e) { }
                   }, ContextCompat.getMainExecutor(this));
+              }
+
+              void bind() {
+                  if (prov == null) return;
+                  try {
+                      Preview pr = new Preview.Builder().build();
+                      pr.setSurfaceProvider(pv.getSurfaceProvider());
+                      ic = new ImageCapture.Builder().setFlashMode(FM[fl]).build();
+                      ImageAnalysis ia = new ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build();
+                      ia.setAnalyzer(ax, img -> {
+                          if (collecting) { try { grab(img); } catch (Exception e) { } }
+                          img.close();
+                      });
+                      ViewPort vp = new ViewPort.Builder(RAT[ri], Surface.ROTATION_0).build();
+                      UseCaseGroup g = new UseCaseGroup.Builder().setViewPort(vp).addUseCase(pr).addUseCase(ic).addUseCase(ia).build();
+                      prov.unbindAll();
+                      cam = prov.bindToLifecycle(this, front ? CameraSelector.DEFAULT_FRONT_CAMERA : CameraSelector.DEFAULT_BACK_CAMERA, g);
+                      ExposureState es = cam.getCameraInfo().getExposureState();
+                      Range<Integer> r = es.getExposureCompensationRange();
+                      expLo = r.getLower();
+                      exp.setEnabled(r.getUpper() > r.getLower());
+                      exp.setMax(Math.max(1, r.getUpper() - r.getLower()));
+                      exp.setProgress(es.getExposureCompensationIndex() - expLo);
+                      zoom.setProgress(0);
+                  } catch (Exception e) {
+                      toast("Camera error");
+                  }
+              }
+
+              void focusAt(float x, float y) {
+                  if (cam == null) return;
+                  MeteringPoint p = pv.getMeteringPointFactory().createPoint(x, y);
+                  cam.getCameraControl().startFocusAndMetering(new FocusMeteringAction.Builder(p).disableAutoCancel().build());
+                  ov.ring(x, y);
+              }
+
+              void grab(ImageProxy img) {
+                  Rect cr = img.getCropRect();
+                  int rot = img.getImageInfo().getRotationDegrees();
+                  ImageProxy.PlaneProxy pl = img.getPlanes()[0];
+                  ByteBuffer bb = pl.getBuffer();
+                  int rs = pl.getRowStride(), ps = pl.getPixelStride();
+                  int cw = cr.width(), ch = cr.height();
+                  boolean sw = rot == 90 || rot == 270;
+                  int UW = sw ? ch : cw, UH = sw ? cw : ch;
+                  int fw = FW, fh = Math.max(16, Math.round(FW * (float) UH / UW));
+                  byte[] o = new byte[fw * fh];
+                  for (int y = 0; y < fh; y++) {
+                      for (int x = 0; x < fw; x++) {
+                          int ix = Math.min(UW - 1, (int) ((x + 0.5f) * UW / fw)), iy = Math.min(UH - 1, (int) ((y + 0.5f) * UH / fh));
+                          int sx, sy;
+                          switch (rot) {
+                              case 90: sx = iy; sy = ch - 1 - ix; break;
+                              case 180: sx = cw - 1 - ix; sy = ch - 1 - iy; break;
+                              case 270: sx = cw - 1 - iy; sy = ix; break;
+                              default: sx = ix; sy = iy;
+                          }
+                          sx = Math.max(0, Math.min(cw - 1, sx));
+                          sy = Math.max(0, Math.min(ch - 1, sy));
+                          o[y * fw + x] = bb.get((cr.top + sy) * rs + (cr.left + sx) * ps);
+                      }
+                  }
+                  ffw = fw;
+                  ffh = fh;
+                  frames.add(o);
               }
 
               void shoot() {
@@ -389,14 +683,40 @@ jobs:
                               @Override
                               public void onImageSaved(ImageCapture.OutputFileResults r) {
                                   Processor.enqueue(out);
-                                  Toast.makeText(MainActivity.this, "Saved. Depth processing in background", Toast.LENGTH_SHORT).show();
+                                  if (sweep) shake(out); else toast("Saved. Depth processing in background");
                               }
 
                               @Override
-                              public void onError(ImageCaptureException e) {
-                                  Toast.makeText(MainActivity.this, "Capture failed", Toast.LENGTH_SHORT).show();
-                              }
+                              public void onError(ImageCaptureException e) { toast("Capture failed"); }
                           });
+              }
+
+              void shake(final File out) {
+                  frames.clear();
+                  collecting = true;
+                  msg.setText("\u2194 Shake phone gently \u2195");
+                  msg.setVisibility(View.VISIBLE);
+                  h.postDelayed(() -> {
+                      collecting = false;
+                      msg.setVisibility(View.GONE);
+                      final List<byte[]> fr = new ArrayList<>(frames);
+                      final int w = ffw, hh = ffh;
+                      Processor.Q.execute(() -> {
+                          try {
+                              int[] sz = new int[2];
+                              byte[] d = Motion.depth(fr, w, hh, sz);
+                              if (d != null) {
+                                  try (DataOutputStream o = new DataOutputStream(new FileOutputStream(new File(out.getPath() + ".d")))) {
+                                      o.writeInt(sz[0]);
+                                      o.writeInt(sz[1]);
+                                      o.write(d);
+                                  }
+                              }
+                              final String m = d != null ? "Motion depth ready" : "Not enough motion: using AI mask only";
+                              h.post(() -> toast(m));
+                          } catch (Exception e) { }
+                      });
+                  }, 1600);
               }
           }
           EOF
@@ -523,6 +843,7 @@ jobs:
           public class EditorActivity extends AppCompatActivity {
               volatile Bitmap src, cur;
               volatile byte[] mask;
+              volatile Processor.Depth dep;
               volatile boolean bg = true;
               volatile int preset = 0;
               ImageView iv;
@@ -568,6 +889,7 @@ jobs:
                       if (b == null) return;
                       File m = new File(f.getPath() + ".m");
                       if (m.exists()) mask = Processor.readMask(m, b.getWidth() * b.getHeight());
+                      dep = Processor.readDepth(new File(f.getPath() + ".d"));
                       src = b;
                       h.post(() -> {
                           tv.setText(mask != null ? "Depth ready" : "Depth not ready yet: using simple gradient");
@@ -605,7 +927,8 @@ jobs:
                   final float st = sb.getProgress() / 100f;
                   ex.execute(() -> {
                       if (id != seq.get()) return;
-                      final Bitmap r = Blur.render(src, mask, st, bg, preset);
+                      final Processor.Depth dp = dep;
+                      final Bitmap r = Blur.render(src, mask, dp != null ? dp.d : null, dp != null ? dp.w : 0, dp != null ? dp.h : 0, st, bg, preset);
                       if (id == seq.get()) h.post(() -> { cur = r; iv.setImageBitmap(r); });
                   });
               }
@@ -631,6 +954,106 @@ jobs:
                       final String m = msg;
                       h.post(() -> Toast.makeText(this, m, Toast.LENGTH_SHORT).show());
                   });
+              }
+          }
+          EOF
+
+          cat > $P/Motion.java << 'EOF'
+          package com.awal.depthlens;
+          import java.util.*;
+
+          public class Motion {
+              static byte[] depth(List<byte[]> fr, int fw, int fh, int[] sz) {
+                  int n = fr.size();
+                  if (n < 6) return null;
+                  final int B = 8, S = 4, R = 5;
+                  int bw = (fw - B) / S + 1, bh = (fh - B) / S + 1, nb = bw * bh;
+                  float[] acc = new float[nb];
+                  boolean[] ok = new boolean[nb];
+                  byte[] f0 = fr.get(n / 2);
+                  for (int by = 0; by < bh; by++) for (int bx = 0; bx < bw; bx++) {
+                      int s = 0, s2 = 0;
+                      for (int y = 0; y < B; y++) for (int x = 0; x < B; x++) {
+                          int v = f0[(by * S + y) * fw + bx * S + x] & 255;
+                          s += v; s2 += v * v;
+                      }
+                      ok[by * bw + bx] = (s2 - (s * s) / (B * B)) / (B * B) > 40;
+                  }
+                  int pairs = 0, d = Math.max(2, n / 3), st = Math.max(1, d / 2);
+                  for (int i = 0; i + d < n; i += st) {
+                      byte[] a = fr.get(i), b = fr.get(i + d);
+                      float[] vx = new float[nb], vy = new float[nb];
+                      float mot = 0;
+                      int cnt = 0;
+                      for (int by = 0; by < bh; by++) for (int bx = 0; bx < bw; bx++) {
+                          int bo = by * bw + bx;
+                          if (!ok[bo]) continue;
+                          int x0 = bx * S, y0 = by * S, best = Integer.MAX_VALUE, bdx = 0, bdy = 0;
+                          for (int dy = -R; dy <= R; dy++) for (int dx = -R; dx <= R; dx++) {
+                              int xx = x0 + dx, yy = y0 + dy;
+                              if (xx < 0 || yy < 0 || xx + B > fw || yy + B > fh) continue;
+                              int sad = 0;
+                              for (int y = 0; y < B; y++) {
+                                  int ra = (y0 + y) * fw + x0, rb = (yy + y) * fw + xx;
+                                  for (int x = 0; x < B; x++) sad += Math.abs((a[ra + x] & 255) - (b[rb + x] & 255));
+                              }
+                              sad += 3 * (Math.abs(dx) + Math.abs(dy));
+                              if (sad < best) { best = sad; bdx = dx; bdy = dy; }
+                          }
+                          vx[bo] = bdx; vy[bo] = bdy;
+                          mot += (float) Math.hypot(bdx, bdy);
+                          cnt++;
+                      }
+                      if (cnt == 0) continue;
+                      mot /= cnt;
+                      if (mot < 0.7f) continue;
+                      List<Float> xs = new ArrayList<>(), ys = new ArrayList<>();
+                      for (int by = 0; by < bh; by++) for (int bx = 0; bx < bw; bx++) {
+                          int bo = by * bw + bx;
+                          if (ok[bo] && (bx == 0 || by == 0 || bx == bw - 1 || by == bh - 1)) { xs.add(vx[bo]); ys.add(vy[bo]); }
+                      }
+                      if (xs.size() < 3) {
+                          xs.clear(); ys.clear();
+                          for (int bo = 0; bo < nb; bo++) if (ok[bo]) { xs.add(vx[bo]); ys.add(vy[bo]); }
+                      }
+                      Collections.sort(xs);
+                      Collections.sort(ys);
+                      float mx = xs.get(xs.size() / 2), my = ys.get(ys.size() / 2);
+                      for (int bo = 0; bo < nb; bo++) if (ok[bo]) acc[bo] += (float) Math.hypot(vx[bo] - mx, vy[bo] - my);
+                      pairs++;
+                  }
+                  if (pairs == 0) return null;
+                  List<Float> vals = new ArrayList<>();
+                  for (int bo = 0; bo < nb; bo++) if (ok[bo]) vals.add(acc[bo]);
+                  if (vals.size() < 8) return null;
+                  Collections.sort(vals);
+                  float p95 = vals.get((int) (vals.size() * 0.95f));
+                  if (p95 < 1f) return null;
+                  float[] nv = new float[nb];
+                  boolean[] known = ok.clone();
+                  for (int bo = 0; bo < nb; bo++) if (ok[bo]) nv[bo] = Math.min(1f, acc[bo] / p95);
+                  for (int pass = 0; pass < 8; pass++) {
+                      boolean[] nk = known.clone();
+                      float[] nn = nv.clone();
+                      for (int by = 0; by < bh; by++) for (int bx = 0; bx < bw; bx++) {
+                          int bo = by * bw + bx;
+                          if (known[bo]) continue;
+                          float s = 0;
+                          int c = 0;
+                          if (bx > 0 && known[bo - 1]) { s += nv[bo - 1]; c++; }
+                          if (bx < bw - 1 && known[bo + 1]) { s += nv[bo + 1]; c++; }
+                          if (by > 0 && known[bo - bw]) { s += nv[bo - bw]; c++; }
+                          if (by < bh - 1 && known[bo + bw]) { s += nv[bo + bw]; c++; }
+                          if (c > 0) { nn[bo] = s / c; nk[bo] = true; }
+                      }
+                      nv = nn;
+                      known = nk;
+                  }
+                  byte[] out = new byte[nb];
+                  for (int bo = 0; bo < nb; bo++) out[bo] = (byte) (Math.min(1f, nv[bo]) * 255);
+                  sz[0] = bw;
+                  sz[1] = bh;
+                  return out;
               }
           }
           EOF
