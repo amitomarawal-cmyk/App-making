@@ -1,4 +1,4 @@
-name: Build APK
+name: Build DepthLens APK
 on:
   push:
   workflow_dispatch:
@@ -9,8 +9,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v5
         with:
-          java-version: '17'
           distribution: temurin
+          java-version: '17'
       - name: Accept licenses
         run: |
           mkdir -p $ANDROID_HOME/licenses
@@ -18,16 +18,27 @@ jobs:
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
           echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
           echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_HOME/licenses/android-googletv-license
-      - name: Create project
+      - name: Generate project
         run: |
-          mkdir -p gradle/wrapper app/src/main/java/com/awal/home app/src/main/res/values app/src/main/res/xml app/src/main/res/drawable
-          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
-          cat > gradlew << 'EOF'
-          #!/bin/sh
-          APP_HOME=$(cd "$(dirname "$0")" && pwd)
-          exec java -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
+          P=app/src/main/java/com/awal/depthlens
+          mkdir -p $P app/src/main/res/drawable gradle/wrapper
+
+          cat > settings.gradle << 'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositories { google(); mavenCentral() } }
+          rootProject.name = 'DepthLens'
+          include ':app'
           EOF
-          chmod +x gradlew
+
+          cat > build.gradle << 'EOF'
+          plugins { id 'com.android.application' version '8.1.2' apply false }
+          EOF
+
+          cat > gradle.properties << 'EOF'
+          android.useAndroidX=true
+          org.gradle.jvmargs=-Xmx3g
+          EOF
+
           cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
@@ -35,714 +46,607 @@ jobs:
           zipStoreBase=GRADLE_USER_HOME
           zipStorePath=wrapper/dists
           EOF
-          cat > settings.gradle << 'EOF'
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositories { google(); mavenCentral() } }
-          rootProject.name = "AwalHome"
-          include ':app'
-          EOF
-          cat > build.gradle << 'EOF'
-          plugins { id 'com.android.application' version '8.1.4' apply false }
-          EOF
-          cat > gradle.properties << 'EOF'
-          org.gradle.jvmargs=-Xmx2048m
-          EOF
+
           cat > app/build.gradle << 'EOF'
           plugins { id 'com.android.application' }
           android {
-            namespace 'com.awal.home'
-            compileSdk 34
-            defaultConfig {
-              applicationId 'com.awal.home'
-              minSdk 26
-              targetSdk 34
-              versionCode 1
-              versionName '1.0'
-            }
-            compileOptions {
-              sourceCompatibility JavaVersion.VERSION_17
-              targetCompatibility JavaVersion.VERSION_17
-            }
+              namespace 'com.awal.depthlens'
+              compileSdk 34
+              defaultConfig {
+                  applicationId 'com.awal.depthlens'
+                  minSdk 29
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
           }
-          tasks.withType(JavaCompile) { options.encoding = 'UTF-8' }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'androidx.camera:camera-core:1.3.1'
+              implementation 'androidx.camera:camera-camera2:1.3.1'
+              implementation 'androidx.camera:camera-lifecycle:1.3.1'
+              implementation 'androidx.camera:camera-view:1.3.1'
+              implementation 'com.google.guava:guava:32.1.3-android'
+              implementation 'com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1'
+          }
           EOF
+
           cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <uses-permission android:name="android.permission.INTERNET"/>
-            <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-            <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
-            <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-            <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES"/>
-            <application android:label="Awal Home" android:icon="@drawable/ic" android:theme="@style/T">
-              <activity android:name=".Main" android:exported="true" android:launchMode="singleTask" android:windowSoftInputMode="stateHidden|adjustPan">
-                <intent-filter>
-                  <action android:name="android.intent.action.MAIN"/>
-                  <category android:name="android.intent.category.HOME"/>
-                  <category android:name="android.intent.category.DEFAULT"/>
-                  <category android:name="android.intent.category.LAUNCHER"/>
-                </intent-filter>
-              </activity>
-              <activity android:name=".Pin" android:exported="true" android:theme="@android:style/Theme.Translucent.NoTitleBar">
-                <intent-filter>
-                  <action android:name="android.content.pm.action.CONFIRM_PIN_SHORTCUT"/>
-                  <category android:name="android.intent.category.DEFAULT"/>
-                </intent-filter>
-              </activity>
-              <receiver android:name=".Admin" android:exported="true" android:permission="android.permission.BIND_DEVICE_ADMIN">
-                <intent-filter>
-                  <action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/>
-                </intent-filter>
-                <meta-data android:name="android.app.device_admin" android:resource="@xml/adm"/>
-              </receiver>
-            </application>
+              <uses-permission android:name="android.permission.CAMERA" />
+              <application
+                  android:label="DepthLens"
+                  android:icon="@drawable/ic_launcher"
+                  android:theme="@style/Theme.AppCompat.NoActionBar">
+                  <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="subject_segment" />
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+                  <activity android:name=".GalleryActivity" android:exported="false" />
+                  <activity android:name=".EditorActivity" android:exported="false" />
+              </application>
           </manifest>
           EOF
-          cat > app/src/main/res/values/v.xml << 'EOF'
-          <resources>
-            <string name="d">Lets Awal Home lock the screen with the bottom button.</string>
-            <style name="T" parent="android:Theme.Material.NoActionBar">
-              <item name="android:statusBarColor">@android:color/transparent</item>
-              <item name="android:navigationBarColor">@android:color/transparent</item>
-              <item name="android:enforceNavigationBarContrast">false</item>
-            </style>
-          </resources>
-          EOF
-          cat > app/src/main/res/xml/adm.xml << 'EOF'
-          <device-admin xmlns:android="http://schemas.android.com/apk/res/android">
-            <uses-policies><force-lock/></uses-policies>
-          </device-admin>
-          EOF
-          cat > app/src/main/res/drawable/ic.xml << 'EOF'
-          <vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
-            android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-            <path android:pathData="M0,0h108v108h-108z">
-              <aapt:attr name="android:fillColor">
-                <gradient android:startX="0" android:startY="0" android:endX="108" android:endY="108" android:startColor="#FF2C5364" android:endColor="#FF0F2027"/>
-              </aapt:attr>
-            </path>
-            <path android:fillColor="#FFFFFFFF" android:pathData="M28,28h20v20h-20z M60,28h20v20h-20z M28,60h20v20h-20z"/>
-            <path android:fillColor="#FFFF9F0A" android:pathData="M60,60h20v20h-20z"/>
+
+          cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#101820" android:pathData="M0,0h108v108h-108z" />
+              <path android:fillColor="#2E86DE" android:pathData="M54,54m-34,0a34,34 0,1 1,68 0a34,34 0,1 1,-68 0" />
+              <path android:fillColor="#101820" android:pathData="M54,54m-24,0a24,24 0,1 1,48 0a24,24 0,1 1,-48 0" />
+              <path android:fillColor="#54A0FF" android:pathData="M54,54m-14,0a14,14 0,1 1,28 0a14,14 0,1 1,-28 0" />
+              <path android:fillColor="#FFFFFF" android:pathData="M47,46m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
           </vector>
           EOF
-          cat > app/src/main/java/com/awal/home/Admin.java << 'EOF'
-          package com.awal.home;
-          import android.app.admin.DeviceAdminReceiver;
-          public class Admin extends DeviceAdminReceiver {}
-          EOF
-          cat > app/src/main/java/com/awal/home/Pin.java << 'EOF'
-          package com.awal.home;
-          import android.app.Activity;
-          import android.content.SharedPreferences;
-          import android.content.pm.LauncherApps;
-          import android.os.Bundle;
+
+          cat > $P/Processor.java << 'EOF'
+          package com.awal.depthlens;
+          import android.graphics.*;
+          import android.media.ExifInterface;
+          import com.google.mlkit.vision.common.InputImage;
+          import com.google.mlkit.vision.segmentation.subject.*;
+          import java.io.*;
+          import java.nio.FloatBuffer;
           import java.util.*;
-          public class Pin extends Activity {
-            @Override protected void onCreate(Bundle b) {
-              super.onCreate(b);
-              try {
-                LauncherApps la = (LauncherApps) getSystemService(LAUNCHER_APPS_SERVICE);
-                LauncherApps.PinItemRequest r = la.getPinItemRequest(getIntent());
-                if (r != null && r.isValid() && r.getRequestType() == LauncherApps.PinItemRequest.REQUEST_TYPE_SHORTCUT) {
-                  String p = r.getShortcutInfo().getPackage();
-                  SharedPreferences s = getSharedPreferences("h", 0);
-                  Set<String> o = new HashSet<>(s.getStringSet("pk", new HashSet<String>()));
-                  o.add(p);
-                  s.edit().putStringSet("pk", o).apply();
-                  r.accept();
-                }
-              } catch (Exception e) {}
-              finish();
-            }
+          import java.util.concurrent.*;
+
+          public class Processor {
+              static final ExecutorService Q = Executors.newSingleThreadExecutor();
+              static final Set<String> busy = Collections.synchronizedSet(new HashSet<String>());
+              static final int MAX = 1280;
+
+              static Bitmap load(File f, int max) {
+                  try {
+                      BitmapFactory.Options o = new BitmapFactory.Options();
+                      o.inJustDecodeBounds = true;
+                      BitmapFactory.decodeFile(f.getPath(), o);
+                      int s = 1;
+                      while (Math.max(o.outWidth, o.outHeight) / (s * 2) >= max) s *= 2;
+                      o = new BitmapFactory.Options();
+                      o.inSampleSize = s;
+                      Bitmap b = BitmapFactory.decodeFile(f.getPath(), o);
+                      int ori = new ExifInterface(f.getPath()).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1);
+                      int rot = ori == 6 ? 90 : ori == 3 ? 180 : ori == 8 ? 270 : 0;
+                      float sc = Math.min(1f, (float) max / Math.max(b.getWidth(), b.getHeight()));
+                      Matrix m = new Matrix();
+                      m.postRotate(rot);
+                      m.postScale(sc, sc);
+                      return Bitmap.createBitmap(b, 0, 0, b.getWidth(), b.getHeight(), m, true);
+                  } catch (Exception e) {
+                      return null;
+                  }
+              }
+
+              static byte[] readMask(File f, int n) {
+                  try {
+                      if (f.length() != n) return null;
+                      byte[] b = new byte[n];
+                      try (DataInputStream d = new DataInputStream(new FileInputStream(f))) { d.readFully(b); }
+                      return b;
+                  } catch (Exception e) {
+                      return null;
+                  }
+              }
+
+              static void enqueue(final File f) {
+                  final File mf = new File(f.getPath() + ".m");
+                  if (mf.exists() || !busy.add(f.getPath())) return;
+                  Q.execute(() -> {
+                      try {
+                          Bitmap b = load(f, MAX);
+                          final int n = b.getWidth() * b.getHeight();
+                          SubjectSegmenter sg = SubjectSegmentation.getClient(
+                                  new SubjectSegmenterOptions.Builder().enableForegroundConfidenceMask().build());
+                          final CountDownLatch l = new CountDownLatch(1);
+                          sg.process(InputImage.fromBitmap(b, 0)).addOnSuccessListener(r -> {
+                              try {
+                                  FloatBuffer fb = r.getForegroundConfidenceMask();
+                                  if (fb != null && fb.remaining() >= n) {
+                                      byte[] m = new byte[n];
+                                      for (int i = 0; i < n; i++) m[i] = (byte) (Math.min(1f, Math.max(0f, fb.get(i))) * 255);
+                                      try (FileOutputStream o = new FileOutputStream(mf)) { o.write(m); }
+                                  }
+                              } catch (Exception e) { }
+                              l.countDown();
+                          }).addOnFailureListener(e -> l.countDown());
+                          l.await(90, TimeUnit.SECONDS);
+                          sg.close();
+                      } catch (Exception e) { }
+                      busy.remove(f.getPath());
+                  });
+              }
           }
           EOF
-          cat > app/src/main/java/com/awal/home/Main.java << 'EOF'
-          package com.awal.home;
-          import android.app.Activity;
-          import android.app.AlertDialog;
-          import android.app.admin.DevicePolicyManager;
-          import android.net.Uri;
-          import android.content.*;
-          import android.content.pm.*;
+
+          cat > $P/Blur.java << 'EOF'
+          package com.awal.depthlens;
           import android.graphics.*;
-          import android.graphics.drawable.*;
-          import android.hardware.*;
-          import android.location.*;
-          import android.media.AudioManager;
-          import android.media.MediaPlayer;
-          import android.media.MediaRecorder;
-          import android.os.Build;
-          import android.os.Handler;
-          import android.os.Looper;
+
+          public class Blur {
+              static final String[] NAMES = {"Natural", "Dramatic", "Evening Sky"};
+              static final int[] PS = {60, 85, 60};
+              static final float[] CON = {1f, 1.2f, 1.08f};
+              static final float[] SAT = {1f, 1.15f, 1.2f};
+              static final float[] VIG = {0f, 0.4f, 0.2f};
+              static byte[] cm;
+              static float[] cf;
+
+              static int analyze(Bitmap b) {
+                  Bitmap s = Bitmap.createScaledBitmap(b, 32, 32, true);
+                  double sum = 0, sq = 0, tr = 0, tb = 0, tl = 0;
+                  int n = 0;
+                  for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) {
+                      int c = s.getPixel(x, y);
+                      double r = Color.red(c), g = Color.green(c), bl = Color.blue(c);
+                      double l = (0.3 * r + 0.59 * g + 0.11 * bl) / 255;
+                      sum += l; sq += l * l;
+                      if (y < 11) { tr += r; tb += bl; tl += l; n++; }
+                  }
+                  double m = sum / 1024, sd = Math.sqrt(Math.max(0, sq / 1024 - m * m));
+                  tr /= n; tb /= n; tl /= n;
+                  if (tr > tb + 15 && tl > 0.3) return 2;
+                  if (sd > 0.27 || m < 0.33) return 1;
+                  return 0;
+              }
+
+              static void box(int[] p, int w, int h, int r, boolean horiz) {
+                  int n = horiz ? w : h, m = horiz ? h : w;
+                  int[] o = new int[n];
+                  for (int j = 0; j < m; j++) {
+                      for (int i = 0; i < n; i++) {
+                          int a = 0, rr = 0, g = 0, b = 0, c = 0;
+                          for (int d = -r; d <= r; d++) {
+                              int t = i + d;
+                              if (t < 0 || t >= n) continue;
+                              int v = p[horiz ? j * w + t : t * w + j];
+                              a += v >>> 24; rr += (v >> 16) & 255; g += (v >> 8) & 255; b += v & 255; c++;
+                          }
+                          o[i] = ((a / c) << 24) | ((rr / c) << 16) | ((g / c) << 8) | (b / c);
+                      }
+                      for (int i = 0; i < n; i++) p[horiz ? j * w + i : i * w + j] = o[i];
+                  }
+              }
+
+              static Bitmap blur(Bitmap src, int k) {
+                  int w = src.getWidth(), h = src.getHeight();
+                  int sw = Math.max(1, w / k), sh = Math.max(1, h / k);
+                  Bitmap s = Bitmap.createScaledBitmap(src, sw, sh, true);
+                  int[] p = new int[sw * sh];
+                  s.getPixels(p, 0, sw, 0, 0, sw, sh);
+                  box(p, sw, sh, 2, true);
+                  box(p, sw, sh, 2, false);
+                  Bitmap t = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888);
+                  t.setPixels(p, 0, sw, 0, 0, sw, sh);
+                  return Bitmap.createScaledBitmap(t, w, h, true);
+              }
+
+              static int mix(int a, int b, float f) {
+                  int r = (int) (((a >> 16) & 255) * (1 - f) + ((b >> 16) & 255) * f);
+                  int g = (int) (((a >> 8) & 255) * (1 - f) + ((b >> 8) & 255) * f);
+                  int bl = (int) ((a & 255) * (1 - f) + (b & 255) * f);
+                  return 0xFF000000 | (r << 16) | (g << 8) | bl;
+              }
+
+              static int cl(float v) { return v < 0 ? 0 : v > 255 ? 255 : (int) v; }
+
+              static synchronized float[] soft(byte[] mask, int w, int h) {
+                  if (cm == mask && cf != null) return cf;
+                  int[] p = new int[w * h];
+                  for (int i = 0; i < p.length; i++) { int v = mask[i] & 255; p[i] = 0xFF000000 | (v << 16) | (v << 8) | v; }
+                  Bitmap mb = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                  mb.setPixels(p, 0, w, 0, 0, w, h);
+                  mb = blur(mb, 10);
+                  mb.getPixels(p, 0, w, 0, 0, w, h);
+                  float[] f = new float[w * h];
+                  for (int i = 0; i < f.length; i++) f[i] = (p[i] & 255) / 255f;
+                  cm = mask; cf = f;
+                  return f;
+              }
+
+              static Bitmap render(Bitmap src, byte[] mask, float st, boolean bg, int pre) {
+                  int w = src.getWidth(), h = src.getHeight();
+                  int[] o = new int[w * h], p1 = new int[w * h], p2 = new int[w * h];
+                  src.getPixels(o, 0, w, 0, 0, w, h);
+                  blur(src, 2 + (int) (st * 6)).getPixels(p1, 0, w, 0, 0, w, h);
+                  blur(src, 4 + (int) (st * 22)).getPixels(p2, 0, w, 0, 0, w, h);
+                  float[] m = mask != null ? soft(mask, w, h) : null;
+                  float con = CON[pre], sat = SAT[pre], vig = VIG[pre];
+                  for (int y = 0; y < h; y++) {
+                      float fy = (float) y / h;
+                      for (int x = 0; x < w; x++) {
+                          int i = y * w + x;
+                          float t;
+                          if (m != null) t = bg ? (1 - m[i]) * (0.55f + 0.45f * (1 - fy)) : m[i];
+                          else { t = Math.min(1f, Math.abs(fy - 0.6f) * 2.2f); if (!bg) t = 1 - t; }
+                          int c = t < 0.5f ? mix(o[i], p1[i], t * 2) : mix(p1[i], p2[i], (t - 0.5f) * 2);
+                          if (pre > 0) {
+                              float r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+                              float gr = 0.3f * r + 0.59f * g + 0.11f * b;
+                              r = gr + (r - gr) * sat; g = gr + (g - gr) * sat; b = gr + (b - gr) * sat;
+                              r = (r - 128) * con + 128; g = (g - 128) * con + 128; b = (b - 128) * con + 128;
+                              if (pre == 2) { r *= 1.08f; b *= 0.92f; }
+                              float dx = (float) x / w - 0.5f, dy = fy - 0.5f;
+                              float d = (float) Math.sqrt(dx * dx + dy * dy) / 0.707f;
+                              float v = 1 - vig * d * d;
+                              c = 0xFF000000 | (cl(r * v) << 16) | (cl(g * v) << 8) | cl(b * v);
+                          }
+                          o[i] = c;
+                      }
+                  }
+                  return Bitmap.createBitmap(o, w, h, Bitmap.Config.ARGB_8888);
+              }
+          }
+          EOF
+
+          cat > $P/MainActivity.java << 'EOF'
+          package com.awal.depthlens;
+          import android.Manifest;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
           import android.os.Bundle;
-          import android.provider.Settings;
-          import android.text.TextUtils;
+          import android.view.Gravity;
+          import android.widget.*;
+          import androidx.appcompat.app.AppCompatActivity;
+          import androidx.camera.core.*;
+          import androidx.camera.lifecycle.ProcessCameraProvider;
+          import androidx.camera.view.PreviewView;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+          import java.io.File;
+
+          public class MainActivity extends AppCompatActivity {
+              PreviewView pv;
+              ImageCapture ic;
+
+              int dp(int v) { return (int) (v * getResources().getDisplayMetrics().density); }
+
+              @Override
+              protected void onCreate(Bundle s) {
+                  super.onCreate(s);
+                  FrameLayout root = new FrameLayout(this);
+                  pv = new PreviewView(this);
+                  root.addView(pv, -1, -1);
+                  TextView cr = new TextView(this);
+                  cr.setText("DepthLens  \u2022  Mohammod Abdul Awal\nStudent, Dept. of English, National University\nawal.sorkar.144@gmail.com");
+                  cr.setTextColor(0xFFFFFFFF);
+                  cr.setTextSize(11);
+                  cr.setBackgroundColor(0x66000000);
+                  cr.setPadding(dp(10), dp(30), dp(10), dp(8));
+                  root.addView(cr, -1, -2);
+                  LinearLayout bar = new LinearLayout(this);
+                  bar.setGravity(Gravity.CENTER);
+                  Button g = new Button(this);
+                  g.setText("\uD83D\uDDBC");
+                  Button c = new Button(this);
+                  c.setText("\u25CF");
+                  c.setTextSize(30);
+                  bar.addView(g);
+                  bar.addView(c);
+                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+                  lp.bottomMargin = dp(30);
+                  root.addView(bar, lp);
+                  setContentView(root);
+                  g.setOnClickListener(v -> startActivity(new Intent(this, GalleryActivity.class)));
+                  c.setOnClickListener(v -> shoot());
+                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) startCam();
+                  else ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1);
+              }
+
+              @Override
+              public void onRequestPermissionsResult(int rc, String[] p, int[] r) {
+                  super.onRequestPermissionsResult(rc, p, r);
+                  if (r.length > 0 && r[0] == PackageManager.PERMISSION_GRANTED) startCam();
+              }
+
+              void startCam() {
+                  var f = ProcessCameraProvider.getInstance(this);
+                  f.addListener(() -> {
+                      try {
+                          ProcessCameraProvider p = f.get();
+                          Preview pr = new Preview.Builder().build();
+                          pr.setSurfaceProvider(pv.getSurfaceProvider());
+                          ic = new ImageCapture.Builder().build();
+                          p.unbindAll();
+                          p.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, pr, ic);
+                      } catch (Exception e) { }
+                  }, ContextCompat.getMainExecutor(this));
+              }
+
+              void shoot() {
+                  if (ic == null) return;
+                  final File out = new File(getExternalFilesDir("photos"), System.currentTimeMillis() + ".jpg");
+                  ic.takePicture(new ImageCapture.OutputFileOptions.Builder(out).build(), ContextCompat.getMainExecutor(this),
+                          new ImageCapture.OnImageSavedCallback() {
+                              @Override
+                              public void onImageSaved(ImageCapture.OutputFileResults r) {
+                                  Processor.enqueue(out);
+                                  Toast.makeText(MainActivity.this, "Saved. Depth processing in background", Toast.LENGTH_SHORT).show();
+                              }
+
+                              @Override
+                              public void onError(ImageCaptureException e) {
+                                  Toast.makeText(MainActivity.this, "Capture failed", Toast.LENGTH_SHORT).show();
+                              }
+                          });
+              }
+          }
+          EOF
+
+          cat > $P/GalleryActivity.java << 'EOF'
+          package com.awal.depthlens;
+          import android.content.Intent;
+          import android.graphics.Bitmap;
+          import android.os.*;
+          import android.util.LruCache;
           import android.view.*;
           import android.widget.*;
-          import java.io.*;
-          import java.net.*;
-          import java.text.SimpleDateFormat;
+          import androidx.appcompat.app.AppCompatActivity;
+          import java.io.File;
           import java.util.*;
-          import org.json.*;
+          import java.util.concurrent.*;
 
-          public class Main extends Activity {
-            SharedPreferences sp; AudioManager am; ScrollView sv; GridLayout grid;
-            Weather wx; Compass cp; Speed sd; Rec rc; int sw, cw;
+          public class GalleryActivity extends AppCompatActivity {
+              final List<File> files = new ArrayList<>();
+              final LruCache<String, Bitmap> cache = new LruCache<>(80);
+              final ExecutorService ex = Executors.newFixedThreadPool(2);
+              final Handler h = new Handler(Looper.getMainLooper());
+              BaseAdapter ad;
+              int sz;
 
-            static class It { String label, key, pkg, sid; Drawable icon; Intent intent; }
-
-            int dp(float v) { return (int) (v * getResources().getDisplayMetrics().density + .5f); }
-            TextView tv(String s, float z) { TextView t = new TextView(this); t.setText(s); t.setTextSize(z); t.setTextColor(-1); return t; }
-            GradientDrawable rb(int col, float r) { GradientDrawable g = new GradientDrawable(); g.setColor(col); g.setCornerRadius(dp(r)); return g; }
-            static String get(String u) throws Exception {
-              HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
-              c.setConnectTimeout(8000); c.setReadTimeout(8000);
-              BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream()));
-              StringBuilder b = new StringBuilder(); String l;
-              while ((l = r.readLine()) != null) b.append(l);
-              r.close(); return b.toString();
-            }
-            View card(View v) {
-              FrameLayout f = new FrameLayout(this);
-              f.setBackground(rb(0x33000000, 28));
-              f.setPadding(dp(14), dp(14), dp(14), dp(14));
-              f.addView(v, new FrameLayout.LayoutParams(-1, -1));
-              LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(cw, dp(340));
-              lp.rightMargin = dp(12);
-              f.setLayoutParams(lp);
-              return f;
-            }
-
-            @Override protected void onCreate(Bundle b) {
-              super.onCreate(b);
-              sp = getSharedPreferences("h", 0);
-              am = (AudioManager) getSystemService(AUDIO_SERVICE);
-              sw = getResources().getDisplayMetrics().widthPixels;
-              cw = sw - dp(56);
-              getWindow().setBackgroundDrawable(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFF0F2027, 0xFF203A43, 0xFF2C5364}));
-              getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
-              LinearLayout root = new LinearLayout(this);
-              root.setOrientation(1); root.setFitsSystemWindows(true);
-              sv = new ScrollView(this); sv.setVerticalScrollBarEnabled(false);
-              LinearLayout c = new LinearLayout(this);
-              c.setOrientation(1); c.setPadding(dp(16), dp(24), dp(16), dp(16));
-              TextClock t = new TextClock(this);
-              t.setFormat12Hour("h:mm"); t.setFormat24Hour("H:mm");
-              t.setTextSize(64); t.setTextColor(-1); t.setGravity(Gravity.CENTER);
-              t.setTypeface(Typeface.create("sans-serif-thin", 0));
-              TextClock d = new TextClock(this);
-              d.setFormat12Hour("EEEE, d MMMM"); d.setFormat24Hour("EEEE, d MMMM");
-              d.setTextSize(17); d.setTextColor(0xCCFFFFFF); d.setGravity(Gravity.CENTER);
-              c.addView(t); c.addView(d);
-              grid = new GridLayout(this); grid.setColumnCount(4); grid.setPadding(0, dp(20), 0, dp(20));
-              c.addView(grid);
-              HorizontalScrollView hs = new HorizontalScrollView(this);
-              hs.setHorizontalScrollBarEnabled(false);
-              LinearLayout row = new LinearLayout(this);
-              wx = new Weather(); cp = new Compass(); sd = new Speed(); rc = new Rec();
-              row.addView(card(wx));
-              row.addView(card(new Calc()));
-              row.addView(card(new Cal()));
-              row.addView(card(cp));
-              row.addView(card(sd));
-              row.addView(card(rc));
-              TextView ab = tv("Awal Home\n\nCreator: Mohammod Abdul Awal\nStudent: Department of English,\nNational University\nawal.sorkar.144@gmail.com", 16);
-              ab.setGravity(Gravity.CENTER);
-              row.addView(card(ab));
-              hs.addView(row); c.addView(hs); sv.addView(c);
-              root.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1));
-              TextView bar = tv("\u23FB   \u2039  Volume  \u203A", 15);
-              bar.setGravity(Gravity.CENTER); bar.setBackground(rb(0x44FFFFFF, 28));
-              final float[] st = new float[1]; final boolean[] mv = new boolean[1];
-              bar.setOnTouchListener((v, e) -> {
-                switch (e.getActionMasked()) {
-                  case MotionEvent.ACTION_DOWN: st[0] = e.getX(); mv[0] = false; break;
-                  case MotionEvent.ACTION_MOVE:
-                    float dx = e.getX() - st[0];
-                    if (Math.abs(dx) > dp(28)) {
-                      mv[0] = true;
-                      am.adjustStreamVolume(AudioManager.STREAM_MUSIC, dx > 0 ? AudioManager.ADJUST_RAISE : AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI);
-                      st[0] = e.getX();
-                    }
-                    break;
-                  case MotionEvent.ACTION_UP: if (!mv[0]) { if (e.getEventTime() - e.getDownTime() > 1000) unadmin(); else lock(); } break;
-                }
-                return true;
-              });
-              LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(220), dp(52));
-              lp.gravity = Gravity.CENTER_HORIZONTAL; lp.setMargins(0, dp(8), 0, dp(12));
-              root.addView(bar, lp);
-              setContentView(root);
-            }
-
-            void lock() {
-              DevicePolicyManager dpm = (DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
-              ComponentName cn = new ComponentName(this, Admin.class);
-              if (dpm.isAdminActive(cn)) dpm.lockNow();
-              else {
-                Toast.makeText(this, "Tap Activate to allow screen lock", Toast.LENGTH_LONG).show();
-                startActivity(new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, cn));
+              @Override
+              protected void onCreate(Bundle s) {
+                  super.onCreate(s);
+                  sz = getResources().getDisplayMetrics().widthPixels / 3;
+                  GridView g = new GridView(this);
+                  g.setNumColumns(3);
+                  g.setBackgroundColor(0xFF000000);
+                  g.setPadding(0, (int) (30 * getResources().getDisplayMetrics().density), 0, 0);
+                  setContentView(g);
+                  ad = new BaseAdapter() {
+                      public int getCount() { return files.size(); }
+                      public Object getItem(int i) { return files.get(i); }
+                      public long getItemId(int i) { return i; }
+                      public View getView(int p, View cv, ViewGroup par) {
+                          FrameLayout fl = (FrameLayout) cv;
+                          final ImageView iv;
+                          TextView tv;
+                          if (fl == null) {
+                              fl = new FrameLayout(GalleryActivity.this);
+                              iv = new ImageView(GalleryActivity.this);
+                              iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                              tv = new TextView(GalleryActivity.this);
+                              tv.setText("\u23F3");
+                              tv.setTextSize(20);
+                              fl.addView(iv, -1, -1);
+                              fl.addView(tv);
+                              fl.setLayoutParams(new AbsListView.LayoutParams(-1, sz));
+                              fl.setTag(new View[]{iv, tv});
+                          } else {
+                              View[] t = (View[]) fl.getTag();
+                              iv = (ImageView) t[0];
+                              tv = (TextView) t[1];
+                          }
+                          final File f = files.get(p);
+                          tv.setVisibility(new File(f.getPath() + ".m").exists() ? View.GONE : View.VISIBLE);
+                          Bitmap cb = cache.get(f.getPath());
+                          iv.setTag(f.getPath());
+                          if (cb != null) iv.setImageBitmap(cb);
+                          else {
+                              iv.setImageBitmap(null);
+                              ex.execute(() -> {
+                                  final Bitmap b = Processor.load(f, 256);
+                                  if (b == null) return;
+                                  h.post(() -> {
+                                      cache.put(f.getPath(), b);
+                                      if (f.getPath().equals(iv.getTag())) iv.setImageBitmap(b);
+                                  });
+                              });
+                          }
+                          return fl;
+                      }
+                  };
+                  g.setAdapter(ad);
+                  g.setOnItemClickListener((a, v, p, id) ->
+                          startActivity(new Intent(this, EditorActivity.class).putExtra("p", files.get(p).getPath())));
               }
-            }
 
-            void unadmin() {
-              ((DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE)).removeActiveAdmin(new ComponentName(this, Admin.class));
-              Toast.makeText(this, "Lock permission removed. You can uninstall now.", Toast.LENGTH_LONG).show();
-            }
-            void ask(String title, java.util.function.Consumer<String> ok) {
-              EditText e = new EditText(this);
-              e.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
-              new AlertDialog.Builder(this).setTitle(title).setView(e)
-                .setPositiveButton("OK", (d, i) -> ok.accept(e.getText().toString()))
-                .setNegativeButton("Cancel", null).show();
-            }
-            boolean pinOk(String p) { return ("" + p.hashCode()).equals(sp.getString("pin", "")); }
-            void setLk(It t, boolean on) {
-              Set<String> s = new HashSet<>(sp.getStringSet("lk", new HashSet<String>()));
-              if (on) s.add(t.key); else s.remove(t.key);
-              sp.edit().putStringSet("lk", s).apply();
-              loadApps();
-            }
-            void toggleLock(It t, boolean lk) {
-              if (!sp.contains("pin")) {
-                ask("Set a PIN", p -> { if (p.length() >= 4) { sp.edit().putString("pin", "" + p.hashCode()).apply(); setLk(t, true); } else Toast.makeText(this, "Use 4+ digits", Toast.LENGTH_SHORT).show(); });
-              } else if (!lk) setLk(t, true);
-              else ask("Enter PIN", p -> { if (pinOk(p)) setLk(t, false); else Toast.makeText(this, "Wrong PIN", Toast.LENGTH_SHORT).show(); });
-            }
-            void menu(It t) {
-              final boolean lk = sp.getStringSet("lk", new HashSet<String>()).contains(t.key);
-              final List<String> o = new ArrayList<>();
-              o.add(lk ? "Unlock app" : "Lock app");
-              if (t.sid == null) { o.add("App info"); o.add("Uninstall"); }
-              new AlertDialog.Builder(this).setTitle(t.label).setItems(o.toArray(new String[0]), (d, i) -> {
-                String s = o.get(i);
-                if (s.endsWith("lock app") || s.equals("Lock app") || s.equals("Unlock app")) toggleLock(t, lk);
-                else if (s.equals("App info")) startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + t.pkg)));
-                else startActivity(new Intent(Intent.ACTION_DELETE, Uri.parse("package:" + t.pkg)));
-              }).show();
-            }
-            void open(It t) {
-              if (sp.getStringSet("lk", new HashSet<String>()).contains(t.key) && sp.contains("pin"))
-                ask("Enter PIN", p -> { if (pinOk(p)) go(t); else Toast.makeText(this, "Wrong PIN", Toast.LENGTH_SHORT).show(); });
-              else go(t);
-            }
-
-            @Override protected void onResume() { super.onResume(); loadApps(); wx.auto(); cp.start(); sd.start(); }
-            @Override protected void onPause() { super.onPause(); cp.stop(); sd.stop(); if (rc.mr != null) rc.stopRec(); rc.stopPlay(); }
-            @Override protected void onNewIntent(Intent i) { super.onNewIntent(i); sv.smoothScrollTo(0, 0); }
-            @Override public void onBackPressed() { sv.smoothScrollTo(0, 0); }
-            @Override public void onRequestPermissionsResult(int r, String[] p, int[] g) { sd.start(); }
-
-            void loadApps() {
-              PackageManager pm = getPackageManager();
-              List<It> items = new ArrayList<>();
-              Intent q = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
-              for (ResolveInfo r : pm.queryIntentActivities(q, 0)) {
-                String p = r.activityInfo.packageName;
-                if (p.equals(getPackageName())) continue;
-                It t = new It();
-                t.label = r.loadLabel(pm).toString(); t.icon = r.loadIcon(pm); t.pkg = p;
-                t.key = p + "/" + r.activityInfo.name;
-                t.intent = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-                  .setComponent(new ComponentName(p, r.activityInfo.name))
-                  .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-                items.add(t);
-              }
-              LauncherApps la = (LauncherApps) getSystemService(LAUNCHER_APPS_SERVICE);
-              for (String p : sp.getStringSet("pk", new HashSet<String>())) {
-                try {
-                  LauncherApps.ShortcutQuery sq = new LauncherApps.ShortcutQuery();
-                  sq.setPackage(p); sq.setQueryFlags(LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED);
-                  List<ShortcutInfo> ss = la.getShortcuts(sq, android.os.Process.myUserHandle());
-                  if (ss == null) continue;
-                  for (ShortcutInfo s : ss) {
-                    It t = new It();
-                    t.label = String.valueOf(s.getShortLabel()); t.pkg = p; t.sid = s.getId(); t.key = "s:" + p + "/" + s.getId();
-                    Drawable ic = la.getShortcutIconDrawable(s, 0);
-                    t.icon = ic != null ? ic : pm.getApplicationIcon(p);
-                    items.add(t);
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  files.clear();
+                  File[] fs = getExternalFilesDir("photos").listFiles((d, n) -> n.endsWith(".jpg"));
+                  if (fs != null) {
+                      Arrays.sort(fs, (a, b) -> b.getName().compareTo(a.getName()));
+                      for (File f : fs) { files.add(f); Processor.enqueue(f); }
                   }
-                } catch (Exception e) {}
+                  tick();
               }
-              Collections.sort(items, (a, b) -> {
-                int x = sp.getInt("c:" + b.key, 0) - sp.getInt("c:" + a.key, 0);
-                return x != 0 ? x : a.label.compareToIgnoreCase(b.label);
-              });
-              grid.removeAllViews();
-              int w = (sw - dp(32)) / 4;
-              for (It t : items) {
-                LinearLayout cell = new LinearLayout(this);
-                cell.setOrientation(1); cell.setGravity(Gravity.CENTER_HORIZONTAL); cell.setPadding(0, dp(8), 0, dp(8));
-                ImageView iv = new ImageView(this);
-                iv.setImageDrawable(t.icon);
-                iv.setOutlineProvider(new ViewOutlineProvider() {
-                  @Override public void getOutline(View v, Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), v.getWidth() * 0.225f); }
-                });
-                iv.setClipToOutline(true);
-                cell.addView(iv, new LinearLayout.LayoutParams(dp(58), dp(58)));
-                TextView l = tv((sp.getStringSet("lk", new HashSet<String>()).contains(t.key) ? "\uD83D\uDD12 " : "") + t.label, 11);
-                l.setSingleLine(true); l.setEllipsize(TextUtils.TruncateAt.END); l.setGravity(Gravity.CENTER); l.setPadding(dp(2), dp(4), dp(2), 0);
-                cell.addView(l, new LinearLayout.LayoutParams(-1, -2));
-                cell.setOnClickListener(v -> open(t));
-                cell.setOnLongClickListener(v -> { menu(t); return true; });
-                GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
-                lp.width = w;
-                grid.addView(cell, lp);
-              }
-            }
 
-            void go(It t) {
-              sp.edit().putInt("c:" + t.key, sp.getInt("c:" + t.key, 0) + 1).apply();
-              try {
-                if (t.sid != null) ((LauncherApps) getSystemService(LAUNCHER_APPS_SERVICE)).startShortcut(t.pkg, t.sid, null, null, android.os.Process.myUserHandle());
-                else startActivity(t.intent);
-              } catch (Exception e) { Toast.makeText(this, "Cannot open", Toast.LENGTH_SHORT).show(); }
-            }
+              void tick() {
+                  ad.notifyDataSetChanged();
+                  boolean pending = false;
+                  for (File f : files) if (!new File(f.getPath() + ".m").exists()) pending = true;
+                  if (pending) h.postDelayed(this::tick, 3000);
+              }
 
-            class Weather extends LinearLayout {
-              EditText e; TextView st; LinearLayout rows;
-              Weather() {
-                super(Main.this);
-                setOrientation(1);
-                LinearLayout h = new LinearLayout(Main.this);
-                e = new EditText(Main.this);
-                e.setHint("Location (e.g. Dhaka)"); e.setHintTextColor(0x88FFFFFF); e.setTextColor(-1);
-                e.setSingleLine(true); e.setTextSize(15); e.setText(sp.getString("wl", ""));
-                TextView g = tv("Go", 15);
-                g.setPadding(dp(14), dp(8), dp(14), dp(8)); g.setBackground(rb(0xFFFF9F0A, 16));
-                g.setOnClickListener(v -> {
-                  sp.edit().putString("wl", e.getText().toString().trim()).remove("wj").apply();
-                  e.clearFocus(); fetch();
-                });
-                h.addView(e, new LinearLayout.LayoutParams(0, -2, 1)); h.addView(g);
-                st = tv("", 12); st.setTextColor(0x99FFFFFF);
-                rows = new LinearLayout(Main.this); rows.setOrientation(1);
-                addView(h); addView(st); addView(rows);
-                show();
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  h.removeCallbacksAndMessages(null);
               }
-              String ico(int c) { return c == 0 ? "\u2600\uFE0F" : c < 3 ? "\uD83C\uDF24\uFE0F" : c == 3 ? "\u2601\uFE0F" : c < 50 ? "\uD83C\uDF2B\uFE0F" : c < 60 ? "\uD83C\uDF26\uFE0F" : c < 70 ? "\uD83C\uDF27\uFE0F" : c < 80 ? "\u2744\uFE0F" : c < 87 ? "\uD83C\uDF27\uFE0F" : "\u26C8\uFE0F"; }
-              void show() {
-                rows.removeAllViews();
-                String j = sp.getString("wj", null);
-                if (j == null) { st.setText("Enter location and tap Go"); return; }
-                try {
-                  JSONObject d = new JSONObject(j).getJSONObject("daily");
-                  JSONArray t = d.getJSONArray("time"), w = d.getJSONArray("weathercode"), x = d.getJSONArray("temperature_2m_max"), n = d.getJSONArray("temperature_2m_min");
-                  st.setText(sp.getString("wn", "") + " \u00B7 updated " + new SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()).format(new Date(sp.getLong("wt", 0))));
-                  SimpleDateFormat in = new SimpleDateFormat("yyyy-MM-dd", Locale.US), out = new SimpleDateFormat("EEE d", Locale.getDefault());
-                  for (int k = 0; k < t.length(); k++) {
-                    TextView r = tv(out.format(in.parse(t.getString(k))) + "   " + ico(w.getInt(k)) + "   " + Math.round(x.getDouble(k)) + "\u00B0 / " + Math.round(n.getDouble(k)) + "\u00B0", 16);
-                    r.setPadding(0, dp(6), 0, dp(6)); rows.addView(r);
-                  }
-                } catch (Exception ex) {}
-              }
-              void auto() {
-                if (!sp.getString("wl", "").isEmpty() && System.currentTimeMillis() - sp.getLong("wt", 0) > 86400000L) fetch();
-              }
-              void fetch() {
-                final String q = sp.getString("wl", "");
-                if (q.isEmpty()) return;
-                st.setText("Loading...");
-                new Thread(() -> {
-                  try {
-                    JSONObject g = new JSONObject(get("https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + URLEncoder.encode(q, "UTF-8"))).getJSONArray("results").getJSONObject(0);
-                    String f = get("https://api.open-meteo.com/v1/forecast?latitude=" + g.getDouble("latitude") + "&longitude=" + g.getDouble("longitude") + "&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=7");
-                    sp.edit().putString("wj", f).putString("wn", g.getString("name")).putLong("wt", System.currentTimeMillis()).apply();
-                    runOnUiThread(() -> show());
-                  } catch (Exception ex) {
-                    runOnUiThread(() -> { show(); st.setText(st.getText() + " (offline or not found)"); });
-                  }
-                }).start();
-              }
-            }
-
-            static class P {
-              String s; int i;
-              P(String x) { s = x.replace("\u00F7", "/").replace("\u00D7", "*").replace("\u2212", "-").replace("\u03C0", "p").replace("\u221A", "r"); }
-              double parse() { double v = ex(); if (i < s.length()) throw new RuntimeException(); return v; }
-              boolean at(char c) { return i < s.length() && s.charAt(i) == c; }
-              double ex() { double v = tm(); while (true) { if (at('+')) { i++; v += tm(); } else if (at('-')) { i++; v -= tm(); } else return v; } }
-              double tm() { double v = pw(); while (true) { if (at('*')) { i++; v *= pw(); } else if (at('/')) { i++; v /= pw(); } else return v; } }
-              double pw() { double b = un(); if (at('^')) { i++; return Math.pow(b, pw()); } return b; }
-              double un() {
-                if (at('-')) { i++; return -un(); }
-                double v = at();
-                while (at('%')) { i++; v /= 100; }
-                return v;
-              }
-              double at() {
-                if (i >= s.length()) throw new RuntimeException();
-                char c = s.charAt(i);
-                if (c == '(') { i++; double v = ex(); if (at(')')) i++; return v; }
-                if (Character.isDigit(c) || c == '.') {
-                  int j = i;
-                  while (i < s.length() && (Character.isDigit(s.charAt(i)) || s.charAt(i) == '.')) i++;
-                  return Double.parseDouble(s.substring(j, i));
-                }
-                if (c == 'p') { i++; return Math.PI; }
-                if (c == 'e') { i++; return Math.E; }
-                int j = i;
-                while (i < s.length() && Character.isLetter(s.charAt(i)) && s.charAt(i) != 'e' && s.charAt(i) != 'p') i++;
-                String n = s.substring(j, i);
-                double a = at();
-                switch (n) {
-                  case "sin": return Math.sin(Math.toRadians(a));
-                  case "cos": return Math.cos(Math.toRadians(a));
-                  case "tan": return Math.tan(Math.toRadians(a));
-                  case "log": return Math.log10(a);
-                  case "ln": return Math.log(a);
-                  case "r": return Math.sqrt(a);
-                }
-                throw new RuntimeException();
-              }
-            }
-
-            class Calc extends LinearLayout {
-              String ex = ""; TextView di;
-              Calc() {
-                super(Main.this);
-                setOrientation(1);
-                di = tv("0", 26); di.setGravity(Gravity.CENTER_VERTICAL | Gravity.END); di.setSingleLine(true); di.setEllipsize(TextUtils.TruncateAt.START);
-                addView(di, new LinearLayout.LayoutParams(-1, dp(44)));
-                String[][] k = {{"sin", "cos", "tan", "log", "ln"}, {"(", ")", "\u221A", "\u03C0", "C"}, {"7", "8", "9", "\u00F7", "^"}, {"4", "5", "6", "\u00D7", "\u232B"}, {"1", "2", "3", "\u2212", "+"}, {"0", ".", "e", "%", "="}};
-                for (String[] r : k) {
-                  LinearLayout l = new LinearLayout(Main.this);
-                  for (String s : r) {
-                    TextView b = tv(s, s.length() > 1 ? 13 : 17);
-                    b.setGravity(Gravity.CENTER);
-                    b.setBackground(rb("\u00F7\u00D7\u2212+=^".contains(s) ? 0xFFFF9F0A : 0x33FFFFFF, 14));
-                    b.setOnClickListener(v -> press(s));
-                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1);
-                    lp.setMargins(dp(2), dp(2), dp(2), dp(2));
-                    l.addView(b, lp);
-                  }
-                  addView(l, new LinearLayout.LayoutParams(-1, 0, 1));
-                }
-              }
-              String fmt(double v) {
-                if (Math.abs(v) < 1e-12) v = 0;
-                return new java.math.BigDecimal(v, new java.math.MathContext(10)).stripTrailingZeros().toPlainString();
-              }
-              void press(String s) {
-                if (ex.equals("Error")) ex = "";
-                try {
-                  switch (s) {
-                    case "C": ex = ""; break;
-                    case "\u232B": if (ex.length() > 0) ex = ex.substring(0, ex.length() - 1); break;
-                    case "=": if (!ex.isEmpty()) ex = fmt(new P(ex).parse()); break;
-                    case "sin": case "cos": case "tan": case "log": case "ln": case "\u221A": ex += s + "("; break;
-                    default: ex += s;
-                  }
-                } catch (Exception e) { ex = "Error"; }
-                di.setText(ex.isEmpty() ? "0" : ex);
-              }
-            }
-
-            class Cal extends LinearLayout {
-              Calendar c = Calendar.getInstance(); TextView t; GridLayout g;
-              Cal() {
-                super(Main.this);
-                setOrientation(1);
-                LinearLayout h = new LinearLayout(Main.this);
-                h.setGravity(Gravity.CENTER_VERTICAL);
-                TextView p = tv("\u2039", 28), n = tv("\u203A", 28);
-                p.setPadding(dp(12), 0, dp(12), 0); n.setPadding(dp(12), 0, dp(12), 0);
-                t = tv("", 18); t.setGravity(Gravity.CENTER);
-                h.addView(p); h.addView(t, new LinearLayout.LayoutParams(0, -2, 1)); h.addView(n);
-                p.setOnClickListener(v -> { c.add(Calendar.MONTH, -1); draw(); });
-                n.setOnClickListener(v -> { c.add(Calendar.MONTH, 1); draw(); });
-                g = new GridLayout(Main.this); g.setColumnCount(7);
-                g.setPadding(0, dp(10), 0, 0);
-                addView(h); addView(g);
-                draw();
-              }
-              void draw() {
-                g.removeAllViews();
-                t.setText(new SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(c.getTime()));
-                for (String s : new String[]{"S", "M", "T", "W", "T", "F", "S"}) cell(s, 0x99FFFFFF, false);
-                Calendar m = (Calendar) c.clone();
-                m.set(Calendar.DAY_OF_MONTH, 1);
-                int off = m.get(Calendar.DAY_OF_WEEK) - 1;
-                for (int i = 0; i < off; i++) cell("", 0, false);
-                Calendar now = Calendar.getInstance();
-                for (int i = 1; i <= m.getActualMaximum(Calendar.DAY_OF_MONTH); i++) {
-                  boolean td = i == now.get(Calendar.DAY_OF_MONTH) && m.get(Calendar.MONTH) == now.get(Calendar.MONTH) && m.get(Calendar.YEAR) == now.get(Calendar.YEAR);
-                  cell("" + i, -1, td);
-                }
-              }
-              void cell(String s, int col, boolean hl) {
-                TextView v = tv(s, 14);
-                v.setTextColor(col); v.setGravity(Gravity.CENTER);
-                if (hl) { GradientDrawable o = new GradientDrawable(); o.setShape(GradientDrawable.OVAL); o.setColor(0xFFFF3B30); v.setBackground(o); }
-                GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
-                lp.width = (cw - dp(28)) / 7; lp.height = dp(38);
-                g.addView(v, lp);
-              }
-            }
-
-            class Compass extends View implements SensorEventListener {
-              SensorManager sm = (SensorManager) Main.this.getSystemService(SENSOR_SERVICE);
-              Sensor rv = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
-              float az; Paint p = new Paint(Paint.ANTI_ALIAS_FLAG); float[] R = new float[9], o = new float[3];
-              Compass() { super(Main.this); p.setTextAlign(Paint.Align.CENTER); }
-              void start() { if (rv != null) sm.registerListener(this, rv, SensorManager.SENSOR_DELAY_UI); }
-              void stop() { sm.unregisterListener(this); }
-              @Override public void onAccuracyChanged(Sensor s, int a) {}
-              @Override public void onSensorChanged(SensorEvent e) {
-                SensorManager.getRotationMatrixFromVector(R, e.values);
-                SensorManager.getOrientation(R, o);
-                float a = ((float) Math.toDegrees(o[0]) + 360) % 360;
-                float d = ((a - az + 540) % 360) - 180;
-                az = (az + d * 0.25f + 360) % 360;
-                invalidate();
-              }
-              @Override protected void onDraw(Canvas c) {
-                float cx = getWidth() / 2f, cy = getHeight() / 2f, r = Math.min(cx, cy) - dp(22);
-                String[] L = {"N", "E", "S", "W"};
-                p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(2)); p.setColor(0x88FFFFFF);
-                c.drawCircle(cx, cy, r, p);
-                c.save(); c.rotate(-az, cx, cy);
-                for (int a = 0; a < 360; a += 15) {
-                  c.save(); c.rotate(a, cx, cy);
-                  p.setStyle(Paint.Style.STROKE); p.setColor(a == 0 ? 0xFFFF3B30 : -1);
-                  c.drawLine(cx, cy - r, cx, cy - r + dp(a % 90 == 0 ? 14 : 7), p);
-                  if (a % 90 == 0) { p.setStyle(Paint.Style.FILL); p.setTextSize(dp(20)); c.drawText(L[a / 90], cx, cy - r + dp(40), p); }
-                  c.restore();
-                }
-                c.restore();
-                p.setStyle(Paint.Style.FILL); p.setColor(0xFFFF9F0A);
-                Path t = new Path();
-                t.moveTo(cx, cy - r - dp(4)); t.lineTo(cx - dp(8), cy - r - dp(18)); t.lineTo(cx + dp(8), cy - r - dp(18)); t.close();
-                c.drawPath(t, p);
-                p.setColor(-1); p.setTextSize(dp(30));
-                String[] D = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
-                c.drawText(rv == null ? "No sensor" : (int) az + "\u00B0 " + D[(int) ((az + 22.5f) / 45) % 8], cx, cy + dp(10), p);
-              }
-            }
-
-            class Speed extends View implements LocationListener {
-              float v; boolean asked, ok; Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-              Speed() { super(Main.this); p.setTextAlign(Paint.Align.CENTER); p.setStrokeCap(Paint.Cap.ROUND); }
-              void start() {
-                ok = Main.this.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-                if (!ok) {
-                  if (!asked) { asked = true; Main.this.requestPermissions(new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, 1); }
-                  return;
-                }
-                try { ((LocationManager) Main.this.getSystemService(LOCATION_SERVICE)).requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, this); } catch (Exception e) {}
-                invalidate();
-              }
-              void stop() { try { ((LocationManager) Main.this.getSystemService(LOCATION_SERVICE)).removeUpdates(this); } catch (Exception e) {} }
-              @Override public void onLocationChanged(Location l) { v = l.hasSpeed() ? l.getSpeed() * 3.6f : 0; invalidate(); }
-              @Override public void onStatusChanged(String s, int st, Bundle b) {}
-              @Override public void onProviderEnabled(String s) {}
-              @Override public void onProviderDisabled(String s) {}
-              @Override protected void onDraw(Canvas c) {
-                float cx = getWidth() / 2f, cy = getHeight() / 2f, r = Math.min(cx, cy) - dp(20);
-                RectF rf = new RectF(cx - r, cy - r, cx + r, cy + r);
-                p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(14));
-                p.setColor(0x33FFFFFF); c.drawArc(rf, 135, 270, false, p);
-                p.setColor(0xFF30D158); c.drawArc(rf, 135, 270 * Math.min(v / 180f, 1f), false, p);
-                p.setStyle(Paint.Style.FILL); p.setColor(-1);
-                p.setTextSize(dp(56)); c.drawText("" + (int) v, cx, cy + dp(16), p);
-                p.setTextSize(dp(15)); p.setColor(0xAAFFFFFF);
-                c.drawText(ok ? "km/h" : "Allow location", cx, cy + dp(44), p);
-              }
-            }
-
-            class Rec extends LinearLayout {
-              MediaRecorder mr; MediaPlayer mp; TextView btn, tm; LinearLayout list; long t0; File cur, pf;
-              Handler h = new Handler(Looper.getMainLooper());
-              Runnable tk = new Runnable() {
-                @Override public void run() {
-                  long s = (System.currentTimeMillis() - t0) / 1000;
-                  tm.setText(String.format(Locale.US, "%02d:%02d", s / 60, s % 60));
-                  h.postDelayed(this, 500);
-                }
-              };
-              Rec() {
-                super(Main.this);
-                setOrientation(1);
-                tm = tv("00:00", 34); tm.setGravity(Gravity.CENTER);
-                btn = tv("\u25CF", 28); btn.setGravity(Gravity.CENTER);
-                GradientDrawable o = new GradientDrawable(); o.setShape(GradientDrawable.OVAL); o.setColor(0xFFFF3B30);
-                btn.setBackground(o);
-                btn.setOnClickListener(v -> toggle());
-                TextView hint = tv("Tap to play \u00B7 hold to delete", 11);
-                hint.setTextColor(0x99FFFFFF); hint.setGravity(Gravity.CENTER); hint.setPadding(0, dp(8), 0, dp(6));
-                list = new LinearLayout(Main.this); list.setOrientation(1);
-                ScrollView sc = new ScrollView(Main.this); sc.addView(list);
-                addView(tm, new LinearLayout.LayoutParams(-1, -2));
-                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(64), dp(64));
-                bp.gravity = Gravity.CENTER_HORIZONTAL; bp.topMargin = dp(8);
-                addView(btn, bp); addView(hint); addView(sc, new LinearLayout.LayoutParams(-1, 0, 1));
-                refresh();
-              }
-              void toggle() {
-                if (mr != null) { stopRec(); return; }
-                if (Main.this.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                  Main.this.requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 2);
-                  return;
-                }
-                stopPlay();
-                try {
-                  cur = new File(Main.this.getExternalFilesDir(null), "rec_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".m4a");
-                  mr = new MediaRecorder();
-                  mr.setAudioSource(MediaRecorder.AudioSource.MIC);
-                  mr.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-                  mr.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-                  mr.setOutputFile(cur.getAbsolutePath());
-                  mr.prepare(); mr.start();
-                  t0 = System.currentTimeMillis(); h.post(tk); btn.setText("\u25A0");
-                } catch (Exception e) {
-                  mr = null;
-                  Toast.makeText(Main.this, "Cannot record", Toast.LENGTH_SHORT).show();
-                }
-              }
-              void stopRec() {
-                h.removeCallbacks(tk);
-                try { mr.stop(); } catch (Exception e) { if (cur != null) cur.delete(); }
-                try { mr.release(); } catch (Exception e) {}
-                mr = null; btn.setText("\u25CF"); tm.setText("00:00");
-                refresh();
-              }
-              void play(File f) {
-                boolean same = f.equals(pf);
-                stopPlay();
-                if (same) return;
-                try {
-                  mp = new MediaPlayer();
-                  mp.setDataSource(f.getAbsolutePath());
-                  mp.prepare(); mp.start(); pf = f;
-                  mp.setOnCompletionListener(m -> stopPlay());
-                } catch (Exception e) { stopPlay(); }
-              }
-              void stopPlay() {
-                if (mp != null) { try { mp.release(); } catch (Exception e) {} mp = null; }
-                pf = null;
-              }
-              void refresh() {
-                list.removeAllViews();
-                File[] fs = Main.this.getExternalFilesDir(null).listFiles();
-                if (fs == null) return;
-                Arrays.sort(fs, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
-                SimpleDateFormat df = new SimpleDateFormat("d MMM, h:mm a", Locale.getDefault());
-                for (File f : fs) {
-                  if (!f.getName().endsWith(".m4a")) continue;
-                  TextView r = tv("\u25B6  " + df.format(new Date(f.lastModified())), 15);
-                  r.setPadding(dp(12), dp(10), dp(12), dp(10)); r.setBackground(rb(0x22FFFFFF, 12));
-                  r.setOnClickListener(v -> play(f));
-                  r.setOnLongClickListener(v -> { if (f.equals(pf)) stopPlay(); f.delete(); refresh(); return true; });
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-                  lp.bottomMargin = dp(6);
-                  list.addView(r, lp);
-                }
-              }
-            }
           }
           EOF
+
+          cat > $P/EditorActivity.java << 'EOF'
+          package com.awal.depthlens;
+          import android.content.ContentValues;
+          import android.graphics.Bitmap;
+          import android.net.Uri;
+          import android.os.*;
+          import android.provider.MediaStore;
+          import android.widget.*;
+          import androidx.appcompat.app.AppCompatActivity;
+          import java.io.File;
+          import java.io.OutputStream;
+          import java.util.concurrent.*;
+          import java.util.concurrent.atomic.AtomicInteger;
+
+          public class EditorActivity extends AppCompatActivity {
+              volatile Bitmap src, cur;
+              volatile byte[] mask;
+              volatile boolean bg = true;
+              volatile int preset = 0;
+              ImageView iv;
+              SeekBar sb;
+              TextView tv;
+              final AtomicInteger seq = new AtomicInteger();
+              final ExecutorService ex = Executors.newSingleThreadExecutor();
+              final Handler h = new Handler(Looper.getMainLooper());
+
+              @Override
+              protected void onCreate(Bundle s) {
+                  super.onCreate(s);
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setBackgroundColor(0xFF000000);
+                  root.setPadding(0, (int) (30 * getResources().getDisplayMetrics().density), 0, 0);
+                  iv = new ImageView(this);
+                  iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                  root.addView(iv, new LinearLayout.LayoutParams(-1, 0, 1f));
+                  tv = new TextView(this);
+                  tv.setTextColor(0xFFFFFFFF);
+                  tv.setPadding(24, 8, 24, 0);
+                  tv.setText("Loading...");
+                  root.addView(tv, -1, -2);
+                  sb = new SeekBar(this);
+                  sb.setMax(100);
+                  sb.setProgress(60);
+                  root.addView(sb, -1, -2);
+                  LinearLayout row = new LinearLayout(this);
+                  final Button b1 = new Button(this), b2 = new Button(this), b3 = new Button(this);
+                  b1.setText("Background");
+                  b2.setText("Auto AI");
+                  b3.setText("Save");
+                  row.addView(b1, new LinearLayout.LayoutParams(0, -2, 1f));
+                  row.addView(b2, new LinearLayout.LayoutParams(0, -2, 1f));
+                  row.addView(b3, new LinearLayout.LayoutParams(0, -2, 1f));
+                  root.addView(row, -1, -2);
+                  setContentView(root);
+
+                  final File f = new File(getIntent().getStringExtra("p"));
+                  ex.execute(() -> {
+                      Bitmap b = Processor.load(f, Processor.MAX);
+                      if (b == null) return;
+                      File m = new File(f.getPath() + ".m");
+                      if (m.exists()) mask = Processor.readMask(m, b.getWidth() * b.getHeight());
+                      src = b;
+                      h.post(() -> {
+                          tv.setText(mask != null ? "Depth ready" : "Depth not ready yet: using simple gradient");
+                          draw();
+                      });
+                  });
+                  sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      public void onProgressChanged(SeekBar s, int p, boolean u) { draw(); }
+                      public void onStartTrackingTouch(SeekBar s) { }
+                      public void onStopTrackingTouch(SeekBar s) { }
+                  });
+                  b1.setOnClickListener(v -> {
+                      bg = !bg;
+                      b1.setText(bg ? "Background" : "Foreground");
+                      draw();
+                  });
+                  b2.setOnClickListener(v -> {
+                      if (src == null) return;
+                      ex.execute(() -> {
+                          final int p = Blur.analyze(src);
+                          preset = p;
+                          h.post(() -> {
+                              tv.setText("AI scene: " + Blur.NAMES[p]);
+                              sb.setProgress(Blur.PS[p]);
+                              draw();
+                          });
+                      });
+                  });
+                  b3.setOnClickListener(v -> save());
+              }
+
+              void draw() {
+                  if (src == null) return;
+                  final int id = seq.incrementAndGet();
+                  final float st = sb.getProgress() / 100f;
+                  ex.execute(() -> {
+                      if (id != seq.get()) return;
+                      final Bitmap r = Blur.render(src, mask, st, bg, preset);
+                      if (id == seq.get()) h.post(() -> { cur = r; iv.setImageBitmap(r); });
+                  });
+              }
+
+              void save() {
+                  final Bitmap b = cur;
+                  if (b == null) return;
+                  ex.execute(() -> {
+                      String msg;
+                      try {
+                          ContentValues v = new ContentValues();
+                          v.put(MediaStore.Images.Media.DISPLAY_NAME, "DepthLens_" + System.currentTimeMillis() + ".jpg");
+                          v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                          v.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/DepthLens");
+                          Uri u = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+                          OutputStream o = getContentResolver().openOutputStream(u);
+                          b.compress(Bitmap.CompressFormat.JPEG, 95, o);
+                          o.close();
+                          msg = "Saved to Pictures/DepthLens";
+                      } catch (Exception e) {
+                          msg = "Save failed";
+                      }
+                      final String m = msg;
+                      h.post(() -> Toast.makeText(this, m, Toast.LENGTH_SHORT).show());
+                  });
+              }
+          }
+          EOF
+
+          cat > gradlew << 'EOF'
+          #!/bin/sh
+          D=$(dirname "$0")
+          exec java -classpath "$D/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
+          EOF
+          chmod +x gradlew
+      - name: Download wrapper jar
+        run: |
+          mkdir -p gradle/wrapper
+          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
       - name: Build
         run: ./gradlew assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4
         with:
-          name: AwalHome-APK
+          name: DepthLens-APK
           path: app/build/outputs/apk/debug/app-debug.apk
