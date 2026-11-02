@@ -1,1076 +1,887 @@
-name: Build DepthLens APK
-on:
-  push:
-  workflow_dispatch:
+name: Build APK
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
-      - name: Accept licenses
+          java-version: 17
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: stable
+
+      - name: Accept Android SDK licenses
         run: |
           mkdir -p $ANDROID_HOME/licenses
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
           echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
           echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_HOME/licenses/android-googletv-license
-      - name: Generate project
+
+      - name: Create Flutter project files
         run: |
-          P=app/src/main/java/com/awal/depthlens
-          mkdir -p $P app/src/main/res/drawable gradle/wrapper
-
-          cat > settings.gradle << 'EOF'
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositories { google(); mavenCentral() } }
-          rootProject.name = 'DepthLens'
-          include ':app'
-          EOF
-
-          cat > build.gradle << 'EOF'
-          plugins { id 'com.android.application' version '8.1.2' apply false }
-          EOF
-
-          cat > gradle.properties << 'EOF'
-          android.useAndroidX=true
-          org.gradle.jvmargs=-Xmx3g
-          EOF
-
-          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          EOF
-
-          cat > app/build.gradle << 'EOF'
-          plugins { id 'com.android.application' }
-          android {
-              namespace 'com.awal.depthlens'
-              compileSdk 34
-              defaultConfig {
-                  applicationId 'com.awal.depthlens'
-                  minSdk 29
-                  targetSdk 34
-                  versionCode 1
-                  versionName '1.0'
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-          }
-          dependencies {
-              implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'androidx.camera:camera-core:1.3.1'
-              implementation 'androidx.camera:camera-camera2:1.3.1'
-              implementation 'androidx.camera:camera-lifecycle:1.3.1'
-              implementation 'androidx.camera:camera-view:1.3.1'
-              implementation 'com.google.guava:guava:32.1.3-android'
-              implementation 'com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1'
-          }
-          EOF
-
-          cat > app/src/main/AndroidManifest.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.CAMERA" />
-              <application
-                  android:label="DepthLens"
-                  android:icon="@drawable/ic_launcher"
-                  android:theme="@style/Theme.AppCompat.NoActionBar">
-                  <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="subject_segment" />
-                  <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="portrait">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-                  <activity android:name=".GalleryActivity" android:exported="false" />
-                  <activity android:name=".EditorActivity" android:exported="false" />
-              </application>
-          </manifest>
-          EOF
-
-          cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-              <path android:fillColor="#101820" android:pathData="M0,0h108v108h-108z" />
-              <path android:fillColor="#2E86DE" android:pathData="M54,54m-34,0a34,34 0,1 1,68 0a34,34 0,1 1,-68 0" />
-              <path android:fillColor="#101820" android:pathData="M54,54m-24,0a24,24 0,1 1,48 0a24,24 0,1 1,-48 0" />
-              <path android:fillColor="#54A0FF" android:pathData="M54,54m-14,0a14,14 0,1 1,28 0a14,14 0,1 1,-28 0" />
-              <path android:fillColor="#FFFFFF" android:pathData="M47,46m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
-          </vector>
-          EOF
-
-          cat > $P/Processor.java << 'EOF'
-          package com.awal.depthlens;
-          import android.graphics.*;
-          import android.media.ExifInterface;
-          import com.google.mlkit.vision.common.InputImage;
-          import com.google.mlkit.vision.segmentation.subject.*;
-          import java.io.*;
-          import java.nio.FloatBuffer;
-          import java.util.*;
-          import java.util.concurrent.*;
-
-          public class Processor {
-              static final ExecutorService Q = Executors.newSingleThreadExecutor();
-              static final Set<String> busy = Collections.synchronizedSet(new HashSet<String>());
-              static final int MAX = 1280;
-
-              static Bitmap load(File f, int max) {
-                  try {
-                      BitmapFactory.Options o = new BitmapFactory.Options();
-                      o.inJustDecodeBounds = true;
-                      BitmapFactory.decodeFile(f.getPath(), o);
-                      int s = 1;
-                      while (Math.max(o.outWidth, o.outHeight) / (s * 2) >= max) s *= 2;
-                      o = new BitmapFactory.Options();
-                      o.inSampleSize = s;
-                      Bitmap b = BitmapFactory.decodeFile(f.getPath(), o);
-                      int ori = new ExifInterface(f.getPath()).getAttributeInt(ExifInterface.TAG_ORIENTATION, 1);
-                      int rot = ori == 6 ? 90 : ori == 3 ? 180 : ori == 8 ? 270 : 0;
-                      float sc = Math.min(1f, (float) max / Math.max(b.getWidth(), b.getHeight()));
-                      Matrix m = new Matrix();
-                      m.postRotate(rot);
-                      m.postScale(sc, sc);
-                      return Bitmap.createBitmap(b, 0, 0, b.getWidth(), b.getHeight(), m, true);
-                  } catch (Exception e) {
-                      return null;
-                  }
-              }
-
-              static byte[] readMask(File f, int n) {
-                  try {
-                      if (f.length() != n) return null;
-                      byte[] b = new byte[n];
-                      try (DataInputStream d = new DataInputStream(new FileInputStream(f))) { d.readFully(b); }
-                      return b;
-                  } catch (Exception e) {
-                      return null;
-                  }
-              }
-
-              static class Depth { int w, h; byte[] d; }
-              static Depth readDepth(File f) {
-                  try {
-                      if (!f.exists()) return null;
-                      try (DataInputStream i = new DataInputStream(new FileInputStream(f))) {
-                          Depth x = new Depth(); x.w = i.readInt(); x.h = i.readInt(); x.d = new byte[x.w * x.h]; i.readFully(x.d); return x;
-                      }
-                  } catch (Exception e) { return null; }
-              }
-
-              static void enqueue(final File f) {
-                  final File mf = new File(f.getPath() + ".m");
-                  if (mf.exists() || !busy.add(f.getPath())) return;
-                  Q.execute(() -> {
-                      try {
-                          Bitmap b = load(f, MAX);
-                          final int n = b.getWidth() * b.getHeight();
-                          SubjectSegmenter sg = SubjectSegmentation.getClient(
-                                  new SubjectSegmenterOptions.Builder().enableForegroundConfidenceMask().build());
-                          final CountDownLatch l = new CountDownLatch(1);
-                          sg.process(InputImage.fromBitmap(b, 0)).addOnSuccessListener(r -> {
-                              try {
-                                  FloatBuffer fb = r.getForegroundConfidenceMask();
-                                  if (fb != null && fb.remaining() >= n) {
-                                      byte[] m = new byte[n];
-                                      for (int i = 0; i < n; i++) m[i] = (byte) (Math.min(1f, Math.max(0f, fb.get(i))) * 255);
-                                      try (FileOutputStream o = new FileOutputStream(mf)) { o.write(m); }
-                                  }
-                              } catch (Exception e) { }
-                              l.countDown();
-                          }).addOnFailureListener(e -> l.countDown());
-                          l.await(90, TimeUnit.SECONDS);
-                          sg.close();
-                      } catch (Exception e) { }
-                      busy.remove(f.getPath());
-                  });
-              }
-          }
-          EOF
-
-          cat > $P/Blur.java << 'EOF'
-          package com.awal.depthlens;
-          import android.graphics.*;
-
-          public class Blur {
-              static final String[] NAMES = {"Natural", "Dramatic", "Evening Sky"};
-              static final int[] PS = {60, 85, 60};
-              static final float[] CON = {1f, 1.2f, 1.08f};
-              static final float[] SAT = {1f, 1.15f, 1.2f};
-              static final float[] VIG = {0f, 0.4f, 0.2f};
-              static byte[] cm;
-              static float[] cf;
-
-              static int analyze(Bitmap b) {
-                  Bitmap s = Bitmap.createScaledBitmap(b, 32, 32, true);
-                  double sum = 0, sq = 0, tr = 0, tb = 0, tl = 0;
-                  int n = 0;
-                  for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) {
-                      int c = s.getPixel(x, y);
-                      double r = Color.red(c), g = Color.green(c), bl = Color.blue(c);
-                      double l = (0.3 * r + 0.59 * g + 0.11 * bl) / 255;
-                      sum += l; sq += l * l;
-                      if (y < 11) { tr += r; tb += bl; tl += l; n++; }
-                  }
-                  double m = sum / 1024, sd = Math.sqrt(Math.max(0, sq / 1024 - m * m));
-                  tr /= n; tb /= n; tl /= n;
-                  if (tr > tb + 15 && tl > 0.3) return 2;
-                  if (sd > 0.27 || m < 0.33) return 1;
-                  return 0;
-              }
-
-              static void box(int[] p, int w, int h, int r, boolean horiz) {
-                  int n = horiz ? w : h, m = horiz ? h : w;
-                  int[] o = new int[n];
-                  for (int j = 0; j < m; j++) {
-                      for (int i = 0; i < n; i++) {
-                          int a = 0, rr = 0, g = 0, b = 0, c = 0;
-                          for (int d = -r; d <= r; d++) {
-                              int t = i + d;
-                              if (t < 0 || t >= n) continue;
-                              int v = p[horiz ? j * w + t : t * w + j];
-                              a += v >>> 24; rr += (v >> 16) & 255; g += (v >> 8) & 255; b += v & 255; c++;
-                          }
-                          o[i] = ((a / c) << 24) | ((rr / c) << 16) | ((g / c) << 8) | (b / c);
-                      }
-                      for (int i = 0; i < n; i++) p[horiz ? j * w + i : i * w + j] = o[i];
-                  }
-              }
-
-              static Bitmap blur(Bitmap src, int k) {
-                  int w = src.getWidth(), h = src.getHeight();
-                  int sw = Math.max(1, w / k), sh = Math.max(1, h / k);
-                  Bitmap s = Bitmap.createScaledBitmap(src, sw, sh, true);
-                  int[] p = new int[sw * sh];
-                  s.getPixels(p, 0, sw, 0, 0, sw, sh);
-                  box(p, sw, sh, 2, true);
-                  box(p, sw, sh, 2, false);
-                  Bitmap t = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888);
-                  t.setPixels(p, 0, sw, 0, 0, sw, sh);
-                  return Bitmap.createScaledBitmap(t, w, h, true);
-              }
-
-              static float[] up(byte[] d, int dw, int dh, int w, int h) {
-                  int[] p = new int[dw * dh];
-                  for (int i = 0; i < p.length; i++) { int v = d[i] & 255; p[i] = 0xFF000000 | (v << 16) | (v << 8) | v; }
-                  Bitmap s = Bitmap.createBitmap(dw, dh, Bitmap.Config.ARGB_8888);
-                  s.setPixels(p, 0, dw, 0, 0, dw, dh);
-                  Bitmap u = blur(Bitmap.createScaledBitmap(s, w, h, true), 8);
-                  int[] q = new int[w * h];
-                  u.getPixels(q, 0, w, 0, 0, w, h);
-                  float[] f = new float[w * h];
-                  for (int i = 0; i < f.length; i++) f[i] = (q[i] & 255) / 255f;
-                  return f;
-              }
-
-              static int mix(int a, int b, float f) {
-                  int r = (int) (((a >> 16) & 255) * (1 - f) + ((b >> 16) & 255) * f);
-                  int g = (int) (((a >> 8) & 255) * (1 - f) + ((b >> 8) & 255) * f);
-                  int bl = (int) ((a & 255) * (1 - f) + (b & 255) * f);
-                  return 0xFF000000 | (r << 16) | (g << 8) | bl;
-              }
-
-              static int cl(float v) { return v < 0 ? 0 : v > 255 ? 255 : (int) v; }
-
-              static synchronized float[] soft(byte[] mask, int w, int h) {
-                  if (cm == mask && cf != null) return cf;
-                  int[] p = new int[w * h];
-                  for (int i = 0; i < p.length; i++) { int v = mask[i] & 255; p[i] = 0xFF000000 | (v << 16) | (v << 8) | v; }
-                  Bitmap mb = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-                  mb.setPixels(p, 0, w, 0, 0, w, h);
-                  mb = blur(mb, 10);
-                  mb.getPixels(p, 0, w, 0, 0, w, h);
-                  float[] f = new float[w * h];
-                  for (int i = 0; i < f.length; i++) f[i] = (p[i] & 255) / 255f;
-                  cm = mask; cf = f;
-                  return f;
-              }
-
-              static Bitmap render(Bitmap src, byte[] mask, byte[] dep, int dw, int dh, float st, boolean bg, int pre) {
-                  int w = src.getWidth(), h = src.getHeight();
-                  int[] o = new int[w * h], p1 = new int[w * h], p2 = new int[w * h];
-                  src.getPixels(o, 0, w, 0, 0, w, h);
-                  blur(src, 2 + (int) (st * 6)).getPixels(p1, 0, w, 0, 0, w, h);
-                  blur(src, 4 + (int) (st * 22)).getPixels(p2, 0, w, 0, 0, w, h);
-                  float[] m = mask != null ? soft(mask, w, h) : null;
-                  float[] dn = dep != null ? up(dep, dw, dh, w, h) : null; float fN = 0.6f;
-                  if (dn != null) { double s1 = 0, s2 = 0; for (int i = 0; i < dn.length; i++) { float wt; if (m != null) wt = m[i] > 0.5f ? 1f : 0f; else { int xx = i % w, yy = i / w; wt = (xx > w * 0.35f && xx < w * 0.65f && yy > h * 0.35f && yy < h * 0.65f) ? 1f : 0f; } s1 += wt * dn[i]; s2 += wt; } if (s2 > 0) fN = (float) (s1 / s2); }
-                  float con = CON[pre], sat = SAT[pre], vig = VIG[pre];
-                  for (int y = 0; y < h; y++) {
-                      float fy = (float) y / h;
-                      for (int x = 0; x < w; x++) {
-                          int i = y * w + x;
-                          float t;
-                          float tm = m != null ? (bg ? (1 - m[i]) * (0.55f + 0.45f * (1 - fy)) : m[i]) : -1f; float tp = -1f;
-                          if (dn != null) { float dd = bg ? fN - dn[i] : dn[i] - fN; tp = Math.min(1f, Math.max(0f, dd * 2.5f)); }
-                          if (tm >= 0 && tp >= 0) t = 0.5f * (tm + tp); else if (tm >= 0) t = tm; else if (tp >= 0) t = tp;
-                          else { t = Math.min(1f, Math.abs(fy - 0.6f) * 2.2f); if (!bg) t = 1 - t; }
-                          int c = t < 0.5f ? mix(o[i], p1[i], t * 2) : mix(p1[i], p2[i], (t - 0.5f) * 2);
-                          if (pre > 0) {
-                              float r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
-                              float gr = 0.3f * r + 0.59f * g + 0.11f * b;
-                              r = gr + (r - gr) * sat; g = gr + (g - gr) * sat; b = gr + (b - gr) * sat;
-                              r = (r - 128) * con + 128; g = (g - 128) * con + 128; b = (b - 128) * con + 128;
-                              if (pre == 2) { r *= 1.08f; b *= 0.92f; }
-                              float dx = (float) x / w - 0.5f, dy = fy - 0.5f;
-                              float d = (float) Math.sqrt(dx * dx + dy * dy) / 0.707f;
-                              float v = 1 - vig * d * d;
-                              c = 0xFF000000 | (cl(r * v) << 16) | (cl(g * v) << 8) | cl(b * v);
-                          }
-                          o[i] = c;
-                      }
-                  }
-                  return Bitmap.createBitmap(o, w, h, Bitmap.Config.ARGB_8888);
-              }
-          }
-          EOF
-
-          cat > $P/MainActivity.java << 'EOF'
-          package com.awal.depthlens;
-          import android.Manifest;
-          import android.content.Context;
-          import android.content.Intent;
-          import android.content.pm.PackageManager;
-          import android.graphics.Canvas;
-          import android.graphics.Paint;
-          import android.graphics.Rect;
-          import android.graphics.drawable.GradientDrawable;
-          import android.os.Bundle;
-          import android.os.Handler;
-          import android.os.Looper;
-          import android.util.Range;
-          import android.util.Rational;
-          import android.view.*;
-          import android.widget.*;
-          import androidx.appcompat.app.AppCompatActivity;
-          import androidx.camera.core.*;
-          import androidx.camera.lifecycle.ProcessCameraProvider;
-          import androidx.camera.view.PreviewView;
-          import androidx.core.app.ActivityCompat;
-          import androidx.core.content.ContextCompat;
-          import java.io.*;
-          import java.nio.ByteBuffer;
-          import java.util.*;
-          import java.util.concurrent.*;
-
-          public class MainActivity extends AppCompatActivity {
-              static final int FW = 96;
-              static final Rational[] RAT = {new Rational(3, 4), new Rational(9, 16), new Rational(1, 1)};
-              static final String[] RT = {"3:4", "9:16", "1:1"};
-              static final float[] RV = {0.75f, 0.5625f, 1f};
-              static final int[] FM = {ImageCapture.FLASH_MODE_OFF, ImageCapture.FLASH_MODE_AUTO, ImageCapture.FLASH_MODE_ON};
-              static final String[] FT = {"Off", "Auto", "On"};
-              PreviewView pv;
-              Overlay ov;
-              ProcessCameraProvider prov;
-              Camera cam;
-              ImageCapture ic;
-              SeekBar zoom, exp;
-              TextView msg;
-              int ri = 0, fl = 0, expLo = 0;
-              boolean front = false, grid = true, sweep = false;
-              volatile boolean collecting = false;
-              volatile int ffw = FW, ffh = FW;
-              final List<byte[]> frames = Collections.synchronizedList(new ArrayList<byte[]>());
-              final ExecutorService ax = Executors.newSingleThreadExecutor();
-              final Handler h = new Handler(Looper.getMainLooper());
-
-              int dp(int v) { return (int) (v * getResources().getDisplayMetrics().density); }
-
-              void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
-
-              class Overlay extends View {
-                  Paint p = new Paint();
-                  float r = 0.75f, fx = -1, fy;
-                  boolean grid = true;
-
-                  Overlay(Context c) {
-                      super(c);
-                      p.setStyle(Paint.Style.STROKE);
-                      p.setAntiAlias(true);
-                  }
-
-                  void ring(float x, float y) {
-                      fx = x; fy = y;
-                      invalidate();
-                      postDelayed(() -> { fx = -1; invalidate(); }, 1200);
-                  }
-
-                  @Override
-                  protected void onDraw(Canvas c) {
-                      int W = getWidth(), H = getHeight();
-                      float w, hh;
-                      if (W / (float) H > r) { hh = H; w = H * r; } else { w = W; hh = W / r; }
-                      float l = (W - w) / 2, t = (H - hh) / 2;
-                      p.setColor(0x99FFFFFF);
-                      p.setStrokeWidth(3f);
-                      c.drawRect(l, t, l + w, t + hh, p);
-                      if (grid) {
-                          p.setStrokeWidth(2f);
-                          for (int i = 1; i < 3; i++) {
-                              c.drawLine(l + w * i / 3, t, l + w * i / 3, t + hh, p);
-                              c.drawLine(l, t + hh * i / 3, l + w, t + hh * i / 3, p);
-                          }
-                      }
-                      if (fx >= 0) {
-                          p.setColor(0xFFFFD60A);
-                          p.setStrokeWidth(4f);
-                          c.drawCircle(fx, fy, 60, p);
-                      }
-                  }
-              }
-
-              void setBg(View v, int c) {
-                  GradientDrawable d = new GradientDrawable();
-                  d.setColor(c);
-                  d.setCornerRadius(dp(20));
-                  v.setBackground(d);
-              }
-
-              TextView chip(String t) {
-                  TextView v = new TextView(this);
-                  v.setText(t);
-                  v.setTextColor(0xFFFFFFFF);
-                  v.setTextSize(13);
-                  v.setGravity(Gravity.CENTER);
-                  v.setPadding(dp(10), dp(8), dp(10), dp(8));
-                  v.setClickable(true);
-                  setBg(v, 0x88000000);
-                  return v;
-              }
-
-              LinearLayout row(String t, SeekBar s) {
-                  LinearLayout r = new LinearLayout(this);
-                  r.setGravity(Gravity.CENTER_VERTICAL);
-                  TextView l = new TextView(this);
-                  l.setText(t);
-                  l.setTextColor(0xFFFFFFFF);
-                  l.setTextSize(12);
-                  r.addView(l, dp(64), -2);
-                  r.addView(s, new LinearLayout.LayoutParams(0, -2, 1f));
-                  return r;
-              }
-
-              View cell(View v, int w, int hh) {
-                  FrameLayout f = new FrameLayout(this);
-                  f.addView(v, new FrameLayout.LayoutParams(w, hh, Gravity.CENTER));
-                  return f;
-              }
-
-              @Override
-              protected void onCreate(Bundle s) {
-                  super.onCreate(s);
-                  FrameLayout root = new FrameLayout(this);
-                  root.setBackgroundColor(0xFF000000);
-                  pv = new PreviewView(this);
-                  pv.setScaleType(PreviewView.ScaleType.FIT_CENTER);
-                  root.addView(pv, -1, -1);
-                  ov = new Overlay(this);
-                  root.addView(ov, -1, -1);
-
-                  LinearLayout top = new LinearLayout(this);
-                  top.setPadding(dp(8), dp(34), dp(8), 0);
-                  final TextView cR = chip("3:4"), cG = chip("\u25A6 Grid"), cF = chip("\u26A1 Off"), cS = chip("\u2194 Sweep"), cC = chip("\uD83D\uDD04");
-                  setBg(cG, 0xAA2E86DE);
-                  for (TextView c : new TextView[]{cR, cG, cF, cS, cC}) {
-                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
-                      lp.setMargins(dp(3), 0, dp(3), 0);
-                      top.addView(c, lp);
-                  }
-                  root.addView(top, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
-
-                  msg = new TextView(this);
-                  msg.setTextSize(22);
-                  msg.setTextColor(0xFFFFD60A);
-                  msg.setGravity(Gravity.CENTER);
-                  msg.setPadding(dp(16), dp(12), dp(16), dp(12));
-                  setBg(msg, 0xAA000000);
-                  msg.setVisibility(View.GONE);
-                  root.addView(msg, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
-
-                  LinearLayout bot = new LinearLayout(this);
-                  bot.setOrientation(LinearLayout.VERTICAL);
-                  bot.setPadding(dp(12), dp(8), dp(12), dp(6));
-                  bot.setBackgroundColor(0x55000000);
-                  zoom = new SeekBar(this);
-                  zoom.setMax(100);
-                  exp = new SeekBar(this);
-                  exp.setMax(1);
-                  bot.addView(row("Zoom", zoom), -1, -2);
-                  bot.addView(row("\u2600 Light", exp), -1, -2);
-                  LinearLayout br = new LinearLayout(this);
-                  br.setGravity(Gravity.CENTER_VERTICAL);
-                  br.setPadding(0, dp(8), 0, 0);
-                  TextView cGal = chip("\uD83D\uDDBC Gallery"), cA = chip("AF Auto");
-                  View sh = new View(this);
-                  GradientDrawable gd = new GradientDrawable();
-                  gd.setShape(GradientDrawable.OVAL);
-                  gd.setColor(0xFFFFFFFF);
-                  gd.setStroke(dp(5), 0xFF2E86DE);
-                  sh.setBackground(gd);
-                  sh.setClickable(true);
-                  br.addView(cell(cGal, -2, -2), new LinearLayout.LayoutParams(0, -2, 1f));
-                  br.addView(cell(sh, dp(72), dp(72)), new LinearLayout.LayoutParams(0, -2, 1f));
-                  br.addView(cell(cA, -2, -2), new LinearLayout.LayoutParams(0, -2, 1f));
-                  bot.addView(br, -1, -2);
-                  TextView cr = new TextView(this);
-                  cr.setText("DepthLens \u2022 Mohammod Abdul Awal \u2022 Dept. of English, National University \u2022 awal.sorkar.144@gmail.com");
-                  cr.setTextColor(0x99FFFFFF);
-                  cr.setTextSize(9);
-                  cr.setGravity(Gravity.CENTER);
-                  bot.addView(cr, -1, -2);
-                  root.addView(bot, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
-                  setContentView(root);
-
-                  cR.setOnClickListener(v -> {
-                      ri = (ri + 1) % 3;
-                      cR.setText(RT[ri]);
-                      ov.r = RV[ri];
-                      ov.invalidate();
-                      bind();
-                  });
-                  cG.setOnClickListener(v -> {
-                      grid = !grid;
-                      ov.grid = grid;
-                      ov.invalidate();
-                      setBg(cG, grid ? 0xAA2E86DE : 0x88000000);
-                  });
-                  cF.setOnClickListener(v -> {
-                      fl = (fl + 1) % 3;
-                      cF.setText("\u26A1 " + FT[fl]);
-                      if (ic != null) ic.setFlashMode(FM[fl]);
-                  });
-                  cS.setOnClickListener(v -> {
-                      sweep = !sweep;
-                      setBg(cS, sweep ? 0xAA2E86DE : 0x88000000);
-                      toast(sweep ? "Sweep on: after the shot, shake phone gently" : "Sweep off");
-                  });
-                  cC.setOnClickListener(v -> { front = !front; bind(); });
-                  cA.setOnClickListener(v -> { if (cam != null) cam.getCameraControl().cancelFocusAndMetering(); });
-                  cGal.setOnClickListener(v -> startActivity(new Intent(this, GalleryActivity.class)));
-                  sh.setOnClickListener(v -> shoot());
-                  zoom.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                      public void onProgressChanged(SeekBar b, int p, boolean u) {
-                          if (u && cam != null) cam.getCameraControl().setLinearZoom(p / 100f);
-                      }
-                      public void onStartTrackingTouch(SeekBar b) { }
-                      public void onStopTrackingTouch(SeekBar b) { }
-                  });
-                  exp.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                      public void onProgressChanged(SeekBar b, int p, boolean u) {
-                          if (u && cam != null) cam.getCameraControl().setExposureCompensationIndex(p + expLo);
-                      }
-                      public void onStartTrackingTouch(SeekBar b) { }
-                      public void onStopTrackingTouch(SeekBar b) { }
-                  });
-                  final ScaleGestureDetector sg = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                      @Override
-                      public boolean onScale(ScaleGestureDetector d) {
-                          if (cam != null) {
-                              ZoomState z = cam.getCameraInfo().getZoomState().getValue();
-                              float r = z.getZoomRatio() * d.getScaleFactor();
-                              r = Math.max(z.getMinZoomRatio(), Math.min(z.getMaxZoomRatio(), r));
-                              cam.getCameraControl().setZoomRatio(r);
-                          }
-                          return true;
-                      }
-                  });
-                  final GestureDetector gdt = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
-                      @Override
-                      public boolean onSingleTapUp(MotionEvent e) {
-                          focusAt(e.getX(), e.getY());
-                          return true;
-                      }
-                  });
-                  pv.setOnTouchListener((v, e) -> { sg.onTouchEvent(e); gdt.onTouchEvent(e); return true; });
-
-                  if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) startCam();
-                  else ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1);
-              }
-
-              @Override
-              public void onRequestPermissionsResult(int rc, String[] p, int[] r) {
-                  super.onRequestPermissionsResult(rc, p, r);
-                  if (r.length > 0 && r[0] == PackageManager.PERMISSION_GRANTED) startCam();
-              }
-
-              void startCam() {
-                  final var f = ProcessCameraProvider.getInstance(this);
-                  f.addListener(() -> {
-                      try { prov = f.get(); bind(); } catch (Exception e) { }
-                  }, ContextCompat.getMainExecutor(this));
-              }
-
-              void bind() {
-                  if (prov == null) return;
-                  try {
-                      Preview pr = new Preview.Builder().build();
-                      pr.setSurfaceProvider(pv.getSurfaceProvider());
-                      ic = new ImageCapture.Builder().setFlashMode(FM[fl]).build();
-                      ImageAnalysis ia = new ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build();
-                      ia.setAnalyzer(ax, img -> {
-                          if (collecting) { try { grab(img); } catch (Exception e) { } }
-                          img.close();
-                      });
-                      ViewPort vp = new ViewPort.Builder(RAT[ri], Surface.ROTATION_0).build();
-                      UseCaseGroup g = new UseCaseGroup.Builder().setViewPort(vp).addUseCase(pr).addUseCase(ic).addUseCase(ia).build();
-                      prov.unbindAll();
-                      cam = prov.bindToLifecycle(this, front ? CameraSelector.DEFAULT_FRONT_CAMERA : CameraSelector.DEFAULT_BACK_CAMERA, g);
-                      ExposureState es = cam.getCameraInfo().getExposureState();
-                      Range<Integer> r = es.getExposureCompensationRange();
-                      expLo = r.getLower();
-                      exp.setEnabled(r.getUpper() > r.getLower());
-                      exp.setMax(Math.max(1, r.getUpper() - r.getLower()));
-                      exp.setProgress(es.getExposureCompensationIndex() - expLo);
-                      zoom.setProgress(0);
-                  } catch (Exception e) {
-                      toast("Camera error");
-                  }
-              }
-
-              void focusAt(float x, float y) {
-                  if (cam == null) return;
-                  MeteringPoint p = pv.getMeteringPointFactory().createPoint(x, y);
-                  cam.getCameraControl().startFocusAndMetering(new FocusMeteringAction.Builder(p).disableAutoCancel().build());
-                  ov.ring(x, y);
-              }
-
-              void grab(ImageProxy img) {
-                  Rect cr = img.getCropRect();
-                  int rot = img.getImageInfo().getRotationDegrees();
-                  ImageProxy.PlaneProxy pl = img.getPlanes()[0];
-                  ByteBuffer bb = pl.getBuffer();
-                  int rs = pl.getRowStride(), ps = pl.getPixelStride();
-                  int cw = cr.width(), ch = cr.height();
-                  boolean sw = rot == 90 || rot == 270;
-                  int UW = sw ? ch : cw, UH = sw ? cw : ch;
-                  int fw = FW, fh = Math.max(16, Math.round(FW * (float) UH / UW));
-                  byte[] o = new byte[fw * fh];
-                  for (int y = 0; y < fh; y++) {
-                      for (int x = 0; x < fw; x++) {
-                          int ix = Math.min(UW - 1, (int) ((x + 0.5f) * UW / fw)), iy = Math.min(UH - 1, (int) ((y + 0.5f) * UH / fh));
-                          int sx, sy;
-                          switch (rot) {
-                              case 90: sx = iy; sy = ch - 1 - ix; break;
-                              case 180: sx = cw - 1 - ix; sy = ch - 1 - iy; break;
-                              case 270: sx = cw - 1 - iy; sy = ix; break;
-                              default: sx = ix; sy = iy;
-                          }
-                          sx = Math.max(0, Math.min(cw - 1, sx));
-                          sy = Math.max(0, Math.min(ch - 1, sy));
-                          o[y * fw + x] = bb.get((cr.top + sy) * rs + (cr.left + sx) * ps);
-                      }
-                  }
-                  ffw = fw;
-                  ffh = fh;
-                  frames.add(o);
-              }
-
-              void shoot() {
-                  if (ic == null) return;
-                  final File out = new File(getExternalFilesDir("photos"), System.currentTimeMillis() + ".jpg");
-                  ic.takePicture(new ImageCapture.OutputFileOptions.Builder(out).build(), ContextCompat.getMainExecutor(this),
-                          new ImageCapture.OnImageSavedCallback() {
-                              @Override
-                              public void onImageSaved(ImageCapture.OutputFileResults r) {
-                                  Processor.enqueue(out);
-                                  if (sweep) shake(out); else toast("Saved. Depth processing in background");
-                              }
-
-                              @Override
-                              public void onError(ImageCaptureException e) { toast("Capture failed"); }
-                          });
-              }
-
-              void shake(final File out) {
-                  frames.clear();
-                  collecting = true;
-                  msg.setText("\u2194 Shake phone gently \u2195");
-                  msg.setVisibility(View.VISIBLE);
-                  h.postDelayed(() -> {
-                      collecting = false;
-                      msg.setVisibility(View.GONE);
-                      final List<byte[]> fr = new ArrayList<>(frames);
-                      final int w = ffw, hh = ffh;
-                      Processor.Q.execute(() -> {
-                          try {
-                              int[] sz = new int[2];
-                              byte[] d = Motion.depth(fr, w, hh, sz);
-                              if (d != null) {
-                                  try (DataOutputStream o = new DataOutputStream(new FileOutputStream(new File(out.getPath() + ".d")))) {
-                                      o.writeInt(sz[0]);
-                                      o.writeInt(sz[1]);
-                                      o.write(d);
-                                  }
-                              }
-                              final String m = d != null ? "Motion depth ready" : "Not enough motion: using AI mask only";
-                              h.post(() -> toast(m));
-                          } catch (Exception e) { }
-                      });
-                  }, 1600);
-              }
-          }
-          EOF
-
-          cat > $P/GalleryActivity.java << 'EOF'
-          package com.awal.depthlens;
-          import android.content.Intent;
-          import android.graphics.Bitmap;
-          import android.os.*;
-          import android.util.LruCache;
-          import android.view.*;
-          import android.widget.*;
-          import androidx.appcompat.app.AppCompatActivity;
-          import java.io.File;
-          import java.util.*;
-          import java.util.concurrent.*;
-
-          public class GalleryActivity extends AppCompatActivity {
-              final List<File> files = new ArrayList<>();
-              final LruCache<String, Bitmap> cache = new LruCache<>(80);
-              final ExecutorService ex = Executors.newFixedThreadPool(2);
-              final Handler h = new Handler(Looper.getMainLooper());
-              BaseAdapter ad;
-              int sz;
-
-              @Override
-              protected void onCreate(Bundle s) {
-                  super.onCreate(s);
-                  sz = getResources().getDisplayMetrics().widthPixels / 3;
-                  GridView g = new GridView(this);
-                  g.setNumColumns(3);
-                  g.setBackgroundColor(0xFF000000);
-                  g.setPadding(0, (int) (30 * getResources().getDisplayMetrics().density), 0, 0);
-                  setContentView(g);
-                  ad = new BaseAdapter() {
-                      public int getCount() { return files.size(); }
-                      public Object getItem(int i) { return files.get(i); }
-                      public long getItemId(int i) { return i; }
-                      public View getView(int p, View cv, ViewGroup par) {
-                          FrameLayout fl = (FrameLayout) cv;
-                          final ImageView iv;
-                          TextView tv;
-                          if (fl == null) {
-                              fl = new FrameLayout(GalleryActivity.this);
-                              iv = new ImageView(GalleryActivity.this);
-                              iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                              tv = new TextView(GalleryActivity.this);
-                              tv.setText("\u23F3");
-                              tv.setTextSize(20);
-                              fl.addView(iv, -1, -1);
-                              fl.addView(tv);
-                              fl.setLayoutParams(new AbsListView.LayoutParams(-1, sz));
-                              fl.setTag(new View[]{iv, tv});
-                          } else {
-                              View[] t = (View[]) fl.getTag();
-                              iv = (ImageView) t[0];
-                              tv = (TextView) t[1];
-                          }
-                          final File f = files.get(p);
-                          tv.setVisibility(new File(f.getPath() + ".m").exists() ? View.GONE : View.VISIBLE);
-                          Bitmap cb = cache.get(f.getPath());
-                          iv.setTag(f.getPath());
-                          if (cb != null) iv.setImageBitmap(cb);
-                          else {
-                              iv.setImageBitmap(null);
-                              ex.execute(() -> {
-                                  final Bitmap b = Processor.load(f, 256);
-                                  if (b == null) return;
-                                  h.post(() -> {
-                                      cache.put(f.getPath(), b);
-                                      if (f.getPath().equals(iv.getTag())) iv.setImageBitmap(b);
-                                  });
-                              });
-                          }
-                          return fl;
-                      }
-                  };
-                  g.setAdapter(ad);
-                  g.setOnItemClickListener((a, v, p, id) ->
-                          startActivity(new Intent(this, EditorActivity.class).putExtra("p", files.get(p).getPath())));
-              }
-
-              @Override
-              protected void onResume() {
-                  super.onResume();
-                  files.clear();
-                  File[] fs = getExternalFilesDir("photos").listFiles((d, n) -> n.endsWith(".jpg"));
-                  if (fs != null) {
-                      Arrays.sort(fs, (a, b) -> b.getName().compareTo(a.getName()));
-                      for (File f : fs) { files.add(f); Processor.enqueue(f); }
-                  }
-                  tick();
-              }
-
-              void tick() {
-                  ad.notifyDataSetChanged();
-                  boolean pending = false;
-                  for (File f : files) if (!new File(f.getPath() + ".m").exists()) pending = true;
-                  if (pending) h.postDelayed(this::tick, 3000);
-              }
-
-              @Override
-              protected void onPause() {
-                  super.onPause();
-                  h.removeCallbacksAndMessages(null);
-              }
-          }
-          EOF
-
-          cat > $P/EditorActivity.java << 'EOF'
-          package com.awal.depthlens;
-          import android.content.ContentValues;
-          import android.graphics.Bitmap;
-          import android.net.Uri;
-          import android.os.*;
-          import android.provider.MediaStore;
-          import android.widget.*;
-          import androidx.appcompat.app.AppCompatActivity;
-          import java.io.File;
-          import java.io.OutputStream;
-          import java.util.concurrent.*;
-          import java.util.concurrent.atomic.AtomicInteger;
-
-          public class EditorActivity extends AppCompatActivity {
-              volatile Bitmap src, cur;
-              volatile byte[] mask;
-              volatile Processor.Depth dep;
-              volatile boolean bg = true;
-              volatile int preset = 0;
-              ImageView iv;
-              SeekBar sb;
-              TextView tv;
-              final AtomicInteger seq = new AtomicInteger();
-              final ExecutorService ex = Executors.newSingleThreadExecutor();
-              final Handler h = new Handler(Looper.getMainLooper());
-
-              @Override
-              protected void onCreate(Bundle s) {
-                  super.onCreate(s);
-                  LinearLayout root = new LinearLayout(this);
-                  root.setOrientation(LinearLayout.VERTICAL);
-                  root.setBackgroundColor(0xFF000000);
-                  root.setPadding(0, (int) (30 * getResources().getDisplayMetrics().density), 0, 0);
-                  iv = new ImageView(this);
-                  iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                  root.addView(iv, new LinearLayout.LayoutParams(-1, 0, 1f));
-                  tv = new TextView(this);
-                  tv.setTextColor(0xFFFFFFFF);
-                  tv.setPadding(24, 8, 24, 0);
-                  tv.setText("Loading...");
-                  root.addView(tv, -1, -2);
-                  sb = new SeekBar(this);
-                  sb.setMax(100);
-                  sb.setProgress(60);
-                  root.addView(sb, -1, -2);
-                  LinearLayout row = new LinearLayout(this);
-                  final Button b1 = new Button(this), b2 = new Button(this), b3 = new Button(this);
-                  b1.setText("Background");
-                  b2.setText("Auto AI");
-                  b3.setText("Save");
-                  row.addView(b1, new LinearLayout.LayoutParams(0, -2, 1f));
-                  row.addView(b2, new LinearLayout.LayoutParams(0, -2, 1f));
-                  row.addView(b3, new LinearLayout.LayoutParams(0, -2, 1f));
-                  root.addView(row, -1, -2);
-                  setContentView(root);
-
-                  final File f = new File(getIntent().getStringExtra("p"));
-                  ex.execute(() -> {
-                      Bitmap b = Processor.load(f, Processor.MAX);
-                      if (b == null) return;
-                      File m = new File(f.getPath() + ".m");
-                      if (m.exists()) mask = Processor.readMask(m, b.getWidth() * b.getHeight());
-                      dep = Processor.readDepth(new File(f.getPath() + ".d"));
-                      src = b;
-                      h.post(() -> {
-                          tv.setText(mask != null ? "Depth ready" : "Depth not ready yet: using simple gradient");
-                          draw();
-                      });
-                  });
-                  sb.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                      public void onProgressChanged(SeekBar s, int p, boolean u) { draw(); }
-                      public void onStartTrackingTouch(SeekBar s) { }
-                      public void onStopTrackingTouch(SeekBar s) { }
-                  });
-                  b1.setOnClickListener(v -> {
-                      bg = !bg;
-                      b1.setText(bg ? "Background" : "Foreground");
-                      draw();
-                  });
-                  b2.setOnClickListener(v -> {
-                      if (src == null) return;
-                      ex.execute(() -> {
-                          final int p = Blur.analyze(src);
-                          preset = p;
-                          h.post(() -> {
-                              tv.setText("AI scene: " + Blur.NAMES[p]);
-                              sb.setProgress(Blur.PS[p]);
-                              draw();
-                          });
-                      });
-                  });
-                  b3.setOnClickListener(v -> save());
-              }
-
-              void draw() {
-                  if (src == null) return;
-                  final int id = seq.incrementAndGet();
-                  final float st = sb.getProgress() / 100f;
-                  ex.execute(() -> {
-                      if (id != seq.get()) return;
-                      final Processor.Depth dp = dep;
-                      final Bitmap r = Blur.render(src, mask, dp != null ? dp.d : null, dp != null ? dp.w : 0, dp != null ? dp.h : 0, st, bg, preset);
-                      if (id == seq.get()) h.post(() -> { cur = r; iv.setImageBitmap(r); });
-                  });
-              }
-
-              void save() {
-                  final Bitmap b = cur;
-                  if (b == null) return;
-                  ex.execute(() -> {
-                      String msg;
-                      try {
-                          ContentValues v = new ContentValues();
-                          v.put(MediaStore.Images.Media.DISPLAY_NAME, "DepthLens_" + System.currentTimeMillis() + ".jpg");
-                          v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-                          v.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/DepthLens");
-                          Uri u = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
-                          OutputStream o = getContentResolver().openOutputStream(u);
-                          b.compress(Bitmap.CompressFormat.JPEG, 95, o);
-                          o.close();
-                          msg = "Saved to Pictures/DepthLens";
-                      } catch (Exception e) {
-                          msg = "Save failed";
-                      }
-                      final String m = msg;
-                      h.post(() -> Toast.makeText(this, m, Toast.LENGTH_SHORT).show());
-                  });
-              }
-          }
-          EOF
-
-          cat > $P/Motion.java << 'EOF'
-          package com.awal.depthlens;
-          import java.util.*;
-
-          public class Motion {
-              static byte[] depth(List<byte[]> fr, int fw, int fh, int[] sz) {
-                  int n = fr.size();
-                  if (n < 6) return null;
-                  final int B = 8, S = 4, R = 5;
-                  int bw = (fw - B) / S + 1, bh = (fh - B) / S + 1, nb = bw * bh;
-                  float[] acc = new float[nb];
-                  boolean[] ok = new boolean[nb];
-                  byte[] f0 = fr.get(n / 2);
-                  for (int by = 0; by < bh; by++) for (int bx = 0; bx < bw; bx++) {
-                      int s = 0, s2 = 0;
-                      for (int y = 0; y < B; y++) for (int x = 0; x < B; x++) {
-                          int v = f0[(by * S + y) * fw + bx * S + x] & 255;
-                          s += v; s2 += v * v;
-                      }
-                      ok[by * bw + bx] = (s2 - (s * s) / (B * B)) / (B * B) > 40;
-                  }
-                  int pairs = 0, d = Math.max(2, n / 3), st = Math.max(1, d / 2);
-                  for (int i = 0; i + d < n; i += st) {
-                      byte[] a = fr.get(i), b = fr.get(i + d);
-                      float[] vx = new float[nb], vy = new float[nb];
-                      float mot = 0;
-                      int cnt = 0;
-                      for (int by = 0; by < bh; by++) for (int bx = 0; bx < bw; bx++) {
-                          int bo = by * bw + bx;
-                          if (!ok[bo]) continue;
-                          int x0 = bx * S, y0 = by * S, best = Integer.MAX_VALUE, bdx = 0, bdy = 0;
-                          for (int dy = -R; dy <= R; dy++) for (int dx = -R; dx <= R; dx++) {
-                              int xx = x0 + dx, yy = y0 + dy;
-                              if (xx < 0 || yy < 0 || xx + B > fw || yy + B > fh) continue;
-                              int sad = 0;
-                              for (int y = 0; y < B; y++) {
-                                  int ra = (y0 + y) * fw + x0, rb = (yy + y) * fw + xx;
-                                  for (int x = 0; x < B; x++) sad += Math.abs((a[ra + x] & 255) - (b[rb + x] & 255));
-                              }
-                              sad += 3 * (Math.abs(dx) + Math.abs(dy));
-                              if (sad < best) { best = sad; bdx = dx; bdy = dy; }
-                          }
-                          vx[bo] = bdx; vy[bo] = bdy;
-                          mot += (float) Math.hypot(bdx, bdy);
-                          cnt++;
-                      }
-                      if (cnt == 0) continue;
-                      mot /= cnt;
-                      if (mot < 0.7f) continue;
-                      List<Float> xs = new ArrayList<>(), ys = new ArrayList<>();
-                      for (int by = 0; by < bh; by++) for (int bx = 0; bx < bw; bx++) {
-                          int bo = by * bw + bx;
-                          if (ok[bo] && (bx == 0 || by == 0 || bx == bw - 1 || by == bh - 1)) { xs.add(vx[bo]); ys.add(vy[bo]); }
-                      }
-                      if (xs.size() < 3) {
-                          xs.clear(); ys.clear();
-                          for (int bo = 0; bo < nb; bo++) if (ok[bo]) { xs.add(vx[bo]); ys.add(vy[bo]); }
-                      }
-                      Collections.sort(xs);
-                      Collections.sort(ys);
-                      float mx = xs.get(xs.size() / 2), my = ys.get(ys.size() / 2);
-                      for (int bo = 0; bo < nb; bo++) if (ok[bo]) acc[bo] += (float) Math.hypot(vx[bo] - mx, vy[bo] - my);
-                      pairs++;
-                  }
-                  if (pairs == 0) return null;
-                  List<Float> vals = new ArrayList<>();
-                  for (int bo = 0; bo < nb; bo++) if (ok[bo]) vals.add(acc[bo]);
-                  if (vals.size() < 8) return null;
-                  Collections.sort(vals);
-                  float p95 = vals.get((int) (vals.size() * 0.95f));
-                  if (p95 < 1f) return null;
-                  float[] nv = new float[nb];
-                  boolean[] known = ok.clone();
-                  for (int bo = 0; bo < nb; bo++) if (ok[bo]) nv[bo] = Math.min(1f, acc[bo] / p95);
-                  for (int pass = 0; pass < 8; pass++) {
-                      boolean[] nk = known.clone();
-                      float[] nn = nv.clone();
-                      for (int by = 0; by < bh; by++) for (int bx = 0; bx < bw; bx++) {
-                          int bo = by * bw + bx;
-                          if (known[bo]) continue;
-                          float s = 0;
-                          int c = 0;
-                          if (bx > 0 && known[bo - 1]) { s += nv[bo - 1]; c++; }
-                          if (bx < bw - 1 && known[bo + 1]) { s += nv[bo + 1]; c++; }
-                          if (by > 0 && known[bo - bw]) { s += nv[bo - bw]; c++; }
-                          if (by < bh - 1 && known[bo + bw]) { s += nv[bo + bw]; c++; }
-                          if (c > 0) { nn[bo] = s / c; nk[bo] = true; }
-                      }
-                      nv = nn;
-                      known = nk;
-                  }
-                  byte[] out = new byte[nb];
-                  for (int bo = 0; bo < nb; bo++) out[bo] = (byte) (Math.min(1f, nv[bo]) * 255);
-                  sz[0] = bw;
-                  sz[1] = bh;
-                  return out;
-              }
-          }
-          EOF
-
-          cat > gradlew << 'EOF'
-          #!/bin/sh
-          D=$(dirname "$0")
-          exec java -classpath "$D/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
-          EOF
-          chmod +x gradlew
-      - name: Download wrapper jar
+          # ── pubspec.yaml ──────────────────────────────────────────────
+          cat > pubspec.yaml << 'EOF'
+name: docreader
+description: DocReader by Mohammod Abdul Awal
+publish_to: none
+version: 1.0.0+1
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  file_picker: ^8.0.3
+  pdfx: ^2.6.0
+  hive_flutter: ^1.1.0
+  hive: ^2.2.3
+  path_provider: ^2.1.3
+  path: ^1.9.0
+  archive: ^3.5.1
+  xml: ^6.5.0
+  shared_preferences: ^2.2.3
+  flutter_tts: ^4.0.2
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.9
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+EOF
+
+          # ── android/app/build.gradle ──────────────────────────────────
+          mkdir -p android/app
+          cat > android/app/build.gradle << 'EOF'
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+android {
+    namespace "com.awal.docreader"
+    compileSdk 34
+    defaultConfig {
+        applicationId "com.awal.docreader"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+    buildTypes {
+        release { signingConfig signingConfigs.debug }
+    }
+}
+flutter { source "../.." }
+EOF
+
+          # ── android/app/src/main/AndroidManifest.xml ──────────────────
+          mkdir -p android/app/src/main/res/mipmap-hdpi
+          mkdir -p android/app/src/main/res/values
+          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
+    <application
+        android:label="DocReader"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:requestLegacyExternalStorage="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme"/>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/pdf"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document"/>
+            </intent-filter>
+        </activity>
+        <meta-data android:name="flutterEmbedding" android:value="2"/>
+    </application>
+</manifest>
+EOF
+
+          cat > android/app/src/main/res/values/styles.xml << 'EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>
+EOF
+
+          # ── android/build.gradle ──────────────────────────────────────
+          cat > android/build.gradle << 'EOF'
+buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies {
+        classpath "com.android.tools.build:gradle:8.1.0"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0"
+    }
+}
+allprojects {
+    repositories { google(); mavenCentral() }
+}
+EOF
+
+          cat > android/gradle.properties << 'EOF'
+org.gradle.jvmargs=-Xmx4G
+android.useAndroidX=true
+android.enableJetifier=true
+EOF
+
+          cat > android/settings.gradle << 'EOF'
+include ':app'
+def localPropertiesFile = new File(rootProject.projectDir, "local.properties")
+def properties = new Properties()
+assert localPropertiesFile.exists()
+localPropertiesFile.withReader("UTF-8") { reader -> properties.load(reader) }
+def flutterSdkPath = properties.getProperty("flutter.sdk")
+assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
+apply from: "$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle"
+EOF
+
+          # ── lib/main.dart ─────────────────────────────────────────────
+          mkdir -p lib
+          cat > lib/main.dart << 'EOF'
+import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'screens/home_screen.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  await Hive.openBox('recentFiles');
+  await Hive.openBox('filePositions');
+  runApp(const DocReaderApp());
+}
+
+class DocReaderApp extends StatefulWidget {
+  const DocReaderApp({super.key});
+  static _DocReaderAppState? of(BuildContext ctx) =>
+      ctx.findAncestorStateOfType<_DocReaderAppState>();
+  @override
+  State<DocReaderApp> createState() => _DocReaderAppState();
+}
+
+class _DocReaderAppState extends State<DocReaderApp> {
+  ThemeMode _themeMode = ThemeMode.system;
+  void toggleTheme() =>
+      setState(() => _themeMode =
+          _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark);
+  bool get isDark => _themeMode == ThemeMode.dark;
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        title: 'DocReader',
+        themeMode: _themeMode,
+        theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
+        darkTheme: ThemeData(
+            colorSchemeSeed: Colors.indigo,
+            brightness: Brightness.dark,
+            useMaterial3: true),
+        home: const HomeScreen(),
+      );
+}
+EOF
+
+          # ── lib/screens/home_screen.dart ──────────────────────────────
+          mkdir -p lib/screens
+          cat > lib/screens/home_screen.dart << 'EOF'
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path/path.dart' as p;
+import '../main.dart';
+import 'pdf_viewer_screen.dart';
+import 'docx_viewer_screen.dart';
+import 'pptx_viewer_screen.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  Future<void> _pickFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'docx', 'pptx'],
+    );
+    if (result != null && result.files.single.path != null) {
+      _openFile(result.files.single.path!);
+    }
+  }
+
+  void _openFile(String path) {
+    if (!File(path).existsSync()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File not found or deleted.')));
+      return;
+    }
+    final box = Hive.box('recentFiles');
+    final List recents = box.get('list', defaultValue: []);
+    recents.remove(path);
+    recents.insert(0, path);
+    if (recents.length > 100) {
+      final removed = recents.removeLast();
+      Hive.box('filePositions').delete(removed);
+    }
+    box.put('list', recents);
+    setState(() {});
+    final ext = p.extension(path).toLowerCase();
+    Widget screen;
+    if (ext == '.pdf') {
+      screen = PdfViewerScreen(filePath: path);
+    } else if (ext == '.docx') {
+      screen = DocxViewerScreen(filePath: path);
+    } else {
+      screen = PptxViewerScreen(filePath: path);
+    }
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final box = Hive.box('recentFiles');
+    final List recents = box.get('list', defaultValue: []);
+    final filtered = _query.isEmpty
+        ? recents
+        : recents
+            .where((f) =>
+                p.basename(f.toString()).toLowerCase().contains(_query))
+            .toList();
+    final appState = DocReaderApp.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('DocReader'),
+        actions: [
+          IconButton(
+            icon: Icon(appState?.isDark == true
+                ? Icons.light_mode
+                : Icons.dark_mode),
+            onPressed: () => appState?.toggleTheme(),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Search recent files...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() => _query = '');
+                        })
+                    : null,
+              ),
+              onChanged: (v) => setState(() => _query = v.toLowerCase()),
+            ),
+          ),
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.folder_open,
+                            size: 80, color: Colors.grey),
+                        const SizedBox(height: 12),
+                        Text('No recent files',
+                            style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        const Text('Creator: Mohammod Abdul Awal\n'
+                            'Dept. of English, National University\n'
+                            'awal.sorkar.144@gmail.com',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final path = filtered[i].toString();
+                      final name = p.basename(path);
+                      final ext = p.extension(path).toLowerCase();
+                      final icon = ext == '.pdf'
+                          ? Icons.picture_as_pdf
+                          : ext == '.docx'
+                              ? Icons.description
+                              : Icons.slideshow;
+                      return ListTile(
+                        leading: Icon(icon, color: Colors.indigo),
+                        title: Text(name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                        subtitle: Text(path,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11)),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red),
+                          onPressed: () {
+                            final list = box.get('list', defaultValue: []);
+                            list.remove(path);
+                            box.put('list', list);
+                            setState(() {});
+                          },
+                        ),
+                        onTap: () => _openFile(path),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _pickFile,
+        icon: const Icon(Icons.add),
+        label: const Text('Open File'),
+      ),
+    );
+  }
+}
+EOF
+
+          # ── lib/screens/pdf_viewer_screen.dart ────────────────────────
+          cat > lib/screens/pdf_viewer_screen.dart << 'EOF'
+import 'package:flutter/material.dart';
+import 'package:pdfx/pdfx.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+class PdfViewerScreen extends StatefulWidget {
+  final String filePath;
+  const PdfViewerScreen({super.key, required this.filePath});
+  @override
+  State<PdfViewerScreen> createState() => _PdfViewerScreenState();
+}
+
+class _PdfViewerScreenState extends State<PdfViewerScreen> {
+  PdfControllerPinch? _controller;
+  int _currentPage = 1;
+  int _totalPages = 0;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPdf();
+  }
+
+  Future<void> _initPdf() async {
+    try {
+      final saved = Hive.box('filePositions').get(widget.filePath);
+      final initialPage = (saved is Map ? saved['page'] as int? : null) ?? 1;
+      _controller = PdfControllerPinch(
+        document: PdfDocument.openFile(widget.filePath),
+        initialPage: initialPage,
+      );
+      setState(() => _loading = false);
+    } catch (e) {
+      setState(() {
+        _error = 'Cannot open PDF: $e';
+        _loading = false;
+      });
+    }
+  }
+
+  void _savePosition(int page) {
+    Hive.box('filePositions').put(widget.filePath, {'page': page});
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_totalPages > 0
+            ? 'Page $_currentPage / $_totalPages'
+            : 'PDF Viewer'),
+        actions: [
+          if (_controller != null)
+            IconButton(
+              icon: const Icon(Icons.first_page),
+              onPressed: () => _controller?.jumpToPage(1),
+            ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline,
+                            size: 60, color: Colors.red),
+                        const SizedBox(height: 12),
+                        Text(_error!,
+                            textAlign: TextAlign.center,
+                            style:
+                                const TextStyle(color: Colors.red)),
+                      ],
+                    ),
+                  ),
+                )
+              : PdfViewPinch(
+                  controller: _controller!,
+                  onDocumentLoaded: (doc) =>
+                      setState(() => _totalPages = doc.pagesCount),
+                  onPageChanged: (page) {
+                    setState(() => _currentPage = page);
+                    _savePosition(page);
+                  },
+                ),
+    );
+  }
+}
+EOF
+
+          # ── lib/screens/docx_viewer_screen.dart ───────────────────────
+          cat > lib/screens/docx_viewer_screen.dart << 'EOF'
+import 'dart:io';
+import 'dart:isolate';
+import 'package:flutter/material.dart';
+import 'package:archive/archive_io.dart';
+import 'package:xml/xml.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+Future<List<String>> _parseDocx(String path) async {
+  final bytes = File(path).readAsBytesSync();
+  final archive = ZipDecoder().decodeBytes(bytes);
+  final docFile = archive.findFile('word/document.xml');
+  if (docFile == null) return ['Could not parse document.'];
+  final xmlStr = String.fromCharCodes(docFile.content as List<int>);
+  final doc = XmlDocument.parse(xmlStr);
+  final paragraphs = doc.findAllElements('w:p');
+  final lines = <String>[];
+  for (final p in paragraphs) {
+    final runs = p.findAllElements('w:t');
+    final text = runs.map((r) => r.innerText).join();
+    if (text.trim().isNotEmpty) lines.add(text);
+  }
+  return lines.isEmpty ? ['(No text content found)'] : lines;
+}
+
+List<List<String>> _paginate(List<String> lines, int linesPerPage) {
+  final pages = <List<String>>[];
+  for (var i = 0; i < lines.length; i += linesPerPage) {
+    pages.add(lines.sublist(
+        i, i + linesPerPage > lines.length ? lines.length : i + linesPerPage));
+  }
+  return pages;
+}
+
+class DocxViewerScreen extends StatefulWidget {
+  final String filePath;
+  const DocxViewerScreen({super.key, required this.filePath});
+  @override
+  State<DocxViewerScreen> createState() => _DocxViewerScreenState();
+}
+
+class _DocxViewerScreenState extends State<DocxViewerScreen> {
+  List<List<String>> _pages = [];
+  int _currentPage = 0;
+  bool _loading = true;
+  String? _error;
+  late PageController _pageCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = Hive.box('filePositions').get(widget.filePath);
+    _currentPage = (saved is Map ? saved['page'] as int? : null) ?? 0;
+    _pageCtrl = PageController(initialPage: _currentPage);
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final lines = await Isolate.run(() => _parseDocx(widget.filePath));
+      final pages = _paginate(lines, 30);
+      setState(() {
+        _pages = pages;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Cannot open DOCX: $e';
+        _loading = false;
+      });
+    }
+  }
+
+  void _savePosition(int page) {
+    Hive.box('filePositions').put(widget.filePath, {'page': page});
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_pages.isNotEmpty
+            ? 'Page ${_currentPage + 1} / ${_pages.length}'
+            : 'DOCX Viewer'),
+      ),
+      body: _loading
+          ? const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 12),
+                  Text('Parsing document...'),
+                ],
+              ),
+            )
+          : _error != null
+              ? Center(
+                  child: Text(_error!,
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center))
+              : _pages.isEmpty
+                  ? const Center(child: Text('Empty document'))
+                  : PageView.builder(
+                      controller: _pageCtrl,
+                      itemCount: _pages.length,
+                      onPageChanged: (i) {
+                        setState(() => _currentPage = i);
+                        _savePosition(i);
+                      },
+                      itemBuilder: (_, pageIdx) {
+                        final lines = _pages[pageIdx];
+                        return Container(
+                          margin: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? Colors.grey[850]
+                                    : Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2))
+                            ],
+                          ),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: lines
+                                  .map((l) => Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 3),
+                                        child: Text(l,
+                                            style:
+                                                const TextStyle(fontSize: 15)),
+                                      ))
+                                  .toList(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+      bottomNavigationBar: _pages.isNotEmpty
+          ? BottomAppBar(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                      icon: const Icon(Icons.chevron_left),
+                      onPressed: _currentPage > 0
+                          ? () => _pageCtrl.previousPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut)
+                          : null),
+                  Text('${_currentPage + 1} / ${_pages.length}',
+                      style: const TextStyle(fontSize: 16)),
+                  IconButton(
+                      icon: const Icon(Icons.chevron_right),
+                      onPressed: _currentPage < _pages.length - 1
+                          ? () => _pageCtrl.nextPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut)
+                          : null),
+                ],
+              ),
+            )
+          : null,
+    );
+  }
+}
+EOF
+
+          # ── lib/screens/pptx_viewer_screen.dart ───────────────────────
+          cat > lib/screens/pptx_viewer_screen.dart << 'EOF'
+import 'dart:io';
+import 'dart:isolate';
+import 'package:flutter/material.dart';
+import 'package:archive/archive_io.dart';
+import 'package:xml/xml.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+Future<List<Map<String, dynamic>>> _parsePptx(String path) async {
+  final bytes = File(path).readAsBytesSync();
+  final archive = ZipDecoder().decodeBytes(bytes);
+  final slides = <Map<String, dynamic>>[];
+  int i = 1;
+  while (true) {
+    final f = archive.findFile('ppt/slides/slide$i.xml');
+    if (f == null) break;
+    final xmlStr = String.fromCharCodes(f.content as List<int>);
+    final doc = XmlDocument.parse(xmlStr);
+    final texts = doc
+        .findAllElements('a:t')
+        .map((e) => e.innerText.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+    slides.add({'index': i, 'texts': texts});
+    i++;
+  }
+  return slides;
+}
+
+class PptxViewerScreen extends StatefulWidget {
+  final String filePath;
+  const PptxViewerScreen({super.key, required this.filePath});
+  @override
+  State<PptxViewerScreen> createState() => _PptxViewerScreenState();
+}
+
+class _PptxViewerScreenState extends State<PptxViewerScreen> {
+  List<Map<String, dynamic>> _slides = [];
+  int _currentSlide = 0;
+  bool _loading = true;
+  String? _error;
+  late PageController _pageCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = Hive.box('filePositions').get(widget.filePath);
+    _currentSlide = (saved is Map ? saved['page'] as int? : null) ?? 0;
+    _pageCtrl = PageController(initialPage: _currentSlide);
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final slides = await Isolate.run(() => _parsePptx(widget.filePath));
+      setState(() {
+        _slides = slides;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Cannot open PPTX: $e';
+        _loading = false;
+      });
+    }
+  }
+
+  void _savePosition(int page) {
+    Hive.box('filePositions').put(widget.filePath, {'page': page});
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_slides.isNotEmpty
+            ? 'Slide ${_currentSlide + 1} / ${_slides.length}'
+            : 'PPTX Viewer'),
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Text(_error!,
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center))
+              : _slides.isEmpty
+                  ? const Center(child: Text('No slides found'))
+                  : PageView.builder(
+                      controller: _pageCtrl,
+                      itemCount: _slides.length,
+                      onPageChanged: (i) {
+                        setState(() => _currentSlide = i);
+                        _savePosition(i);
+                      },
+                      itemBuilder: (_, idx) {
+                        final slide = _slides[idx];
+                        final texts =
+                            (slide['texts'] as List).cast<String>();
+                        return Container(
+                          margin: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.indigo.shade700,
+                                Colors.indigo.shade400
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Slide ${slide['index']}',
+                                  style: const TextStyle(
+                                      color: Colors.white54, fontSize: 13),
+                                ),
+                                const SizedBox(height: 12),
+                                ...texts.asMap().entries.map((e) => Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 4),
+                                      child: Text(
+                                        e.value,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize:
+                                              e.key == 0 ? 22 : 16,
+                                          fontWeight: e.key == 0
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                        ),
+                                      ),
+                                    )),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+      bottomNavigationBar: _slides.isNotEmpty
+          ? BottomAppBar(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                      icon: const Icon(Icons.arrow_back_ios),
+                      onPressed: _currentSlide > 0
+                          ? () => _pageCtrl.previousPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut)
+                          : null),
+                  Text('${_currentSlide + 1} / ${_slides.length}',
+                      style: const TextStyle(fontSize: 16)),
+                  IconButton(
+                      icon: const Icon(Icons.arrow_forward_ios),
+                      onPressed: _currentSlide < _slides.length - 1
+                          ? () => _pageCtrl.nextPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut)
+                          : null),
+                ],
+              ),
+            )
+          : null,
+    );
+  }
+}
+EOF
+
+          mkdir -p assets
+          echo "DocReader" > assets/.gitkeep
+
+      - name: Setup Gradle wrapper
         run: |
           mkdir -p gradle/wrapper
-          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
-      - name: Build
-        run: ./gradlew assembleDebug --stacktrace
+          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" \
+            -o gradle/wrapper/gradle-wrapper.jar
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+EOF
+          cat > gradlew << 'GRADLEW'
+#!/bin/sh
+exec "$(dirname "$0")/gradle/wrapper/gradle-wrapper.jar" "$@" 2>/dev/null || \
+  java -jar "$(dirname "$0")/gradle/wrapper/gradle-wrapper.jar" "$@"
+GRADLEW
+          # Use flutter's bundled gradlew instead
+          flutter create --platforms=android --project-name=docreader_tmp /tmp/docreader_tmp
+          cp /tmp/docreader_tmp/android/gradlew ./android/gradlew
+          chmod +x android/gradlew
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --debug --no-tree-shake-icons
+
       - uses: actions/upload-artifact@v4
         with:
-          name: DepthLens-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: DocReader-APK
+          path: build/app/outputs/flutter-apk/app-debug.apk
