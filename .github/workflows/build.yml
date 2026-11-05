@@ -20,7 +20,7 @@ jobs:
           echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_HOME/licenses/android-googletv-license
       - name: Create project
         run: |
-          mkdir -p app app/src/main app/src/main/java/com/awal/player app/src/main/res/drawable app/src/main/res/layout gradle/wrapper
+          mkdir -p app app/src/main app/src/main/java/com/awal/player app/src/main/res/drawable app/src/main/res/layout app/src/main/res/values gradle/wrapper
           cat > settings.gradle << 'EOF'
           pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
           dependencyResolutionManagement { repositories { google(); mavenCentral() } }
@@ -63,11 +63,16 @@ jobs:
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
             <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
             <uses-permission android:name="android.permission.WAKE_LOCK"/>
+            <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+            <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+            <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+            <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
             <application
               android:label="Awal Player"
               android:icon="@drawable/ic_launcher"
               android:allowBackup="false"
-              android:theme="@style/Theme.AppCompat.NoActionBar">
+              android:theme="@style/AppTheme">
               <activity
                 android:name=".MainActivity"
                 android:exported="true"
@@ -96,24 +101,124 @@ jobs:
             xmlns:app="http://schemas.android.com/apk/res-auto"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#000000">
-            <androidx.media3.ui.PlayerView
-              android:id="@+id/pv"
+            android:background="#0F1115">
+            <LinearLayout
+              android:id="@+id/lib"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
-              app:surface_type="texture_view"/>
-            <HorizontalScrollView
-              android:id="@+id/bar"
-              android:layout_width="match_parent"
-              android:layout_height="wrap_content"
-              android:background="#99000000"
-              android:scrollbars="none">
+              android:orientation="vertical">
               <LinearLayout
-                android:id="@+id/row"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"/>
-            </HorizontalScrollView>
+                android:gravity="center_vertical"
+                android:paddingLeft="16dp"
+                android:paddingTop="12dp"
+                android:paddingRight="8dp"
+                android:paddingBottom="4dp">
+                <TextView
+                  android:layout_width="0dp"
+                  android:layout_height="wrap_content"
+                  android:layout_weight="1"
+                  android:text="Awal Player"
+                  android:textColor="#FFFFFF"
+                  android:textSize="22sp"
+                  android:textStyle="bold"/>
+                <TextView
+                  android:id="@+id/browse"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:background="?android:attr/selectableItemBackground"
+                  android:padding="10dp"
+                  android:text="Browse"
+                  android:textColor="#4FC3F7"
+                  android:textSize="14sp"/>
+                <TextView
+                  android:id="@+id/about"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:background="?android:attr/selectableItemBackground"
+                  android:padding="10dp"
+                  android:text="About"
+                  android:textColor="#4FC3F7"
+                  android:textSize="14sp"/>
+              </LinearLayout>
+              <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+                <TextView
+                  android:id="@+id/tabV"
+                  android:layout_width="0dp"
+                  android:layout_height="wrap_content"
+                  android:layout_weight="1"
+                  android:background="?android:attr/selectableItemBackground"
+                  android:gravity="center"
+                  android:padding="14dp"
+                  android:text="VIDEOS"
+                  android:textSize="13sp"
+                  android:textStyle="bold"/>
+                <TextView
+                  android:id="@+id/tabA"
+                  android:layout_width="0dp"
+                  android:layout_height="wrap_content"
+                  android:layout_weight="1"
+                  android:background="?android:attr/selectableItemBackground"
+                  android:gravity="center"
+                  android:padding="14dp"
+                  android:text="SONGS"
+                  android:textSize="13sp"
+                  android:textStyle="bold"/>
+              </LinearLayout>
+              <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1">
+                <ListView
+                  android:id="@+id/list"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"
+                  android:divider="@null"
+                  android:listSelector="@android:color/transparent"
+                  android:scrollbars="none"/>
+                <TextView
+                  android:id="@+id/empty"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"
+                  android:gravity="center"
+                  android:textColor="#8A8FA3"
+                  android:textSize="15sp"
+                  android:visibility="gone"/>
+              </FrameLayout>
+            </LinearLayout>
+            <FrameLayout
+              android:id="@+id/play"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="#000000"
+              android:visibility="gone">
+              <com.awal.player.RingView
+                android:id="@+id/ring"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone"/>
+              <androidx.media3.ui.PlayerView
+                android:id="@+id/pv"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:shutter_background_color="#00000000"
+                app:surface_type="texture_view"/>
+              <HorizontalScrollView
+                android:id="@+id/bar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#99000000"
+                android:scrollbars="none">
+                <LinearLayout
+                  android:id="@+id/row"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:orientation="horizontal"/>
+              </HorizontalScrollView>
+            </FrameLayout>
           </FrameLayout>
           EOF
           cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
@@ -178,57 +283,103 @@ jobs:
 
           import android.Manifest;
           import android.app.Activity;
+          import android.content.ContentUris;
           import android.content.Intent;
+          import android.content.pm.PackageManager;
           import android.database.Cursor;
           import android.graphics.Color;
+          import android.graphics.drawable.GradientDrawable;
+          import android.media.audiofx.Visualizer;
           import android.net.Uri;
           import android.os.Build;
           import android.os.Bundle;
+          import android.provider.MediaStore;
           import android.provider.OpenableColumns;
+          import android.text.TextUtils;
+          import android.view.Gravity;
           import android.view.MotionEvent;
           import android.view.ScaleGestureDetector;
           import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.BaseAdapter;
           import android.widget.Button;
           import android.widget.LinearLayout;
+          import android.widget.ListView;
+          import android.widget.TextView;
           import android.widget.Toast;
           import androidx.appcompat.app.AlertDialog;
+          import androidx.core.app.ActivityCompat;
           import androidx.core.content.ContextCompat;
           import androidx.media3.common.AudioAttributes;
           import androidx.media3.common.C;
           import androidx.media3.common.MediaItem;
+          import androidx.media3.common.MediaMetadata;
           import androidx.media3.common.MimeTypes;
+          import androidx.media3.common.Player;
+          import androidx.media3.common.Tracks;
+          import androidx.media3.common.util.RepeatModeUtil;
           import androidx.media3.exoplayer.ExoPlayer;
           import androidx.media3.ui.AspectRatioFrameLayout;
           import androidx.media3.ui.PlayerView;
           import androidx.media3.ui.TrackSelectionDialogBuilder;
           import java.util.ArrayList;
+          import java.util.Collections;
           import java.util.List;
+          import java.util.Locale;
 
           public class MainActivity extends Activity {
+            static class M { Uri uri; String title, artist, sub; }
+
             ExoPlayer player;
             PlayerView pv;
-            View bar, content;
-            Uri video;
-            List<Uri> subs = new ArrayList<>();
-            boolean bg;
-            int mode;
-            float scale = 1f, tx, ty, lx = -1, ly;
+            RingView ring;
+            View bar, content, libView, playView, empty, tabV, tabA;
+            Visualizer viz;
+            List<M> vids = new ArrayList<>(), auds = new ArrayList<>();
+            Ad ad = new Ad();
+            boolean bg, micAsked;
+            int mode, tab;
+            float peak = 25f, scale = 1f, tx, ty, lx = -1, ly;
 
             @Override protected void onCreate(Bundle b) {
               super.onCreate(b);
               setContentView(R.layout.activity_main);
+              libView = findViewById(R.id.lib);
+              playView = findViewById(R.id.play);
+              ring = findViewById(R.id.ring);
               pv = findViewById(R.id.pv);
               bar = findViewById(R.id.bar);
+              empty = findViewById(R.id.empty);
+              tabV = findViewById(R.id.tabV);
+              tabA = findViewById(R.id.tabA);
+              ListView list = findViewById(R.id.list);
+
               player = new ExoPlayer.Builder(this).build();
               player.setAudioAttributes(new AudioAttributes.Builder()
                   .setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true);
               player.setHandleAudioBecomingNoisy(true);
               player.setWakeMode(C.WAKE_MODE_LOCAL);
               pv.setPlayer(player);
+              pv.setShowShuffleButton(true);
+              pv.setRepeatToggleModes(RepeatModeUtil.REPEAT_TOGGLE_MODE_ONE | RepeatModeUtil.REPEAT_TOGGLE_MODE_ALL);
               int id = getResources().getIdentifier("exo_content_frame", "id", getPackageName());
               content = id != 0 ? pv.findViewById(id) : pv;
               pv.setControllerVisibilityListener(
                   (PlayerView.ControllerVisibilityListener) v -> bar.setVisibility(v));
+
+              player.addListener(new Player.Listener() {
+                @Override public void onTracksChanged(Tracks t) { mode(t); }
+                @Override public void onMediaItemTransition(MediaItem m, int r) {
+                  if (m != null) ring.setTitle(m.mediaMetadata.title, m.mediaMetadata.artist);
+                  scale = 1f;
+                  zoom();
+                }
+                @Override public void onIsPlayingChanged(boolean p) {
+                  ring.setActive(p);
+                  vizOn(p);
+                }
+                @Override public void onAudioSessionIdChanged(int sid) { attachViz(sid); }
+              });
 
               final ScaleGestureDetector sg = new ScaleGestureDetector(this,
                   new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -250,15 +401,14 @@ jobs:
                 return false;
               });
 
-              String[] names = {"Open", "Audio", "Subs", "+Sub", "Zoom", "BG", "About"};
+              String[] names = {"\u2190", "Audio", "Subs", "+Sub", "Zoom", "BG"};
               Runnable[] acts = {
-                  () -> pick(1),
+                  this::closePlayer,
                   () -> tracks(C.TRACK_TYPE_AUDIO),
                   () -> tracks(C.TRACK_TYPE_TEXT),
-                  () -> { if (video != null) pick(2); },
+                  () -> pick(2),
                   this::fit,
-                  this::background,
-                  this::about
+                  this::background
               };
               LinearLayout row = findViewById(R.id.row);
               for (int i = 0; i < names.length; i++) {
@@ -270,34 +420,223 @@ jobs:
                 row.addView(btn);
               }
 
-              if (Build.VERSION.SDK_INT >= 33) {
-                requestPermissions(new String[] {Manifest.permission.POST_NOTIFICATIONS}, 0);
-              }
+              list.setAdapter(ad);
+              list.setOnItemClickListener((a, v, i, l) -> play(tab == 0 ? vids : auds, i));
+              tabV.setOnClickListener(v -> { setTab(0); list.setSelection(0); });
+              tabA.setOnClickListener(v -> { setTab(1); list.setSelection(0); });
+              empty.setOnClickListener(v -> askStorage());
+              findViewById(R.id.browse).setOnClickListener(v -> pick(1));
+              findViewById(R.id.about).setOnClickListener(v -> about());
+
+              setTab(0);
+              if (!hasStorage()) askStorage();
               handle(getIntent());
             }
 
             @Override protected void onNewIntent(Intent i) { super.onNewIntent(i); handle(i); }
 
-            void handle(Intent i) {
-              if (i != null && Intent.ACTION_VIEW.equals(i.getAction()) && i.getData() != null) {
-                video = i.getData();
-                subs.clear();
-                load(0);
+            int dp(int v) { return (int) (v * getResources().getDisplayMetrics().density + .5f); }
+
+            boolean granted(String p) {
+              return ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED;
+            }
+
+            boolean hasStorage() {
+              return Build.VERSION.SDK_INT >= 33
+                  ? granted(Manifest.permission.READ_MEDIA_AUDIO) && granted(Manifest.permission.READ_MEDIA_VIDEO)
+                  : granted(Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+
+            void askStorage() {
+              ActivityCompat.requestPermissions(this, Build.VERSION.SDK_INT >= 33
+                  ? new String[] {Manifest.permission.READ_MEDIA_AUDIO,
+                      Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.POST_NOTIFICATIONS}
+                  : new String[] {Manifest.permission.READ_EXTERNAL_STORAGE}, 1);
+            }
+
+            @Override public void onRequestPermissionsResult(int rc, String[] p, int[] r) {
+              super.onRequestPermissionsResult(rc, p, r);
+              if (rc == 1) scan();
+              if (rc == 2) attachViz(player.getAudioSessionId());
+            }
+
+            void scan() {
+              if (!hasStorage()) { setTab(tab); return; }
+              new Thread(() -> {
+                List<M> v = q(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, false);
+                List<M> a = q(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, true);
+                runOnUiThread(() -> { vids = v; auds = a; setTab(tab); });
+              }).start();
+            }
+
+            List<M> q(Uri base, boolean audio) {
+              List<M> r = new ArrayList<>();
+              String[] pr = audio
+                  ? new String[] {"_id", "title", "artist", "duration"}
+                  : new String[] {"_id", "_display_name", "duration"};
+              String sel = audio ? "is_ringtone=0 AND is_notification=0 AND is_alarm=0" : null;
+              String ord = audio ? "title ASC" : "date_added DESC";
+              try (Cursor c = getContentResolver().query(base, pr, sel, null, ord)) {
+                while (c != null && c.moveToNext()) {
+                  M m = new M();
+                  m.uri = ContentUris.withAppendedId(base, c.getLong(0));
+                  m.title = strip(c.getString(1));
+                  String ar = audio ? c.getString(2) : null;
+                  m.artist = ar == null || ar.contains("unknown") ? "" : ar;
+                  m.sub = (m.artist.isEmpty() ? "" : m.artist + " \u00B7 ") + fmt(c.getLong(audio ? 3 : 2));
+                  r.add(m);
+                }
+              } catch (Exception e) { }
+              return r;
+            }
+
+            String strip(String t) {
+              if (t == null) return "Unknown";
+              int i = t.lastIndexOf('.');
+              return i > 0 && t.length() - i <= 5 ? t.substring(0, i) : t;
+            }
+
+            String fmt(long ms) {
+              long s = ms / 1000, h = s / 3600, m = s % 3600 / 60;
+              return h > 0 ? String.format(Locale.US, "%d:%02d:%02d", h, m, s % 60)
+                  : String.format(Locale.US, "%d:%02d", m, s % 60);
+            }
+
+            void setTab(int t) {
+              tab = t;
+              ((TextView) tabV).setTextColor(t == 0 ? 0xFF4FC3F7 : 0xFF8A8FA3);
+              ((TextView) tabA).setTextColor(t == 1 ? 0xFF4FC3F7 : 0xFF8A8FA3);
+              ad.d = t == 0 ? vids : auds;
+              ad.notifyDataSetChanged();
+              empty.setVisibility(ad.d.isEmpty() ? View.VISIBLE : View.GONE);
+              ((TextView) empty).setText(hasStorage() ? "No media found" : "Tap to allow media access");
+            }
+
+            class Ad extends BaseAdapter {
+              List<M> d = new ArrayList<>();
+              public int getCount() { return d.size(); }
+              public Object getItem(int i) { return d.get(i); }
+              public long getItemId(int i) { return i; }
+              public View getView(int i, View cv, ViewGroup p) {
+                if (cv == null) {
+                  LinearLayout row = new LinearLayout(MainActivity.this);
+                  row.setGravity(Gravity.CENTER_VERTICAL);
+                  row.setPadding(dp(16), dp(10), dp(16), dp(10));
+                  TextView ic = new TextView(MainActivity.this);
+                  ic.setId(1);
+                  ic.setGravity(Gravity.CENTER);
+                  ic.setTextColor(Color.WHITE);
+                  ic.setTextSize(16);
+                  GradientDrawable g = new GradientDrawable(
+                      GradientDrawable.Orientation.TL_BR, new int[] {0xFF4FC3F7, 0xFF7C4DFF});
+                  g.setShape(GradientDrawable.OVAL);
+                  ic.setBackground(g);
+                  row.addView(ic, new LinearLayout.LayoutParams(dp(44), dp(44)));
+                  LinearLayout col = new LinearLayout(MainActivity.this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+                  lp.leftMargin = dp(14);
+                  row.addView(col, lp);
+                  col.addView(tv(2, 15, 0xFFFFFFFF));
+                  col.addView(tv(3, 12, 0xFF8A8FA3));
+                  cv = row;
+                }
+                M m = d.get(i);
+                ((TextView) cv.findViewById(1)).setText(tab == 0 ? "\u25BA" : "\u266A");
+                ((TextView) cv.findViewById(2)).setText(m.title);
+                ((TextView) cv.findViewById(3)).setText(m.sub);
+                return cv;
               }
             }
 
-            void load(long pos) {
-              List<MediaItem.SubtitleConfiguration> l = new ArrayList<>();
-              for (int k = 0; k < subs.size(); k++) {
-                Uri s = subs.get(k);
-                String n = name(s);
-                l.add(new MediaItem.SubtitleConfiguration.Builder(s)
-                    .setMimeType(mime(n)).setLabel(n)
-                    .setSelectionFlags(k == 0 ? C.SELECTION_FLAG_DEFAULT : 0).build());
+            TextView tv(int id, int sp, int color) {
+              TextView t = new TextView(this);
+              t.setId(id);
+              t.setTextSize(sp);
+              t.setTextColor(color);
+              t.setSingleLine();
+              t.setEllipsize(TextUtils.TruncateAt.END);
+              return t;
+            }
+
+            void handle(Intent i) {
+              if (i != null && Intent.ACTION_VIEW.equals(i.getAction()) && i.getData() != null) {
+                Uri u = i.getData();
+                open(Collections.singletonList(new MediaItem.Builder().setUri(u).setMediaMetadata(
+                    new MediaMetadata.Builder().setTitle(strip(name(u))).build()).build()), 0);
               }
-              player.setMediaItem(new MediaItem.Builder().setUri(video).setSubtitleConfigurations(l).build(), pos);
+            }
+
+            void play(List<M> l, int start) {
+              List<MediaItem> it = new ArrayList<>();
+              for (M m : l) {
+                it.add(new MediaItem.Builder().setUri(m.uri).setMediaMetadata(new MediaMetadata.Builder()
+                    .setTitle(m.title).setArtist(m.artist).build()).build());
+              }
+              open(it, start);
+            }
+
+            void open(List<MediaItem> it, int start) {
+              player.setMediaItems(it, start, 0);
               player.prepare();
               player.play();
+              libView.setVisibility(View.GONE);
+              playView.setVisibility(View.VISIBLE);
+            }
+
+            void closePlayer() {
+              player.stop();
+              player.clearMediaItems();
+              playView.setVisibility(View.GONE);
+              ring.setVisibility(View.GONE);
+              libView.setVisibility(View.VISIBLE);
+            }
+
+            @Override public void onBackPressed() {
+              if (playView.getVisibility() == View.VISIBLE) closePlayer();
+              else super.onBackPressed();
+            }
+
+            void mode(Tracks t) {
+              if (t.isEmpty()) return;
+              boolean audio = !t.containsType(C.TRACK_TYPE_VIDEO);
+              ring.setVisibility(audio ? View.VISIBLE : View.GONE);
+              pv.setControllerShowTimeoutMs(audio ? 0 : 5000);
+              pv.setControllerHideOnTouch(!audio);
+              pv.showController();
+              if (audio && !micAsked && !granted(Manifest.permission.RECORD_AUDIO)) {
+                micAsked = true;
+                ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.RECORD_AUDIO}, 2);
+              }
+            }
+
+            void attachViz(int sid) {
+              try { if (viz != null) viz.release(); } catch (Exception e) { }
+              viz = null;
+              ring.setSynthetic(true);
+              if (sid == 0 || !granted(Manifest.permission.RECORD_AUDIO)) return;
+              try {
+                Visualizer v = new Visualizer(sid);
+                v.setCaptureSize(Visualizer.getCaptureSizeRange()[1]);
+                v.setDataCaptureListener(new Visualizer.OnDataCaptureListener() {
+                  public void onWaveFormDataCapture(Visualizer x, byte[] w, int r) { }
+                  public void onFftDataCapture(Visualizer x, byte[] f, int r) {
+                    float s = 0;
+                    for (int k = 1; k <= 4; k++) s += (float) Math.hypot(f[2 * k], f[2 * k + 1]);
+                    s /= 4;
+                    peak = Math.max(s, peak * 0.997f);
+                    float l = Math.min(1f, s / Math.max(peak, 25f));
+                    ring.setLevel(l * l);
+                  }
+                }, Visualizer.getMaxCaptureRate(), false, true);
+                v.setEnabled(player.isPlaying());
+                viz = v;
+                ring.setSynthetic(false);
+              } catch (Exception e) { viz = null; }
+            }
+
+            void vizOn(boolean on) {
+              try { if (viz != null) viz.setEnabled(on); } catch (Exception e) { }
             }
 
             String name(Uri u) {
@@ -307,7 +646,7 @@ jobs:
                   if (i >= 0 && c.getString(i) != null) return c.getString(i);
                 }
               } catch (Exception e) { }
-              return "subtitle";
+              return "media";
             }
 
             String mime(String n) {
@@ -330,17 +669,31 @@ jobs:
               super.onActivityResult(rc, res, d);
               if (res != RESULT_OK || d == null) return;
               if (rc == 1 && d.getData() != null) {
-                video = d.getData();
-                subs.clear();
-                load(0);
-              } else if (rc == 2 && video != null) {
+                Uri u = d.getData();
+                open(Collections.singletonList(new MediaItem.Builder().setUri(u).setMediaMetadata(
+                    new MediaMetadata.Builder().setTitle(strip(name(u))).build()).build()), 0);
+              } else if (rc == 2 && player.getCurrentMediaItem() != null) {
+                List<Uri> us = new ArrayList<>();
                 if (d.getClipData() != null) {
                   for (int i = 0; i < d.getClipData().getItemCount(); i++)
-                    subs.add(d.getClipData().getItemAt(i).getUri());
+                    us.add(d.getClipData().getItemAt(i).getUri());
                 } else if (d.getData() != null) {
-                  subs.add(d.getData());
+                  us.add(d.getData());
                 }
-                load(player.getCurrentPosition());
+                MediaItem cur = player.getCurrentMediaItem();
+                List<MediaItem.SubtitleConfiguration> l = new ArrayList<>();
+                if (cur.localConfiguration != null) l.addAll(cur.localConfiguration.subtitleConfigurations);
+                boolean first = l.isEmpty();
+                for (int k = 0; k < us.size(); k++) {
+                  String n = name(us.get(k));
+                  l.add(new MediaItem.SubtitleConfiguration.Builder(us.get(k))
+                      .setMimeType(mime(n)).setLabel(n)
+                      .setSelectionFlags(first && k == 0 ? C.SELECTION_FLAG_DEFAULT : 0).build());
+                }
+                int idx = player.getCurrentMediaItemIndex();
+                long pos = player.getCurrentPosition();
+                player.replaceMediaItem(idx, cur.buildUpon().setSubtitleConfigurations(l).build());
+                player.seekTo(idx, pos);
               }
             }
 
@@ -395,17 +748,143 @@ jobs:
               super.onStart();
               bg = false;
               stopService(new Intent(this, PlayService.class));
+              vizOn(player.isPlaying());
+              if (hasStorage()) scan();
             }
 
             @Override protected void onStop() {
               super.onStop();
+              vizOn(false);
               if (!bg) player.pause();
             }
 
             @Override protected void onDestroy() {
               super.onDestroy();
+              try { if (viz != null) viz.release(); } catch (Exception e) { }
               player.release();
               stopService(new Intent(this, PlayService.class));
+            }
+          }
+          EOF
+          cat > app/src/main/res/values/styles.xml << 'EOF'
+          <resources>
+            <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+              <item name="android:statusBarColor">#0F1115</item>
+              <item name="android:navigationBarColor">#0F1115</item>
+              <item name="android:windowBackground">#0F1115</item>
+            </style>
+          </resources>
+          EOF
+          cat > app/src/main/java/com/awal/player/RingView.java << 'EOF'
+          package com.awal.player;
+
+          import android.content.Context;
+          import android.graphics.Canvas;
+          import android.graphics.LinearGradient;
+          import android.graphics.Paint;
+          import android.graphics.Shader;
+          import android.graphics.SweepGradient;
+          import android.text.TextPaint;
+          import android.text.TextUtils;
+          import android.util.AttributeSet;
+          import android.view.View;
+
+          public class RingView extends View {
+            final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+            final TextPaint tp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            final float d = getResources().getDisplayMetrics().density;
+            volatile float target;
+            float cur, cur2, rot;
+            boolean active, synth = true;
+            String title = "", sub = "";
+            LinearGradient bg;
+            SweepGradient sw;
+            float cx, cy, R;
+
+            public RingView(Context c) { super(c); }
+            public RingView(Context c, AttributeSet a) { super(c, a); }
+
+            void setLevel(float l) { target = l; }
+            void setSynthetic(boolean s) { synth = s; }
+
+            void setActive(boolean a) {
+              active = a;
+              postInvalidateOnAnimation();
+            }
+
+            void setTitle(CharSequence t, CharSequence s) {
+              title = t == null ? "" : t.toString();
+              sub = s == null ? "" : s.toString();
+              invalidate();
+            }
+
+            @Override protected void onSizeChanged(int w, int h, int ow, int oh) {
+              bg = new LinearGradient(0, 0, 0, h, 0xFF0B0F1A, 0xFF1E1140, Shader.TileMode.CLAMP);
+              cx = w / 2f;
+              cy = h * 0.36f;
+              R = Math.min(w, h) * 0.2f;
+              sw = new SweepGradient(cx, cy, new int[] {0xFF4FC3F7, 0xFF7C4DFF, 0xFFFF4081, 0xFF4FC3F7}, null);
+            }
+
+            @Override protected void onDraw(Canvas c) {
+              int w = getWidth(), h = getHeight();
+              p.setShader(bg);
+              p.setStyle(Paint.Style.FILL);
+              c.drawRect(0, 0, w, h, p);
+              p.setShader(null);
+
+              float t = System.nanoTime() / 1e9f;
+              float tg = active ? (synth ? 0.3f + 0.25f * (float) Math.sin(t * 5) : target) : 0f;
+              cur += (tg - cur) * (tg > cur ? 0.6f : 0.1f);
+              cur2 += (cur - cur2) * 0.12f;
+              rot += 0.5f + cur * 2f;
+
+              float rr = R * 1.12f + cur * R * 0.22f;
+              p.setStyle(Paint.Style.STROKE);
+              p.setShader(null);
+              p.setColor(0xFF7C4DFF);
+              p.setAlpha(70);
+              p.setStrokeWidth(d * 2);
+              c.drawCircle(cx, cy, R * 1.4f + cur2 * R * 0.5f, p);
+
+              p.setShader(sw);
+              p.setStrokeCap(Paint.Cap.ROUND);
+              p.setStrokeWidth(d * 3);
+              for (int i = 0; i < 56; i++) {
+                double a = i * 2 * Math.PI / 56;
+                float n = 0.5f + 0.5f * (float) Math.sin(t * 4 + i * 1.9f);
+                float r0 = rr + d * 10;
+                float r1 = r0 + d * 3 + n * cur * R * 0.6f;
+                float ca = (float) Math.cos(a), sa = (float) Math.sin(a);
+                c.drawLine(cx + ca * r0, cy + sa * r0, cx + ca * r1, cy + sa * r1, p);
+              }
+
+              c.save();
+              c.rotate(rot, cx, cy);
+              p.setStrokeWidth(d * (5 + cur * 8));
+              c.drawCircle(cx, cy, rr, p);
+              c.restore();
+              p.setShader(null);
+
+              p.setStyle(Paint.Style.FILL);
+              p.setColor(0xFF121830);
+              c.drawCircle(cx, cy, R * 0.98f, p);
+              tp.setColor(0xFFFFFFFF);
+              tp.setTextAlign(Paint.Align.CENTER);
+              tp.setTextSize(R * 0.9f);
+              c.drawText("\u266A", cx, cy + R * 0.3f, tp);
+
+              float y = cy + R * 2.2f;
+              float mw = w - d * 48;
+              tp.setFakeBoldText(true);
+              tp.setTextSize(d * 20);
+              c.drawText(TextUtils.ellipsize(title, tp, mw, TextUtils.TruncateAt.END).toString(), cx, y, tp);
+              tp.setFakeBoldText(false);
+              tp.setColor(0xFF9AA0B8);
+              tp.setTextSize(d * 14);
+              c.drawText(TextUtils.ellipsize(sub, tp, mw, TextUtils.TruncateAt.END).toString(), cx, y + d * 26, tp);
+
+              if (active || cur > 0.01f) postInvalidateOnAnimation();
             }
           }
           EOF
