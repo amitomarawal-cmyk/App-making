@@ -169,10 +169,10 @@ jobs:
      uniform float uTm,uDro,uWb,uAs;
      float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
      float nz(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1.,0.)),f.x),mix(h(i+vec2(0.,1.)),h(i+vec2(1.,1.)),f.x),f.y);}
-     vec3 tx(vec2 d){return texture2D(uS,vT+vD*d.x+vE*d.y).rgb;}
+     vec3 tx(vec2 d){return texture2D(uS,clamp(vT+vD*d.x+vE*d.y,0.,1.)).rgb;}
      void main(){
      vec2 u=vU,d=vec2(0.);
-     if(uP[16]>0.){vec2 n=vec2(uP[16],uP[16]/uAs);d=(floor(u*n)+.5)/n-u;}
+     if(uP[16]>0.){vec2 n=vec2(uP[16],uP[16]/max(uAs,.1));d=(floor(u*n)+.5)/n-u;}
      if(uP[17]>0.){float bd=step(.96,h(vec2(floor(u.y*30.),floor(uTm*8.))));d.x+=uP[17]*(bd*.03*(h(vec2(u.y,uTm))-.5)*2.+sin(u.y*40.+uTm*5.)*.0015);}
      float sh=uP[10];
      vec3 c=vec3(tx(d+vec2(sh,0.)).r,tx(d).g,tx(d-vec2(sh,0.)).b);
@@ -187,7 +187,7 @@ jobs:
      c=mix(c,vec3(l)*tn,uP[9]);
      c=c*(1.-uP[6])+uP[6]*.2;
      if(uP[15]>0.)c=floor(c*uP[15]+.5)/uP[15];
-     float w=uP[12],wi=uP[13];vec2 q=vec2(u.x*uAs,u.y);
+     float w=uP[12],wi=uP[13];vec2 q=vec2(u.x*max(uAs,.1),u.y);
      if(abs(w-1.)<.5||abs(w-5.)<.5){float r=0.;
      for(int i=0;i<2;i++){float fi=float(i);float sc=70.+fi*45.;vec2 g=vec2(q.x*sc+q.y*sc*.12,q.y*sc*.22+uTm*(14.+fi*5.));vec2 id=floor(g),f=fract(g);float x=abs(f.x-.5);
      r+=(1.-smoothstep(0.,.12,x))*smoothstep(0.,.25,f.y)*(1.-smoothstep(.3,1.,f.y))*step(.6,h(id+fi*7.));}
@@ -202,7 +202,7 @@ jobs:
      if(abs(w-6.)<.5){float sc=step(.9965,h(vec2(floor(u.x*250.),floor(uTm*12.))))*step(.3,h(vec2(floor(uTm*12.),1.)));float ds=step(.9985,h(floor(q*200.)+floor(uTm*10.)));c=mix(c,vec3(.95),clamp(sc*.5+ds*.7,0.,1.)*wi);}
      c*=1.+uP[18]*(h(vec2(floor(uTm*14.),0.))-.5)*2.;
      c*=1.-uP[11]*.35*(.5+.5*sin(u.y*1000.));
-     c+=(h(floor(u*vec2(360.,360./uAs))+fract(uTm)*10.)-.5)*uP[8];
+     c+=(h(floor(u*vec2(360.,360./max(uAs,.1)))+fract(uTm)*10.)-.5)*uP[8];
      c*=1.-uP[7]*smoothstep(.3,.95,distance(u,vec2(.5))*1.35);
      gl_FragColor=vec4(clamp(c,0.,1.),1.);}
      """;
@@ -224,11 +224,21 @@ jobs:
      int[] t=new int[1];GLES20.glGenTextures(1,t,0);oes=t[0];GLES20.glBindTexture(X,oes);par(X);
      st=new SurfaceTexture(oes);st.setOnFrameAvailableListener(s->nf=true);rdy.on(st);}
      public void onSurfaceChanged(GL10 g,int w,int h){W=w;H=h;}
-     void mat(float a){boolean r90=rot%180!=0;float uw=r90?bh:bw,uh=r90?bw:bh,ua=uw/uh,fx=1,fy=1;if(a>ua)fy=ua/a;else fx=a/ua;
-     System.arraycopy(stm,0,m,0,16);Matrix.translateM(m,0,.5f,.5f,0);Matrix.rotateM(m,0,rot,0,0,1);Matrix.scaleM(m,0,front&&mir?-fx:fx,fy,1);Matrix.translateM(m,0,-.5f,-.5f,0);}
+     void mat(float viewAsp){
+     boolean r90=rot%180!=0;
+     float uw=r90?bh:bw,uh=r90?bw:bh;
+     float bufAsp=uw/Math.max(1f,uh);
+     float sx=1f,syScale=1f;
+     if(viewAsp>bufAsp){syScale=bufAsp/viewAsp;}else if(bufAsp>viewAsp){sx=viewAsp/bufAsp;}
+     boolean flipX=front&&mir;
+     System.arraycopy(stm,0,m,0,16);
+     Matrix.translateM(m,0,.5f,.5f,0f);
+     Matrix.rotateM(m,0,front?(360-rot)%360:rot,0f,0f,1f);
+     Matrix.scaleM(m,0,flipX?-sx:sx,-syScale,1f);
+     Matrix.translateM(m,0,-.5f,-.5f,0f);}
      void draw(int p,int tg,int tx,int x,int y,int w,int h,float a,float[] f,float dr,float wv){
      GLES20.glViewport(x,y,w,h);GLES20.glUseProgram(p);
-     if(p==pO)mat(a);else Matrix.setIdentityM(m,0);
+     if(p==pO)mat(a);else{Matrix.setIdentityM(m,0);Matrix.translateM(m,0,0f,1f,0f);Matrix.scaleM(m,0,1f,-1f,1f);}
      GLES20.glUniformMatrix4fv(L(p,"uM"),1,false,m,0);GLES20.glUniform1fv(L(p,"uP"),19,f,0);
      GLES20.glUniform1f(L(p,"uTm"),(float)((System.nanoTime()/1e9)%1000));GLES20.glUniform1f(L(p,"uDro"),dr);GLES20.glUniform1f(L(p,"uWb"),wv);GLES20.glUniform1f(L(p,"uAs"),a);
      int l=GLES20.glGetAttribLocation(p,"aP");GLES20.glEnableVertexAttribArray(l);GLES20.glVertexAttribPointer(l,2,GLES20.GL_FLOAT,false,8,q);
@@ -236,8 +246,8 @@ jobs:
      GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP,0,4);}
      public void onDrawFrame(GL10 g){
      boolean fr=nf;if(fr){nf=false;try{st.updateTexImage();st.getTransformMatrix(stm);}catch(Exception e){}}
-     GLES20.glViewport(0,0,W,H);GLES20.glClearColor(0,0,0,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-     float a=MainActivity.aspOf(ri,W,H);int[] r=MainActivity.rect(W,H,a);
+     GLES20.glViewport(0,0,Math.max(1,W),Math.max(1,H));GLES20.glClearColor(0,0,0,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+     float a=MainActivity.aspOf(ri,Math.max(1,W),Math.max(1,H));int[] r=MainActivity.rect(Math.max(1,W),Math.max(1,H),a);
      draw(pO,X,oes,r[0],r[1],r[2],r[3],a,Filters.P[fi],dro?1:0,wb);
      if(strip)tiles();
      if(fr&&rs!=null&&!paused)rec();}
@@ -250,9 +260,9 @@ jobs:
      int[] a={EGL14.EGL_RED_SIZE,8,EGL14.EGL_GREEN_SIZE,8,EGL14.EGL_BLUE_SIZE,8,EGL14.EGL_ALPHA_SIZE,8,EGL14.EGL_RENDERABLE_TYPE,EGL14.EGL_OPENGL_ES2_BIT,0x3142,1,EGL14.EGL_NONE};
      android.opengl.EGLConfig[] c=new android.opengl.EGLConfig[1];int[] n=new int[1];EGL14.eglChooseConfig(ed,a,0,c,0,1,n,0);
      EGLSurface e=EGL14.eglCreateWindowSurface(ed,c[0],s,new int[]{EGL14.EGL_NONE},0);rw=w;rh=h;paused=false;rs=e;}
-     void rec(){EGLSurface e=rs;if(e==null)return;EGLSurface o=EGL14.eglGetCurrentSurface(EGL14.EGL_DRAW);
+     void rec(){EGLSurface e=rs;if(e==null)return;EGLSurface o=EGL14.eglGetCurrentSurface(EGL14.eglDraw);
      EGL14.eglMakeCurrent(ed,e,e,ec);
-     draw(pO,X,oes,0,0,rw,rh,(float)rw/rh,Filters.P[fi],dro?1:0,wb);
+     draw(pO,X,oes,0,0,rw,rh,(float)rw/Math.max(1,rh),Filters.P[fi],dro?1:0,wb);
      EGLExt.eglPresentationTimeANDROID(ed,e,System.nanoTime());EGL14.eglSwapBuffers(ed,e);
      EGL14.eglMakeCurrent(ed,o,o,ec);}
      void stopRec(){EGLSurface e=rs;rs=null;if(e!=null)EGL14.eglDestroySurface(ed,e);}
@@ -263,7 +273,7 @@ jobs:
      GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,t[0]);par(GLES20.GL_TEXTURE_2D);GLUtils.texImage2D(GLES20.GL_TEXTURE_2D,0,b,0);
      GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,t[1]);par(GLES20.GL_TEXTURE_2D);GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D,0,GLES20.GL_RGBA,w,h,0,GLES20.GL_RGBA,GLES20.GL_UNSIGNED_BYTE,null);
      GLES20.glGenFramebuffers(1,fb,0);GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,fb[0]);GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER,GLES20.GL_COLOR_ATTACHMENT0,GLES20.GL_TEXTURE_2D,t[1],0);
-     draw(p2,GLES20.GL_TEXTURE_2D,t[0],0,0,w,h,(float)w/h,Filters.P[f],dr,wv);
+     draw(p2,GLES20.GL_TEXTURE_2D,t[0],0,0,w,h,(float)w/Math.max(1,h),Filters.P[f],dr,wv);
      ByteBuffer bb=ByteBuffer.allocateDirect(w*h*4);GLES20.glReadPixels(0,0,w,h,GLES20.GL_RGBA,GLES20.GL_UNSIGNED_BYTE,bb);
      Bitmap r=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);r.copyPixelsFromBuffer(bb);
      GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,0);GLES20.glDeleteFramebuffers(1,fb,0);GLES20.glDeleteTextures(2,t,0);o=r;}
@@ -297,8 +307,8 @@ jobs:
      import java.util.*;
      public class MainActivity extends Activity{
      static final String[] RN={"3:4","9:16","1:1","FULL"};
-     static float aspOf(int r,int w,int h){return r==0?.75f:r==1?.5625f:r==2?1f:(float)w/h;}
-     static int[] rect(int W,int H,float a){int w=W,h=Math.round(W/a);if(h>H){h=H;w=Math.round(H*a);}return new int[]{(W-w)/2,(H-h)/2,w,h};}
+     static float aspOf(int r,int w,int h){return r==0?.75f:r==1?.5625f:r==2?1f:(float)w/Math.max(1,h);}
+     static int[] rect(int W,int H,float a){float safeA=Math.max(.2f,a);int w=W,h=Math.round(W/safeA);if(h>H){h=H;w=Math.round(H*safeA);}return new int[]{(W-w)/2,(H-h)/2,Math.max(1,w),Math.max(1,h)};}
      static boolean has(int[] a,int v){if(a!=null)for(int x:a)if(x==v)return true;return false;}
      GLSurfaceView gl;GLR rnd;FrameLayout root;View grid;LinearLayout pan;
      TextView lab,tmr,ratB,gridB,hdrB,droB,mirB,swB,infB,fltB,proB,pauseB,shut,phB,vdB;
@@ -323,6 +333,19 @@ jobs:
      public void onProgressChanged(SeekBar s,int p,boolean u){if(u)sync();}
      public void onStartTrackingTouch(SeekBar s){}
      public void onStopTrackingTouch(SeekBar s){}}
+     void setPro(boolean open){
+     proOn=open;
+     on(proB,proOn);
+     pan.setVisibility(proOn?View.VISIBLE:View.GONE);
+     if(proOn&&stripOn){stripOn=false;rnd.strip=false;on(fltB,false);lab.setVisibility(View.GONE);}
+     sync();}
+     void setStrip(boolean open){
+     stripOn=open;
+     rnd.strip=stripOn;
+     on(fltB,stripOn);
+     lab.setVisibility(stripOn?View.VISIBLE:View.GONE);
+     if(stripOn&&proOn)setPro(false);
+     else sync();}
      protected void onCreate(Bundle s){super.onCreate(s);
      getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
      ht=new HandlerThread("cam");ht.start();bg=new Handler(ht.getLooper());mgr=(CameraManager)getSystemService(CAMERA_SERVICE);
@@ -332,7 +355,7 @@ jobs:
      rnd.sy=dp(158);rnd.ts=dp(74);rnd.pad=dp(8);rnd.gap=dp(6);
      gl.setRenderer(rnd);gl.setOnTouchListener(this::touch);root.addView(gl,new FrameLayout.LayoutParams(-1,-1));
      grid=new View(this){protected void onDraw(Canvas c){if(!gridOn)return;int W=getWidth(),H=getHeight();int[] r=rect(W,H,aspOf(ri,W,H));
-     Paint p=new Paint();p.setColor(0x99FFFFFF);p.setStrokeWidth(dp(1));int x=r[0],y=H-r[1]-r[3],w=r[2],h=r[3];
+     Paint p=new Paint();p.setColor(0x99FFFFFF);p.setStrokeWidth(dp(1));int x=r[0],y=r[1],w=r[2],h=r[3];
      for(int i=1;i<3;i++){c.drawLine(x+w*i/3f,y,x+w*i/3f,y+h,p);c.drawLine(x,y+h*i/3f,x+w,y+h*i/3f,p);}
      p.setStyle(Paint.Style.STROKE);c.drawRect(x,y,x+w,y+h,p);}};
      root.addView(grid,new FrameLayout.LayoutParams(-1,-1));
@@ -350,22 +373,21 @@ jobs:
      FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);tp.topMargin=dp(84);root.addView(tmr,tp);
      lab=new TextView(this);lab.setTextColor(-1);lab.setTextSize(14);lab.setPadding(dp(12),dp(4),dp(12),dp(4));lab.setBackgroundColor(0x88000000);lab.setVisibility(View.GONE);
      FrameLayout.LayoutParams ll=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);ll.bottomMargin=dp(240);root.addView(lab,ll);
-     pan=new LinearLayout(this);pan.setOrientation(LinearLayout.VERTICAL);pan.setBackgroundColor(0xAA000000);pan.setPadding(dp(10),dp(4),dp(10),dp(4));pan.setVisibility(View.GONE);
+     pan=new LinearLayout(this);pan.setOrientation(LinearLayout.VERTICAL);pan.setBackgroundColor(0xCC000000);pan.setPadding(dp(10),dp(6),dp(10),dp(6));pan.setVisibility(View.GONE);
+     pan.setClickable(true);
      String[] RL={"EV","ISO","SHUTTER","FOCUS","WB"};
      for(int i=0;i<5;i++){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);
      TextView n=new TextView(this);n.setText(RL[i]);n.setTextColor(-1);n.setTextSize(12);row.addView(n,new LinearLayout.LayoutParams(dp(62),-2));
      sb[i]=new SeekBar(this);sb[i].setMax(100);sb[i].setOnSeekBarChangeListener(new Sk());row.addView(sb[i],new LinearLayout.LayoutParams(0,dp(36),1));
      tv[i]=new TextView(this);tv[i].setTextColor(0xFFF59E0B);tv[i].setTextSize(12);tv[i].setGravity(Gravity.END);row.addView(tv[i],new LinearLayout.LayoutParams(dp(64),-2));pan.addView(row);}
-     FrameLayout.LayoutParams pl=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);pl.bottomMargin=dp(140);root.addView(pan,pl);
-     LinearLayout bot=new LinearLayout(this);bot.setOrientation(LinearLayout.VERTICAL);bot.setPadding(dp(16),0,dp(16),dp(14));
+     FrameLayout.LayoutParams pl=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);pl.bottomMargin=dp(136);root.addView(pan,pl);
+     LinearLayout bot=new LinearLayout(this);bot.setOrientation(LinearLayout.VERTICAL);bot.setPadding(dp(16),0,dp(16),dp(14));bot.setBackgroundColor(0x66000000);bot.setClickable(true);
      LinearLayout tabs=new LinearLayout(this);tabs.setGravity(Gravity.CENTER);
      phB=b("PHOTO",x->setMode(0));vdB=b("VIDEO",x->setMode(1));
      tabs.addView(phB,new LinearLayout.LayoutParams(dp(90),-2));tabs.addView(vdB,new LinearLayout.LayoutParams(dp(90),-2));bot.addView(tabs);
      LinearLayout ctl=new LinearLayout(this);ctl.setGravity(Gravity.CENTER_VERTICAL);ctl.setPadding(0,dp(10),0,0);
-     fltB=b("FILTER",x->{stripOn=!stripOn;rnd.strip=stripOn;on(fltB,stripOn);lab.setVisibility(stripOn?View.VISIBLE:View.GONE);
-     if(stripOn&&proOn){proOn=false;pan.setVisibility(View.GONE);on(proB,false);sync();}});
-     proB=b("PRO",x->{proOn=!proOn;on(proB,proOn);pan.setVisibility(proOn?View.VISIBLE:View.GONE);
-     if(proOn&&stripOn){stripOn=false;rnd.strip=false;on(fltB,false);lab.setVisibility(View.GONE);}sync();});
+     fltB=b("FILTER",x->{if(!rec)setStrip(!stripOn);});
+     proB=b("PRO",x->{if(!rec)setPro(!proOn);});
      pauseB=b("PAUSE",x->pauseRec());pauseB.setVisibility(View.GONE);
      shut=new TextView(this);shut.setOnClickListener(x->{if(mode==0)shoot();else toggleRec();});
      FrameLayout cell=new FrameLayout(this);cell.addView(proB,new FrameLayout.LayoutParams(-1,dp(40)));cell.addView(pauseB,new FrameLayout.LayoutParams(-1,dp(40)));
@@ -379,9 +401,11 @@ jobs:
      protected void onResume(){super.onResume();gl.onResume();}
      protected void onPause(){if(rec)stopNow();closeCam();st=null;gl.onPause();super.onPause();}
      void about(){new AlertDialog.Builder(this).setTitle("FusionCam").setMessage("Creator: Mohammod Abdul Awal\nStudent: Department of English, National University\nMail: awal.sorkar.144@gmail.com").setPositiveButton("OK",null).show();}
-     void setMode(int m){if(rec)return;mode=m;on(phB,m==0);on(vdB,m==1);hdrB.setAlpha(m==0?1f:.4f);shut.setBackground(shutBg(m==1,false));}
+     void setMode(int m){if(rec)return;mode=m;on(phB,m==0);on(vdB,m==1);hdrB.setAlpha(m==0?1f:.4f);shut.setBackground(shutBg(m==1,false));if(m==1&&proOn)setPro(false);}
      void setFilter(int i){fi=i;rnd.fi=i;lab.setText((i+1)+"/"+Filters.N.length+"  "+Filters.N[i]);}
-     boolean touch(View v,MotionEvent e){if(!stripOn)return false;float x=e.getX(),y=gl.getHeight()-e.getY();int a=e.getAction();
+     boolean touch(View v,MotionEvent e){
+     if(proOn&&e.getAction()==MotionEvent.ACTION_DOWN){setPro(false);}
+     if(!stripOn)return false;float x=e.getX(),y=gl.getHeight()-e.getY();int a=e.getAction();
      float mx=Math.max(0,Filters.N.length*(rnd.ts+rnd.gap)+2*rnd.pad-gl.getWidth());
      if(a==MotionEvent.ACTION_DOWN){inBand=y>=rnd.sy-dp(8)&&y<=rnd.sy+rnd.ts+dp(8);dx0=x;sc0=rnd.scroll;moved=false;return inBand;}
      if(!inBand)return false;
@@ -464,15 +488,15 @@ jobs:
      }catch(Exception e){busy=false;toast("Capture failed: "+e);}}
      void img(ImageReader r){byte[] d=null;Image i=null;
      try{i=r.acquireNextImage();if(i==null)return;ByteBuffer bf=i.getPlanes()[0].getBuffer();d=new byte[bf.remaining()];bf.get(d);}catch(Exception e){}finally{if(i!=null)i.close();}
-     if(d==null)return;final ArrayList<byte[]> c;
+     if(d==null){busy=false;return;}final ArrayList<byte[]> c;
      synchronized(shots){shots.add(d);if(shots.size()<need)return;c=new ArrayList<>(shots);shots.clear();}
      new Thread(()->proc(c)).start();}
      Bitmap dec(byte[] d,int max){BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(d,0,d.length,o);
      int s=1;while(max>0&&Math.max(o.outWidth,o.outHeight)/s>max)s*=2;o=new BitmapFactory.Options();o.inSampleSize=s;return BitmapFactory.decodeByteArray(d,0,d.length,o);}
      void proc(ArrayList<byte[]> l){try{Bitmap b=l.size()>1?Hdr.fuse(dec(l.get(0),2400),dec(l.get(1),2400)):dec(l.get(0),0);
-     Matrix m=new Matrix();m.postRotate(pRot);if(pMir)m.postScale(-1,1);b=Bitmap.createBitmap(b,0,0,b.getWidth(),b.getHeight(),m,true);
+     Matrix m=new Matrix();m.postRotate(pRot);if(pMir)m.postScale(-1,1,b.getWidth()/2f,b.getHeight()/2f);b=Bitmap.createBitmap(b,0,0,b.getWidth(),b.getHeight(),m,true);
      int w=b.getWidth(),h=b.getHeight(),cw=w,ch=h;if((float)w/h>pAsp)cw=Math.round(h*pAsp);else ch=Math.round(w/pAsp);
-     final Bitmap fb=Bitmap.createBitmap(b,(w-cw)/2,(h-ch)/2,cw,ch);final int f=fi;final float d=dro?1:0,wv=rnd.wb;
+     final Bitmap fb=Bitmap.createBitmap(b,(w-cw)/2,(h-ch)/2,Math.max(1,cw),Math.max(1,ch));final int f=fi;final float d=dro?1:0,wv=rnd.wb;
      gl.queueEvent(()->rnd.filt(fb,f,d,wv,o->new Thread(()->save((Bitmap)o)).start()));
      }catch(Throwable e){busy=false;toast("Failed: "+e);}}
      Uri mk(boolean vid,String name){ContentValues v=new ContentValues();v.put(MediaStore.MediaColumns.DISPLAY_NAME,name);v.put(MediaStore.MediaColumns.MIME_TYPE,vid?"video/mp4":"image/jpeg");
@@ -480,12 +504,12 @@ jobs:
      else{File d=new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM),"FusionCam");d.mkdirs();v.put(MediaStore.MediaColumns.DATA,new File(d,name).getAbsolutePath());}
      return getContentResolver().insert(vid?MediaStore.Video.Media.EXTERNAL_CONTENT_URI:MediaStore.Images.Media.EXTERNAL_CONTENT_URI,v);}
      void save(Bitmap b){try{Uri u=mk(false,"FUS_"+System.currentTimeMillis()+".jpg");OutputStream o=getContentResolver().openOutputStream(u);b.compress(Bitmap.CompressFormat.JPEG,95,o);o.close();toast("Saved to DCIM/FusionCam");}
-     catch(Exception e){toast("Save failed: "+e);}busy=false;}
+     catch(Exception e){toast("Save failed: "+e);}finally{busy=false;}}
      final Runnable tk=new Runnable(){public void run(){if(!rec)return;long e=acc+(paused?0:SystemClock.elapsedRealtime()-t0);tmr.setText(String.format(Locale.US,"%02d:%02d",e/60000,e/1000%60));ui.postDelayed(this,300);}};
-     void recUi(boolean r){pauseB.setVisibility(r?View.VISIBLE:View.GONE);proB.setVisibility(r?View.GONE:View.VISIBLE);tmr.setVisibility(r?View.VISIBLE:View.GONE);pauseB.setText("PAUSE");shut.setBackground(shutBg(true,r));}
+     void recUi(boolean r){pauseB.setVisibility(r?View.VISIBLE:View.GONE);proB.setVisibility(r?View.GONE:View.VISIBLE);tmr.setVisibility(r?View.VISIBLE:View.GONE);pauseB.setText("PAUSE");shut.setBackground(shutBg(true,r));if(r&&proOn)setPro(false);}
      void toggleRec(){if(rec){stopRec();return;}
      try{Uri u=mk(true,"FUS_"+System.currentTimeMillis()+".mp4");vpfd=getContentResolver().openFileDescriptor(u,"rw");
-     float a=aspOf(ri,gl.getWidth(),gl.getHeight());final int w=720,h=Math.round(720/a/16f)*16;
+     float a=aspOf(ri,gl.getWidth(),gl.getHeight());final int w=720,h=Math.max(16,Math.round(720/a/16f)*16);
      boolean au=checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED;
      mr=new MediaRecorder();if(au)mr.setAudioSource(MediaRecorder.AudioSource.MIC);mr.setVideoSource(MediaRecorder.VideoSource.SURFACE);
      mr.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);mr.setOutputFile(vpfd.getFileDescriptor());mr.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
