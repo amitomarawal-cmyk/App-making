@@ -1,534 +1,141 @@
 name: Build APK
-on:
- push:
- workflow_dispatch:
+on: [push, workflow_dispatch]
 jobs:
- build:
-  runs-on: ubuntu-latest
-  steps:
-  - uses: actions/checkout@v4
-  - uses: actions/setup-java@v5
-    with:
-     distribution: temurin
-     java-version: '17'
-  - name: Licenses
-    run: |
-     mkdir -p $ANDROID_HOME/licenses
-     echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
-     echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
-     echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
-     echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_HOME/licenses/android-googletv-license
-  - name: Project
-    run: |
-     mkdir -p gradle/wrapper app/src/main/java/com/awal/fusioncam app/src/main/res/drawable
-     cat > settings.gradle << 'EOF'
-     pluginManagement{repositories{google();mavenCentral();gradlePluginPortal()}}
-     dependencyResolutionManagement{repositories{google();mavenCentral()}}
-     rootProject.name="FusionCam"
-     include ':app'
-     EOF
-     cat > build.gradle << 'EOF'
-     plugins{id 'com.android.application' version '8.1.4' apply false}
-     EOF
-     cat > gradle.properties << 'EOF'
-     org.gradle.jvmargs=-Xmx3g
-     EOF
-     cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-     distributionBase=GRADLE_USER_HOME
-     distributionPath=wrapper/dists
-     distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
-     zipStoreBase=GRADLE_USER_HOME
-     zipStorePath=wrapper/dists
-     EOF
-     curl -fsL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
-     cat > gradlew << 'EOF'
-     #!/bin/sh
-     exec java -classpath "$(dirname "$0")/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
-     EOF
-     chmod +x gradlew
-     cat > app/build.gradle << 'EOF'
-     plugins{id 'com.android.application'}
-     android{
-     namespace 'com.awal.fusioncam'
-     compileSdk 34
-     defaultConfig{applicationId "com.awal.fusioncam";minSdk 26;targetSdk 34;versionCode 1;versionName "1.0"}
-     compileOptions{sourceCompatibility JavaVersion.VERSION_17;targetCompatibility JavaVersion.VERSION_17}
-     lint{abortOnError false}
-     }
-     EOF
-     cat > app/src/main/AndroidManifest.xml << 'EOF'
-     <?xml version="1.0" encoding="utf-8"?>
-     <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-     <uses-permission android:name="android.permission.CAMERA"/>
-     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
-     <uses-feature android:name="android.hardware.camera" android:required="false"/>
-     <application android:label="FusionCam" android:icon="@drawable/ic_logo" android:largeHeap="true" android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
-     <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="portrait" android:configChanges="orientation|screenSize|keyboardHidden">
-     <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
-     </activity>
-     </application>
-     </manifest>
-     EOF
-     cat > app/src/main/res/drawable/ic_logo.xml << 'EOF'
-     <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-     <path android:fillColor="#111827" android:pathData="M0,0h108v108h-108z"/>
-     <path android:fillColor="#FFFFFF" android:pathData="M44,54m-26,0a26,26 0 1,1 52,0a26,26 0 1,1 -52,0"/>
-     <path android:fillColor="#F59E0B" android:pathData="M64,54m-26,0a26,26 0 1,1 52,0a26,26 0 1,1 -52,0"/>
-     <path android:fillColor="#111827" android:pathData="M54,54m-11,0a11,11 0 1,1 22,0a11,11 0 1,1 -22,0"/>
-     </vector>
-     EOF
-     cat > app/src/main/java/com/awal/fusioncam/Filters.java << 'EOF'
-     package com.awal.fusioncam;
-     class Filters{
-     static final String[] K="b,c,s,r,g,bl,f,v,n,m,x,l,w,wi,z,p,px,vh,fl".split(",");
-     static final String[] S={
-     "Original|","Vivid|c=1.12 s=1.4","Soft Pop|c=0.95 s=1.25 b=0.05 z=0.3","Warm|r=1.12 g=1.03 bl=0.88","Cool|r=0.9 g=1.02 bl=1.15",
-     "Golden Hour|r=1.18 g=1.05 bl=0.78 z=0.35 v=0.3 s=1.15","Sunset|r=1.25 g=0.95 bl=0.8 c=1.1 v=0.25","Cinema|c=1.2 s=0.9 r=1.05 bl=1.05 v=0.45",
-     "Moody|c=1.25 s=0.7 b=-0.05 v=0.5 bl=1.05","Matte|f=0.25 c=0.9 s=0.85","Faded|f=0.35 s=0.7 c=0.9 r=1.04","Pastel|b=0.1 c=0.8 s=0.8 z=0.2",
-     "Dreamy|z=0.7 b=0.05 s=1.1 c=0.9","Noir|m=1 c=1.45 v=0.6","B&W|m=1 c=1.1","Silver|m=1 c=0.9 b=0.08 f=0.15","Sepia|m=1 r=1.2 g=0.95 bl=0.7 v=0.3",
-     "Cyanotype|m=1 r=0.6 g=0.95 bl=1.3 c=1.1","Film 400|n=0.12 c=1.1 s=0.9 f=0.12 r=1.03 v=0.25","Kodak Gold|r=1.1 g=1.03 bl=0.85 n=0.1 f=0.1 s=1.15",
-     "Fuji Green|r=0.95 g=1.1 bl=0.95 n=0.08 c=1.08 f=0.08","Polaroid|r=1.06 bl=0.92 f=0.22 v=0.4 c=0.95 n=0.07 z=0.2",
-     "Disposable|c=1.2 s=1.1 v=0.6 n=0.15 r=1.05 fl=0.04 w=6 wi=0.5","Old Photo|m=0.8 r=1.15 bl=0.75 f=0.3 n=0.2 v=0.55 w=6 wi=0.8",
-     "Silent Movie|m=1 n=0.25 w=6 wi=1 fl=0.08 v=0.5 c=1.2","8mm Home|r=1.12 bl=0.82 n=0.22 fl=0.06 v=0.5 w=6 wi=0.6 f=0.15",
-     "Super 8 Leak|r=1.1 n=0.18 w=4 wi=0.8 fl=0.05 v=0.4 f=0.15","Retro 70s|r=1.15 bl=0.8 f=0.25 s=1.1 n=0.1 v=0.35",
-     "Retro 90s|c=1.15 s=1.2 n=0.12 v=0.3 b=0.03 r=1.04","Camcorder|vh=0.5 l=0.35 s=1.1 n=0.1 x=0.004 v=0.2",
-     "VHS Tape|vh=1 l=0.5 x=0.008 n=0.18 s=1.2 f=0.15 r=1.05","Glitch|x=0.02 vh=1.5 l=0.2 c=1.2","RGB Split|x=0.012 c=1.1 s=1.2",
-     "CRT TV|l=0.7 x=0.005 v=0.55 c=1.2 z=0.3 g=1.05","Pixel Art|px=90 p=6 s=1.3","Mosaic|px=40 s=1.1","Comic|p=4 c=1.3 s=1.5","Posterize|p=5 s=1.3 c=1.1",
-     "Neon Night|c=1.35 s=1.6 bl=1.15 r=1.05 z=0.5 b=-0.06 v=0.4","Cyberpunk|r=1.15 g=0.85 bl=1.25 c=1.3 s=1.5 x=0.006 z=0.4",
-     "Vaporwave|r=1.15 g=0.9 bl=1.25 s=1.3 f=0.15 z=0.4 x=0.004","Drama|c=1.4 s=0.8 v=0.5 b=-0.03","HDR Pop|c=1.25 s=1.35 z=0.15","Crisp Day|c=1.15 s=1.2 b=0.03",
-     "Rain|w=1 wi=0.7 c=1.05 s=0.8 r=0.95 bl=1.06 v=0.35","Heavy Rain|w=1 wi=1 s=0.65 r=0.9 bl=1.1 b=-0.05 v=0.5",
-     "Storm|w=5 wi=1 s=0.6 r=0.9 bl=1.1 c=1.2 b=-0.08 v=0.55","Snow|w=2 wi=0.8 b=0.08 bl=1.08 s=0.8 f=0.1","Blizzard|w=2 wi=1.4 b=0.12 bl=1.1 s=0.6 z=0.3",
-     "Fog|w=3 wi=0.7 s=0.7 c=0.9","Misty Morning|w=3 wi=0.5 r=1.04 bl=0.97 z=0.35 f=0.1","Overcast|s=0.65 c=0.9 b=-0.02 r=0.97 bl=1.06",
-     "Sunny Glow|w=4 wi=0.8 r=1.12 g=1.04 bl=0.9 s=1.2 z=0.4","Light Leak|w=4 wi=1.2 r=1.08 f=0.1 n=0.06","Autumn|r=1.18 g=1.02 bl=0.8 s=1.3 c=1.08 v=0.3",
-     "Winter Cold|r=0.88 g=0.98 bl=1.18 s=0.75 b=0.04 c=1.05","Spring Bloom|r=1.03 g=1.08 s=1.35 z=0.3 b=0.04","Desert Heat|r=1.2 g=1.05 bl=0.78 c=1.1 s=0.9 z=0.2",
-     "Midnight|r=0.8 g=0.9 bl=1.2 b=-0.1 c=1.2 s=0.8 v=0.5","Dusty Film|w=6 wi=1 f=0.2 r=1.05 n=0.12 s=0.9"};
-     static final String[] N=new String[S.length];
-     static final float[][] P=new float[S.length][K.length];
-     static{for(int i=0;i<S.length;i++){String[] a=S[i].split("\\|",-1);N[i]=a[0];float[] p=P[i];p[1]=1;p[2]=1;p[3]=1;p[4]=1;p[5]=1;
-     for(String kv:a[1].trim().split(" ")){if(kv.isEmpty())continue;String[] t=kv.split("=");for(int j=0;j<K.length;j++)if(K[j].equals(t[0]))p[j]=Float.parseFloat(t[1]);}}}
-     }
-     EOF
-     cat > app/src/main/java/com/awal/fusioncam/Hdr.java << 'EOF'
-     package com.awal.fusioncam;
-     import android.graphics.Bitmap;
-     class Hdr{
-     static int cl(int i,int n){return i<0?0:i>=n?n-1:i;}
-     static void box(float[] a,float[] t,int w,int h,int r){float inv=1f/(2*r+1);
-     for(int y=0;y<h;y++){int o=y*w;float s=0;for(int i=-r;i<=r;i++)s+=a[o+cl(i,w)];for(int x=0;x<w;x++){t[o+x]=s*inv;s+=a[o+cl(x+r+1,w)]-a[o+cl(x-r,w)];}}
-     for(int x=0;x<w;x++){float s=0;for(int i=-r;i<=r;i++)s+=t[cl(i,h)*w+x];for(int y=0;y<h;y++){a[y*w+x]=s*inv;s+=t[cl(y+r+1,h)*w+x]-t[cl(y-r,h)*w+x];}}}
-     static void blur(float[] a,float[] t,int w,int h,int r){box(a,t,w,h,r);box(a,t,w,h,r);}
-     static float[] lum(int[] p){float[] l=new float[p.length];for(int i=0;i<p.length;i++){int c=p[i];l[i]=((c>>16&255)*.299f+(c>>8&255)*.587f+(c&255)*.114f)/255f;}return l;}
-     static float[] wgt(int[] p,float[] L,int w,int h){float[] o=new float[p.length];
-     for(int y=0;y<h;y++)for(int x=0;x<w;x++){int i=y*w+x;float c=L[i];
-     float lp=Math.abs(L[y*w+cl(x-1,w)]+L[y*w+cl(x+1,w)]+L[cl(y-1,h)*w+x]+L[cl(y+1,h)*w+x]-4*c);
-     int q=p[i],r=q>>16&255,g=q>>8&255,b=q&255;float s=(Math.max(r,Math.max(g,b))-Math.min(r,Math.min(g,b)))/255f;float d=c-.5f;
-     o[i]=(lp+.03f)*(s+.25f)*((float)Math.exp(-d*d/.06f)+.002f);}
-     return o;}
-     static Bitmap fuse(Bitmap A,Bitmap B){int w=A.getWidth(),h=A.getHeight();
-     if(B.getWidth()!=w||B.getHeight()!=h)B=Bitmap.createScaledBitmap(B,w,h,true);
-     int n=w*h;int[] pa=new int[n],pb=new int[n];A.getPixels(pa,0,w,0,0,w,h);B.getPixels(pb,0,w,0,0,w,h);A.recycle();B.recycle();
-     float[] wa=wgt(pa,lum(pa),w,h),wb=wgt(pb,lum(pb),w,h);
-     for(int i=0;i<n;i++)wa[i]=wa[i]/(wa[i]+wb[i]);wb=null;
-     float[] t=new float[n],wd=wa.clone();int m=Math.max(w,h);
-     blur(wa,t,w,h,m/18);blur(wd,t,w,h,2);
-     int[] out=new int[n];float[] b0=new float[n],b1=new float[n];int rb=m/120+2;
-     for(int ch=0;ch<3;ch++){int sh=16-8*ch;
-     for(int i=0;i<n;i++){b0[i]=pa[i]>>sh&255;b1[i]=pb[i]>>sh&255;}
-     blur(b0,t,w,h,rb);blur(b1,t,w,h,rb);
-     for(int i=0;i<n;i++){float s=wa[i],d=wd[i];float o0=pa[i]>>sh&255,o1=pb[i]>>sh&255;
-     float v=s*b0[i]+(1-s)*b1[i]+d*(o0-b0[i])+(1-d)*(o1-b1[i]);int k=v<0?0:v>255?255:(int)(v+.5f);out[i]|=k<<sh;}}
-     for(int i=0;i<n;i++)out[i]|=0xFF000000;
-     Bitmap r=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);r.setPixels(out,0,w,0,0,w,h);return r;}
-     }
-     EOF
-     cat > app/src/main/java/com/awal/fusioncam/GLR.java << 'EOF'
-     package com.awal.fusioncam;
-     import android.graphics.Bitmap;
-     import android.graphics.SurfaceTexture;
-     import android.opengl.*;
-     import android.util.Log;
-     import android.view.Surface;
-     import java.nio.*;
-     import javax.microedition.khronos.egl.EGLConfig;
-     import javax.microedition.khronos.opengles.GL10;
-     class GLR implements GLSurfaceView.Renderer{
-     interface Cb{void on(Object o);}
-     static final int X=GLES11Ext.GL_TEXTURE_EXTERNAL_OES;
-     static final String VS="attribute vec2 aP;uniform mat4 uM;varying vec2 vT,vU,vD,vE;void main(){gl_Position=vec4(aP,0.,1.);vec2 u=aP*.5+.5;vU=u;vT=(uM*vec4(u,0.,1.)).xy;vD=(uM*vec4(1.,0.,0.,0.)).xy;vE=(uM*vec4(0.,1.,0.,0.)).xy;}";
-     static final String FS="""
-     @X
-     #ifdef GL_FRAGMENT_PRECISION_HIGH
-     precision highp float;
-     #else
-     precision mediump float;
-     #endif
-     varying vec2 vT,vU,vD,vE;
-     uniform @S uS;
-     uniform float uP[19];
-     uniform float uTm,uDro,uWb,uAs;
-     float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
-     float nz(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1.,0.)),f.x),mix(h(i+vec2(0.,1.)),h(i+vec2(1.,1.)),f.x),f.y);}
-     vec3 tx(vec2 d){return texture2D(uS,clamp(vT+vD*d.x+vE*d.y,0.,1.)).rgb;}
-     void main(){
-     vec2 u=vU,d=vec2(0.);
-     if(uP[16]>0.){vec2 n=vec2(uP[16],uP[16]/max(uAs,.1));d=(floor(u*n)+.5)/n-u;}
-     if(uP[17]>0.){float bd=step(.96,h(vec2(floor(u.y*30.),floor(uTm*8.))));d.x+=uP[17]*(bd*.03*(h(vec2(u.y,uTm))-.5)*2.+sin(u.y*40.+uTm*5.)*.0015);}
-     float sh=uP[10];
-     vec3 c=vec3(tx(d+vec2(sh,0.)).r,tx(d).g,tx(d-vec2(sh,0.)).b);
-     float z=uP[14];
-     if(z>0.){vec3 a=(tx(d+vec2(.012,.012))+tx(d+vec2(-.012,.012))+tx(d+vec2(.012,-.012))+tx(d+vec2(-.012,-.012)))*.25;c=mix(c,a,z*.5)+max(a-.55,0.)*z;}
-     if(uDro>0.){c=pow(max(c,vec3(0.)),vec3(1.-.35*uDro));c=c/(1.+.25*uDro*c)*(1.+.25*uDro);}
-     vec3 tn=vec3(uP[3],uP[4],uP[5]);
-     c*=vec3(1.+uWb*.3,1.,1.-uWb*.3)*tn;
-     c=(c-.5)*uP[1]+.5+uP[0];
-     float l=dot(c,vec3(.299,.587,.114));
-     c=mix(vec3(l),c,uP[2]);
-     c=mix(c,vec3(l)*tn,uP[9]);
-     c=c*(1.-uP[6])+uP[6]*.2;
-     if(uP[15]>0.)c=floor(c*uP[15]+.5)/uP[15];
-     float w=uP[12],wi=uP[13];vec2 q=vec2(u.x*max(uAs,.1),u.y);
-     if(abs(w-1.)<.5||abs(w-5.)<.5){float r=0.;
-     for(int i=0;i<2;i++){float fi=float(i);float sc=70.+fi*45.;vec2 g=vec2(q.x*sc+q.y*sc*.12,q.y*sc*.22+uTm*(14.+fi*5.));vec2 id=floor(g),f=fract(g);float x=abs(f.x-.5);
-     r+=(1.-smoothstep(0.,.12,x))*smoothstep(0.,.25,f.y)*(1.-smoothstep(.3,1.,f.y))*step(.6,h(id+fi*7.));}
-     c=mix(c,vec3(.85,.9,1.),min(r,1.)*.4*min(wi,1.));c*=1.-.12*min(wi,1.);
-     if(w>4.5)c+=step(.97,h(vec2(floor(uTm*2.5),3.)))*(.4+.3*sin(uTm*50.));}
-     if(abs(w-2.)<.5){float s=0.;
-     for(int i=0;i<3;i++){float fi=float(i);float sc=9.+fi*8.;vec2 g=vec2(q.x*sc+sin(uTm*.6+fi*2.)*.6,q.y*sc+uTm*(.5+fi*.3));vec2 id=floor(g),f=fract(g)-.5;vec2 o=vec2(h(id+3.)-.5,h(id+9.)-.5)*.5;
-     s+=(1.-smoothstep(0.,.15-fi*.03,length(f-o)))*step(.45,h(id+fi*13.));}
-     c=mix(c,vec3(1.),min(s,1.)*.9*min(wi,1.));}
-     if(abs(w-3.)<.5){float fg=nz(q*3.+vec2(uTm*.1,0.))*.6+nz(q*7.-vec2(uTm*.07,0.))*.4;c=mix(c,vec3(.82,.85,.88),clamp(wi*(.3+.5*fg),0.,.9));}
-     if(abs(w-4.)<.5){float g=(1.-smoothstep(0.,.9,distance(u,vec2(.1+.1*sin(uTm*.4),.9))))*(.7+.3*sin(uTm*.9));c+=vec3(1.,.5,.15)*g*.5*wi;c+=vec3(1.,.6,.2)*(1.-smoothstep(0.,.8,distance(u,vec2(.95,.05))))*.2*wi;}
-     if(abs(w-6.)<.5){float sc=step(.9965,h(vec2(floor(u.x*250.),floor(uTm*12.))))*step(.3,h(vec2(floor(uTm*12.),1.)));float ds=step(.9985,h(floor(q*200.)+floor(uTm*10.)));c=mix(c,vec3(.95),clamp(sc*.5+ds*.7,0.,1.)*wi);}
-     c*=1.+uP[18]*(h(vec2(floor(uTm*14.),0.))-.5)*2.;
-     c*=1.-uP[11]*.35*(.5+.5*sin(u.y*1000.));
-     c+=(h(floor(u*vec2(360.,360./max(uAs,.1)))+fract(uTm)*10.)-.5)*uP[8];
-     c*=1.-uP[7]*smoothstep(.3,.95,distance(u,vec2(.5))*1.35);
-     gl_FragColor=vec4(clamp(c,0.,1.),1.);}
-     """;
-     final Cb rdy;GLR(Cb c){rdy=c;}
-     int oes,pO,p2,W,H;SurfaceTexture st;final float[] stm=new float[16],m=new float[16];
-     volatile int fi,bw=1440,bh=1080,rot=90,ri,sy,ts,pad,gap;
-     volatile float wb,scroll;
-     volatile boolean front,mir=true,dro,strip,paused,nf;
-     volatile EGLSurface rs;EGLDisplay ed;EGLContext ec;int rw,rh;
-     final FloatBuffer q=ByteBuffer.allocateDirect(32).order(ByteOrder.nativeOrder()).asFloatBuffer();
-     static int sh(int t,String s){int i=GLES20.glCreateShader(t);GLES20.glShaderSource(i,s);GLES20.glCompileShader(i);Log.i("GLR",GLES20.glGetShaderInfoLog(i));return i;}
-     static int prog(String f){int p=GLES20.glCreateProgram();GLES20.glAttachShader(p,sh(GLES20.GL_VERTEX_SHADER,VS));GLES20.glAttachShader(p,sh(GLES20.GL_FRAGMENT_SHADER,f));GLES20.glLinkProgram(p);return p;}
-     static int L(int p,String n){return GLES20.glGetUniformLocation(p,n);}
-     static void par(int t){GLES20.glTexParameteri(t,GLES20.GL_TEXTURE_MIN_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(t,GLES20.GL_TEXTURE_MAG_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(t,GLES20.GL_TEXTURE_WRAP_S,GLES20.GL_CLAMP_TO_EDGE);GLES20.glTexParameteri(t,GLES20.GL_TEXTURE_WRAP_T,GLES20.GL_CLAMP_TO_EDGE);}
-     public void onSurfaceCreated(GL10 g,EGLConfig c){
-     q.put(new float[]{-1,-1,1,-1,-1,1,1,1}).position(0);rs=null;Matrix.setIdentityM(stm,0);
-     pO=prog(FS.replace("@X","#extension GL_OES_EGL_image_external : require").replace("@S","samplerExternalOES"));
-     p2=prog(FS.replace("@X","").replace("@S","sampler2D"));
-     int[] t=new int[1];GLES20.glGenTextures(1,t,0);oes=t[0];GLES20.glBindTexture(X,oes);par(X);
-     st=new SurfaceTexture(oes);st.setOnFrameAvailableListener(s->nf=true);rdy.on(st);}
-     public void onSurfaceChanged(GL10 g,int w,int h){W=w;H=h;}
-     void mat(float viewAsp){
-     boolean r90=rot%180!=0;
-     float uw=r90?bh:bw,uh=r90?bw:bh;
-     float bufAsp=uw/Math.max(1f,uh);
-     float sx=1f,syScale=1f;
-     if(viewAsp>bufAsp){syScale=bufAsp/viewAsp;}else if(bufAsp>viewAsp){sx=viewAsp/bufAsp;}
-     boolean flipX=front&&mir;
-     System.arraycopy(stm,0,m,0,16);
-     Matrix.translateM(m,0,.5f,.5f,0f);
-     Matrix.rotateM(m,0,front?(360-rot)%360:rot,0f,0f,1f);
-     Matrix.scaleM(m,0,flipX?-sx:sx,-syScale,1f);
-     Matrix.translateM(m,0,-.5f,-.5f,0f);}
-     void draw(int p,int tg,int tx,int x,int y,int w,int h,float a,float[] f,float dr,float wv){
-     GLES20.glViewport(x,y,w,h);GLES20.glUseProgram(p);
-     if(p==pO)mat(a);else{Matrix.setIdentityM(m,0);Matrix.translateM(m,0,0f,1f,0f);Matrix.scaleM(m,0,1f,-1f,1f);}
-     GLES20.glUniformMatrix4fv(L(p,"uM"),1,false,m,0);GLES20.glUniform1fv(L(p,"uP"),19,f,0);
-     GLES20.glUniform1f(L(p,"uTm"),(float)((System.nanoTime()/1e9)%1000));GLES20.glUniform1f(L(p,"uDro"),dr);GLES20.glUniform1f(L(p,"uWb"),wv);GLES20.glUniform1f(L(p,"uAs"),a);
-     int l=GLES20.glGetAttribLocation(p,"aP");GLES20.glEnableVertexAttribArray(l);GLES20.glVertexAttribPointer(l,2,GLES20.GL_FLOAT,false,8,q);
-     GLES20.glActiveTexture(GLES20.GL_TEXTURE0);GLES20.glBindTexture(tg,tx);GLES20.glUniform1i(L(p,"uS"),0);
-     GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP,0,4);}
-     public void onDrawFrame(GL10 g){
-     boolean fr=nf;if(fr){nf=false;try{st.updateTexImage();st.getTransformMatrix(stm);}catch(Exception e){}}
-     GLES20.glViewport(0,0,Math.max(1,W),Math.max(1,H));GLES20.glClearColor(0,0,0,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-     float a=MainActivity.aspOf(ri,Math.max(1,W),Math.max(1,H));int[] r=MainActivity.rect(Math.max(1,W),Math.max(1,H),a);
-     draw(pO,X,oes,r[0],r[1],r[2],r[3],a,Filters.P[fi],dro?1:0,wb);
-     if(strip)tiles();
-     if(fr&&rs!=null&&!paused)rec();}
-     void tiles(){int n=Filters.N.length,s=(int)scroll;GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
-     for(int i=0;i<n;i++){int x=pad+i*(ts+gap)-s;if(x+ts<0||x>W)continue;int b=i==fi?5:2;float k=i==fi?1:0;
-     GLES20.glScissor(x-b,sy-b,ts+2*b,ts+2*b);GLES20.glClearColor(k,k,k,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);}
-     GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-     for(int i=0;i<n;i++){int x=pad+i*(ts+gap)-s;if(x+ts<0||x>W)continue;draw(pO,X,oes,x,sy,ts,ts,1f,Filters.P[i],dro?1:0,wb);}}
-     void startRec(Surface s,int w,int h){ed=EGL14.eglGetCurrentDisplay();ec=EGL14.eglGetCurrentContext();
-     int[] a={EGL14.EGL_RED_SIZE,8,EGL14.EGL_GREEN_SIZE,8,EGL14.EGL_BLUE_SIZE,8,EGL14.EGL_ALPHA_SIZE,8,EGL14.EGL_RENDERABLE_TYPE,EGL14.EGL_OPENGL_ES2_BIT,0x3142,1,EGL14.EGL_NONE};
-     android.opengl.EGLConfig[] c=new android.opengl.EGLConfig[1];int[] n=new int[1];EGL14.eglChooseConfig(ed,a,0,c,0,1,n,0);
-     EGLSurface e=EGL14.eglCreateWindowSurface(ed,c[0],s,new int[]{EGL14.EGL_NONE},0);rw=w;rh=h;paused=false;rs=e;}
-     void rec(){EGLSurface e=rs;if(e==null)return;EGLSurface o=EGL14.eglGetCurrentSurface(EGL14.eglDraw);
-     EGL14.eglMakeCurrent(ed,e,e,ec);
-     draw(pO,X,oes,0,0,rw,rh,(float)rw/Math.max(1,rh),Filters.P[fi],dro?1:0,wb);
-     EGLExt.eglPresentationTimeANDROID(ed,e,System.nanoTime());EGL14.eglSwapBuffers(ed,e);
-     EGL14.eglMakeCurrent(ed,o,o,ec);}
-     void stopRec(){EGLSurface e=rs;rs=null;if(e!=null)EGL14.eglDestroySurface(ed,e);}
-     void filt(Bitmap b,int f,float dr,float wv,Cb cb){Bitmap o=b;
-     try{int[] mx=new int[1];GLES20.glGetIntegerv(GLES20.GL_MAX_TEXTURE_SIZE,mx,0);int big=Math.max(b.getWidth(),b.getHeight());
-     if(big>mx[0]){float s=(float)mx[0]/big;b=Bitmap.createScaledBitmap(b,Math.round(b.getWidth()*s),Math.round(b.getHeight()*s),true);}
-     int w=b.getWidth(),h=b.getHeight();int[] t=new int[2],fb=new int[1];GLES20.glGenTextures(2,t,0);
-     GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,t[0]);par(GLES20.GL_TEXTURE_2D);GLUtils.texImage2D(GLES20.GL_TEXTURE_2D,0,b,0);
-     GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,t[1]);par(GLES20.GL_TEXTURE_2D);GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D,0,GLES20.GL_RGBA,w,h,0,GLES20.GL_RGBA,GLES20.GL_UNSIGNED_BYTE,null);
-     GLES20.glGenFramebuffers(1,fb,0);GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,fb[0]);GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER,GLES20.GL_COLOR_ATTACHMENT0,GLES20.GL_TEXTURE_2D,t[1],0);
-     draw(p2,GLES20.GL_TEXTURE_2D,t[0],0,0,w,h,(float)w/Math.max(1,h),Filters.P[f],dr,wv);
-     ByteBuffer bb=ByteBuffer.allocateDirect(w*h*4);GLES20.glReadPixels(0,0,w,h,GLES20.GL_RGBA,GLES20.GL_UNSIGNED_BYTE,bb);
-     Bitmap r=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);r.copyPixelsFromBuffer(bb);
-     GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,0);GLES20.glDeleteFramebuffers(1,fb,0);GLES20.glDeleteTextures(2,t,0);o=r;}
-     catch(Throwable e){Log.e("GLR","filt",e);}
-     cb.on(o);}
-     }
-     EOF
-     cat > app/src/main/java/com/awal/fusioncam/MainActivity.java << 'EOF'
-     package com.awal.fusioncam;
-     import android.Manifest;
-     import android.app.Activity;
-     import android.app.AlertDialog;
-     import android.content.ContentValues;
-     import android.content.pm.PackageManager;
-     import android.graphics.*;
-     import android.graphics.drawable.GradientDrawable;
-     import android.hardware.camera2.*;
-     import android.hardware.camera2.params.StreamConfigurationMap;
-     import android.media.*;
-     import android.net.Uri;
-     import android.opengl.GLSurfaceView;
-     import android.os.*;
-     import android.provider.MediaStore;
-     import android.util.Range;
-     import android.util.Size;
-     import android.view.*;
-     import android.widget.*;
-     import java.io.File;
-     import java.io.OutputStream;
-     import java.nio.ByteBuffer;
-     import java.util.*;
-     public class MainActivity extends Activity{
-     static final String[] RN={"3:4","9:16","1:1","FULL"};
-     static float aspOf(int r,int w,int h){return r==0?.75f:r==1?.5625f:r==2?1f:(float)w/Math.max(1,h);}
-     static int[] rect(int W,int H,float a){float safeA=Math.max(.2f,a);int w=W,h=Math.round(W/safeA);if(h>H){h=H;w=Math.round(H*safeA);}return new int[]{(W-w)/2,(H-h)/2,Math.max(1,w),Math.max(1,h)};}
-     static boolean has(int[] a,int v){if(a!=null)for(int x:a)if(x==v)return true;return false;}
-     GLSurfaceView gl;GLR rnd;FrameLayout root;View grid;LinearLayout pan;
-     TextView lab,tmr,ratB,gridB,hdrB,droB,mirB,swB,infB,fltB,proB,pauseB,shut,phB,vdB;
-     SeekBar[] sb=new SeekBar[5];TextView[] tv=new TextView[5];
-     HandlerThread ht;Handler bg;final Handler ui=new Handler(Looper.getMainLooper());
-     CameraManager mgr;final List<String> ids=new ArrayList<>();int ci;
-     CameraDevice cam;CameraCaptureSession ses;ImageReader rdr;SurfaceTexture st;Surface psf;CameraCharacteristics cc;
-     int srot,evMin,evMax,isoMin=100,isoMax=800;float evStep=1,minFocus;long expMin=1000000L,expMax=100000000L;boolean isFront,manOK,afOK;
-     volatile int lastIso=100,pEv,pIso,pSh,pFo,pWb,need;volatile long lastExp=10000000L;
-     int fi,ri,mode;boolean gridOn=true,hdr,dro,mir=true,proOn,stripOn,rec,paused;volatile boolean busy;
-     int pRot;boolean pMir;float pAsp;
-     final ArrayList<byte[]> shots=new ArrayList<>();
-     MediaRecorder mr;ParcelFileDescriptor vpfd;long t0,acc;
-     float dx0,sc0;boolean inBand,moved;
-     int dp(float v){return Math.round(v*getResources().getDisplayMetrics().density);}
-     void toast(String t){ui.post(()->Toast.makeText(this,t,Toast.LENGTH_SHORT).show());}
-     void on(TextView v,boolean s){GradientDrawable g=new GradientDrawable();g.setColor(s?0xFFF59E0B:0x88000000);g.setCornerRadius(dp(14));v.setBackground(g);v.setTextColor(s?0xFF000000:-1);}
-     TextView b(String t,View.OnClickListener l){TextView v=new TextView(this);v.setText(t);v.setTextSize(12);v.setGravity(Gravity.CENTER);v.setPadding(dp(4),dp(8),dp(4),dp(8));v.setOnClickListener(l);on(v,false);return v;}
-     LinearLayout.LayoutParams lp(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);p.setMargins(dp(3),0,dp(3),0);return p;}
-     GradientDrawable shutBg(boolean vid,boolean r){GradientDrawable g=new GradientDrawable();g.setColor(vid?0xFFEF4444:0xFFFFFFFF);g.setStroke(dp(4),0xFFCCCCCC);if(r)g.setCornerRadius(dp(16));else g.setShape(GradientDrawable.OVAL);return g;}
-     class Sk implements SeekBar.OnSeekBarChangeListener{
-     public void onProgressChanged(SeekBar s,int p,boolean u){if(u)sync();}
-     public void onStartTrackingTouch(SeekBar s){}
-     public void onStopTrackingTouch(SeekBar s){}}
-     void setPro(boolean open){
-     proOn=open;
-     on(proB,proOn);
-     pan.setVisibility(proOn?View.VISIBLE:View.GONE);
-     if(proOn&&stripOn){stripOn=false;rnd.strip=false;on(fltB,false);lab.setVisibility(View.GONE);}
-     sync();}
-     void setStrip(boolean open){
-     stripOn=open;
-     rnd.strip=stripOn;
-     on(fltB,stripOn);
-     lab.setVisibility(stripOn?View.VISIBLE:View.GONE);
-     if(stripOn&&proOn)setPro(false);
-     else sync();}
-     protected void onCreate(Bundle s){super.onCreate(s);
-     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-     ht=new HandlerThread("cam");ht.start();bg=new Handler(ht.getLooper());mgr=(CameraManager)getSystemService(CAMERA_SERVICE);
-     root=new FrameLayout(this);root.setBackgroundColor(0xFF000000);
-     gl=new GLSurfaceView(this);gl.setEGLContextClientVersion(2);gl.setEGLConfigChooser(8,8,8,8,0,0);
-     rnd=new GLR(o->{st=(SurfaceTexture)o;ui.post(this::openCam);});
-     rnd.sy=dp(158);rnd.ts=dp(74);rnd.pad=dp(8);rnd.gap=dp(6);
-     gl.setRenderer(rnd);gl.setOnTouchListener(this::touch);root.addView(gl,new FrameLayout.LayoutParams(-1,-1));
-     grid=new View(this){protected void onDraw(Canvas c){if(!gridOn)return;int W=getWidth(),H=getHeight();int[] r=rect(W,H,aspOf(ri,W,H));
-     Paint p=new Paint();p.setColor(0x99FFFFFF);p.setStrokeWidth(dp(1));int x=r[0],y=r[1],w=r[2],h=r[3];
-     for(int i=1;i<3;i++){c.drawLine(x+w*i/3f,y,x+w*i/3f,y+h,p);c.drawLine(x,y+h*i/3f,x+w,y+h*i/3f,p);}
-     p.setStyle(Paint.Style.STROKE);c.drawRect(x,y,x+w,y+h,p);}};
-     root.addView(grid,new FrameLayout.LayoutParams(-1,-1));
-     LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER);top.setPadding(dp(4),dp(34),dp(4),0);
-     ratB=b("3:4",x->{if(rec)return;ri=(ri+1)%4;rnd.ri=ri;ratB.setText(RN[ri]);grid.invalidate();});
-     gridB=b("GRID",x->{gridOn=!gridOn;on(gridB,gridOn);grid.invalidate();});on(gridB,true);
-     hdrB=b("HDR",x->{hdr=!hdr;on(hdrB,hdr);});
-     droB=b("DRO",x->{dro=!dro;rnd.dro=dro;on(droB,dro);});
-     mirB=b("MIRROR",x->{mir=!mir;rnd.mir=mir;on(mirB,mir);});on(mirB,true);mirB.setVisibility(View.GONE);
-     swB=b("CAM",x->{if(rec||ids.size()<2)return;ci=(ci+1)%ids.size();closeCam();openCam();});
-     infB=b("i",x->about());
-     for(TextView t:new TextView[]{ratB,gridB,hdrB,droB,mirB,swB,infB})top.addView(t,lp());
-     root.addView(top,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP));
-     tmr=new TextView(this);tmr.setTextColor(0xFFFF4444);tmr.setTextSize(16);tmr.setVisibility(View.GONE);
-     FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);tp.topMargin=dp(84);root.addView(tmr,tp);
-     lab=new TextView(this);lab.setTextColor(-1);lab.setTextSize(14);lab.setPadding(dp(12),dp(4),dp(12),dp(4));lab.setBackgroundColor(0x88000000);lab.setVisibility(View.GONE);
-     FrameLayout.LayoutParams ll=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);ll.bottomMargin=dp(240);root.addView(lab,ll);
-     pan=new LinearLayout(this);pan.setOrientation(LinearLayout.VERTICAL);pan.setBackgroundColor(0xCC000000);pan.setPadding(dp(10),dp(6),dp(10),dp(6));pan.setVisibility(View.GONE);
-     pan.setClickable(true);
-     String[] RL={"EV","ISO","SHUTTER","FOCUS","WB"};
-     for(int i=0;i<5;i++){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);
-     TextView n=new TextView(this);n.setText(RL[i]);n.setTextColor(-1);n.setTextSize(12);row.addView(n,new LinearLayout.LayoutParams(dp(62),-2));
-     sb[i]=new SeekBar(this);sb[i].setMax(100);sb[i].setOnSeekBarChangeListener(new Sk());row.addView(sb[i],new LinearLayout.LayoutParams(0,dp(36),1));
-     tv[i]=new TextView(this);tv[i].setTextColor(0xFFF59E0B);tv[i].setTextSize(12);tv[i].setGravity(Gravity.END);row.addView(tv[i],new LinearLayout.LayoutParams(dp(64),-2));pan.addView(row);}
-     FrameLayout.LayoutParams pl=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);pl.bottomMargin=dp(136);root.addView(pan,pl);
-     LinearLayout bot=new LinearLayout(this);bot.setOrientation(LinearLayout.VERTICAL);bot.setPadding(dp(16),0,dp(16),dp(14));bot.setBackgroundColor(0x66000000);bot.setClickable(true);
-     LinearLayout tabs=new LinearLayout(this);tabs.setGravity(Gravity.CENTER);
-     phB=b("PHOTO",x->setMode(0));vdB=b("VIDEO",x->setMode(1));
-     tabs.addView(phB,new LinearLayout.LayoutParams(dp(90),-2));tabs.addView(vdB,new LinearLayout.LayoutParams(dp(90),-2));bot.addView(tabs);
-     LinearLayout ctl=new LinearLayout(this);ctl.setGravity(Gravity.CENTER_VERTICAL);ctl.setPadding(0,dp(10),0,0);
-     fltB=b("FILTER",x->{if(!rec)setStrip(!stripOn);});
-     proB=b("PRO",x->{if(!rec)setPro(!proOn);});
-     pauseB=b("PAUSE",x->pauseRec());pauseB.setVisibility(View.GONE);
-     shut=new TextView(this);shut.setOnClickListener(x->{if(mode==0)shoot();else toggleRec();});
-     FrameLayout cell=new FrameLayout(this);cell.addView(proB,new FrameLayout.LayoutParams(-1,dp(40)));cell.addView(pauseB,new FrameLayout.LayoutParams(-1,dp(40)));
-     LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(dp(72),dp(72));sp.setMargins(dp(20),0,dp(20),0);
-     ctl.addView(fltB,new LinearLayout.LayoutParams(0,dp(40),1));ctl.addView(shut,sp);ctl.addView(cell,new LinearLayout.LayoutParams(0,dp(40),1));
-     bot.addView(ctl);root.addView(bot,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));
-     setContentView(root);setMode(0);setFilter(0);sync();
-     String[] pm=Build.VERSION.SDK_INT<29?new String[]{Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO,Manifest.permission.WRITE_EXTERNAL_STORAGE}:new String[]{Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO};
-     if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)requestPermissions(pm,1);}
-     public void onRequestPermissionsResult(int c,String[] p,int[] r){openCam();}
-     protected void onResume(){super.onResume();gl.onResume();}
-     protected void onPause(){if(rec)stopNow();closeCam();st=null;gl.onPause();super.onPause();}
-     void about(){new AlertDialog.Builder(this).setTitle("FusionCam").setMessage("Creator: Mohammod Abdul Awal\nStudent: Department of English, National University\nMail: awal.sorkar.144@gmail.com").setPositiveButton("OK",null).show();}
-     void setMode(int m){if(rec)return;mode=m;on(phB,m==0);on(vdB,m==1);hdrB.setAlpha(m==0?1f:.4f);shut.setBackground(shutBg(m==1,false));if(m==1&&proOn)setPro(false);}
-     void setFilter(int i){fi=i;rnd.fi=i;lab.setText((i+1)+"/"+Filters.N.length+"  "+Filters.N[i]);}
-     boolean touch(View v,MotionEvent e){
-     if(proOn&&e.getAction()==MotionEvent.ACTION_DOWN){setPro(false);}
-     if(!stripOn)return false;float x=e.getX(),y=gl.getHeight()-e.getY();int a=e.getAction();
-     float mx=Math.max(0,Filters.N.length*(rnd.ts+rnd.gap)+2*rnd.pad-gl.getWidth());
-     if(a==MotionEvent.ACTION_DOWN){inBand=y>=rnd.sy-dp(8)&&y<=rnd.sy+rnd.ts+dp(8);dx0=x;sc0=rnd.scroll;moved=false;return inBand;}
-     if(!inBand)return false;
-     if(a==MotionEvent.ACTION_MOVE){if(Math.abs(x-dx0)>dp(8))moved=true;if(moved)rnd.scroll=Math.max(0,Math.min(mx,sc0-(x-dx0)));return true;}
-     if(a==MotionEvent.ACTION_UP&&!moved){float p=x+rnd.scroll-rnd.pad;int step=rnd.ts+rnd.gap;int i=(int)(p/step);if(p>=0&&i<Filters.N.length&&p%step<=rnd.ts)setFilter(i);}
-     return true;}
-     void sync(){pEv=sb[0].getProgress();pIso=sb[1].getProgress();pSh=sb[2].getProgress();pFo=sb[3].getProgress();pWb=sb[4].getProgress();
-     rnd.wb=proOn?wbV():0;
-     tv[0].setText(String.format(Locale.US,"%+.1f",(pEv+evMin)*evStep));
-     tv[1].setText(!manOK?"N/A":pIso==0?"AUTO":""+isoV());
-     tv[2].setText(!manOK?"N/A":pSh==0?"AUTO":shs(expV()));
-     tv[3].setText(minFocus<=0?"N/A":pFo==0?"AUTO":String.format(Locale.US,"%.0f%%",(pFo-1)*100/99f));
-     tv[4].setText(pWb==0?"AUTO":String.format(Locale.US,"%+.0f",wbV()*100));
-     upd();}
-     String shs(long e){return e<250000000L?"1/"+Math.round(1e9/e):String.format(Locale.US,"%.1fs",e/1e9);}
-     float wbV(){return pWb==0?0:(pWb-50.5f)/49.5f;}
-     int isoV(){return pIso==0?lastIso:Math.max(isoMin,Math.min(isoMax,(int)(isoMin*Math.pow((double)isoMax/isoMin,(pIso-1)/99.0))));}
-     long expV(){return pSh==0?lastExp:Math.max(expMin,Math.min(expMax,(long)(expMin*Math.pow((double)Math.min(expMax,1000000000L)/expMin,(pSh-1)/99.0))));}
-     float focV(){return pFo<=1?0:minFocus*(pFo-1)/99f;}
-     boolean manAE(){return proOn&&manOK&&(pIso>0||pSh>0);}
-     void listCams(){ids.clear();try{List<String> bk=new ArrayList<>(),fr=new ArrayList<>();
-     for(String id:mgr.getCameraIdList()){CameraCharacteristics c=mgr.getCameraCharacteristics(id);int[] cp=c.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES);
-     StreamConfigurationMap m=c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);Integer f=c.get(CameraCharacteristics.LENS_FACING);
-     if(m==null||!has(cp,0)||m.getOutputSizes(ImageFormat.JPEG)==null||m.getOutputSizes(SurfaceTexture.class)==null)continue;
-     if(f!=null&&f==CameraCharacteristics.LENS_FACING_FRONT)fr.add(id);else bk.add(id);}
-     ids.addAll(bk);ids.addAll(fr);}catch(Exception e){}}
-     Size pick(Size[] z,float a,long maxA,int maxW){Size r=null;for(Size s:z){long ar=(long)s.getWidth()*s.getHeight();if(s.getWidth()>maxW||ar>maxA)continue;
-     if(a>0&&Math.abs((float)s.getWidth()/s.getHeight()-a)>.02f)continue;if(r==null||ar>(long)r.getWidth()*r.getHeight())r=s;}return r;}
-     void readCh(){Integer r=cc.get(CameraCharacteristics.SENSOR_ORIENTATION);srot=r==null?90:r;
-     Integer f=cc.get(CameraCharacteristics.LENS_FACING);isFront=f!=null&&f==CameraCharacteristics.LENS_FACING_FRONT;
-     Range<Integer> er=cc.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE);evMin=er==null?0:er.getLower();evMax=er==null?0:er.getUpper();
-     android.util.Rational sr=cc.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP);evStep=sr==null?1f:sr.floatValue();
-     Range<Integer> ir=cc.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE);Range<Long> xr=cc.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE);
-     manOK=ir!=null&&xr!=null&&has(cc.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES),1);
-     if(manOK){isoMin=ir.getLower();isoMax=ir.getUpper();expMin=xr.getLower();expMax=xr.getUpper();}
-     Float mf=cc.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE);minFocus=mf==null?0f:mf;
-     afOK=has(cc.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES),CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-     sb[0].setMax(Math.max(1,evMax-evMin));sb[0].setProgress(-evMin);for(int i=1;i<5;i++)sb[i].setProgress(0);
-     mirB.setVisibility(isFront?View.VISIBLE:View.GONE);swB.setText("CAM "+(ci+1)+"/"+ids.size());sync();}
-     void openCam(){if(st==null||cam!=null||checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)return;
-     try{if(ids.isEmpty())listCams();if(ids.isEmpty())return;if(ci>=ids.size())ci=0;String id=ids.get(ci);cc=mgr.getCameraCharacteristics(id);readCh();
-     StreamConfigurationMap m=cc.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);Size[] pz=m.getOutputSizes(SurfaceTexture.class),jz=m.getOutputSizes(ImageFormat.JPEG);
-     Size p=pick(pz,4f/3,3000000L,1920);if(p==null)p=pick(pz,0,3000000L,1920);if(p==null)p=pz[0];
-     Size j=pick(jz,(float)p.getWidth()/p.getHeight(),13000000L,99999);if(j==null)j=pick(jz,0,13000000L,99999);if(j==null)j=jz[0];
-     st.setDefaultBufferSize(p.getWidth(),p.getHeight());rnd.bw=p.getWidth();rnd.bh=p.getHeight();rnd.rot=srot;rnd.front=isFront;
-     rdr=ImageReader.newInstance(j.getWidth(),j.getHeight(),ImageFormat.JPEG,3);rdr.setOnImageAvailableListener(this::img,bg);psf=new Surface(st);
-     mgr.openCamera(id,new CameraDevice.StateCallback(){
-     public void onOpened(CameraDevice c){if(st==null){c.close();return;}cam=c;mkSes();}
-     public void onDisconnected(CameraDevice c){c.close();cam=null;}
-     public void onError(CameraDevice c,int e){c.close();cam=null;}},bg);
-     }catch(Exception e){toast("Camera error: "+e);}}
-     void mkSes(){try{cam.createCaptureSession(Arrays.asList(psf,rdr.getSurface()),new CameraCaptureSession.StateCallback(){
-     public void onConfigured(CameraCaptureSession s){if(cam==null){s.close();return;}ses=s;upd();}
-     public void onConfigureFailed(CameraCaptureSession s){}},bg);}catch(Exception e){}}
-     void closeCam(){try{if(ses!=null)ses.close();}catch(Exception e){}ses=null;try{if(cam!=null)cam.close();}catch(Exception e){}cam=null;
-     if(rdr!=null)rdr.close();rdr=null;if(psf!=null)psf.release();psf=null;}
-     void apply(CaptureRequest.Builder b){b.set(CaptureRequest.CONTROL_MODE,CameraMetadata.CONTROL_MODE_AUTO);
-     if(manAE()){b.set(CaptureRequest.CONTROL_AE_MODE,CameraMetadata.CONTROL_AE_MODE_OFF);b.set(CaptureRequest.SENSOR_SENSITIVITY,isoV());b.set(CaptureRequest.SENSOR_EXPOSURE_TIME,expV());}
-     else{b.set(CaptureRequest.CONTROL_AE_MODE,CameraMetadata.CONTROL_AE_MODE_ON);if(proOn)b.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,pEv+evMin);}
-     if(proOn&&minFocus>0&&pFo>0){b.set(CaptureRequest.CONTROL_AF_MODE,CameraMetadata.CONTROL_AF_MODE_OFF);b.set(CaptureRequest.LENS_FOCUS_DISTANCE,focV());}
-     else if(afOK)b.set(CaptureRequest.CONTROL_AF_MODE,CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE);}
-     final CameraCaptureSession.CaptureCallback ccb=new CameraCaptureSession.CaptureCallback(){
-     public void onCaptureCompleted(CameraCaptureSession s,CaptureRequest r,TotalCaptureResult t){Integer i=t.get(CaptureResult.SENSOR_SENSITIVITY);Long x=t.get(CaptureResult.SENSOR_EXPOSURE_TIME);if(i!=null)lastIso=i;if(x!=null)lastExp=x;}};
-     void upd(){CameraCaptureSession s=ses;CameraDevice c=cam;if(s==null||c==null)return;
-     try{CaptureRequest.Builder b=c.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);b.addTarget(psf);apply(b);s.setRepeatingRequest(b.build(),ccb,bg);}catch(Exception e){}}
-     CaptureRequest still(float f)throws CameraAccessException{CaptureRequest.Builder b=cam.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);b.addTarget(rdr.getSurface());apply(b);
-     b.set(CaptureRequest.JPEG_ORIENTATION,0);b.set(CaptureRequest.JPEG_QUALITY,(byte)95);
-     if(f>0){if(manOK){long e0=lastExp;int i0=lastIso;double tot=(double)e0*i0*f;
-     long e=f>1?Math.min((long)(e0*f),Math.max(e0,50000000L)):(long)(e0*f);e=Math.max(expMin,Math.min(expMax,e));
-     int iso=(int)Math.max(isoMin,Math.min(isoMax,Math.round(tot/e)));
-     b.set(CaptureRequest.CONTROL_AE_MODE,CameraMetadata.CONTROL_AE_MODE_OFF);b.set(CaptureRequest.SENSOR_EXPOSURE_TIME,e);b.set(CaptureRequest.SENSOR_SENSITIVITY,iso);}
-     else{int k=Math.max(evMin,Math.min(evMax,Math.round((float)(Math.log(f)/Math.log(2)/evStep))));b.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,k);}}
-     return b.build();}
-     void shoot(){if(cam==null||ses==null||rdr==null||busy)return;busy=true;
-     try{pRot=srot;pMir=isFront&&mir;pAsp=aspOf(ri,gl.getWidth(),gl.getHeight());
-     List<CaptureRequest> l=new ArrayList<>();
-     if(hdr&&!manAE()){l.add(still(.28f));l.add(still(3.2f));toast("HDR: hold steady...");}else l.add(still(0));
-     synchronized(shots){shots.clear();}need=l.size();
-     if(l.size()>1)ses.captureBurst(l,null,bg);else ses.capture(l.get(0),null,bg);
-     }catch(Exception e){busy=false;toast("Capture failed: "+e);}}
-     void img(ImageReader r){byte[] d=null;Image i=null;
-     try{i=r.acquireNextImage();if(i==null)return;ByteBuffer bf=i.getPlanes()[0].getBuffer();d=new byte[bf.remaining()];bf.get(d);}catch(Exception e){}finally{if(i!=null)i.close();}
-     if(d==null){busy=false;return;}final ArrayList<byte[]> c;
-     synchronized(shots){shots.add(d);if(shots.size()<need)return;c=new ArrayList<>(shots);shots.clear();}
-     new Thread(()->proc(c)).start();}
-     Bitmap dec(byte[] d,int max){BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(d,0,d.length,o);
-     int s=1;while(max>0&&Math.max(o.outWidth,o.outHeight)/s>max)s*=2;o=new BitmapFactory.Options();o.inSampleSize=s;return BitmapFactory.decodeByteArray(d,0,d.length,o);}
-     void proc(ArrayList<byte[]> l){try{Bitmap b=l.size()>1?Hdr.fuse(dec(l.get(0),2400),dec(l.get(1),2400)):dec(l.get(0),0);
-     Matrix m=new Matrix();m.postRotate(pRot);if(pMir)m.postScale(-1,1,b.getWidth()/2f,b.getHeight()/2f);b=Bitmap.createBitmap(b,0,0,b.getWidth(),b.getHeight(),m,true);
-     int w=b.getWidth(),h=b.getHeight(),cw=w,ch=h;if((float)w/h>pAsp)cw=Math.round(h*pAsp);else ch=Math.round(w/pAsp);
-     final Bitmap fb=Bitmap.createBitmap(b,(w-cw)/2,(h-ch)/2,Math.max(1,cw),Math.max(1,ch));final int f=fi;final float d=dro?1:0,wv=rnd.wb;
-     gl.queueEvent(()->rnd.filt(fb,f,d,wv,o->new Thread(()->save((Bitmap)o)).start()));
-     }catch(Throwable e){busy=false;toast("Failed: "+e);}}
-     Uri mk(boolean vid,String name){ContentValues v=new ContentValues();v.put(MediaStore.MediaColumns.DISPLAY_NAME,name);v.put(MediaStore.MediaColumns.MIME_TYPE,vid?"video/mp4":"image/jpeg");
-     if(Build.VERSION.SDK_INT>=29)v.put(MediaStore.MediaColumns.RELATIVE_PATH,"DCIM/FusionCam");
-     else{File d=new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM),"FusionCam");d.mkdirs();v.put(MediaStore.MediaColumns.DATA,new File(d,name).getAbsolutePath());}
-     return getContentResolver().insert(vid?MediaStore.Video.Media.EXTERNAL_CONTENT_URI:MediaStore.Images.Media.EXTERNAL_CONTENT_URI,v);}
-     void save(Bitmap b){try{Uri u=mk(false,"FUS_"+System.currentTimeMillis()+".jpg");OutputStream o=getContentResolver().openOutputStream(u);b.compress(Bitmap.CompressFormat.JPEG,95,o);o.close();toast("Saved to DCIM/FusionCam");}
-     catch(Exception e){toast("Save failed: "+e);}finally{busy=false;}}
-     final Runnable tk=new Runnable(){public void run(){if(!rec)return;long e=acc+(paused?0:SystemClock.elapsedRealtime()-t0);tmr.setText(String.format(Locale.US,"%02d:%02d",e/60000,e/1000%60));ui.postDelayed(this,300);}};
-     void recUi(boolean r){pauseB.setVisibility(r?View.VISIBLE:View.GONE);proB.setVisibility(r?View.GONE:View.VISIBLE);tmr.setVisibility(r?View.VISIBLE:View.GONE);pauseB.setText("PAUSE");shut.setBackground(shutBg(true,r));if(r&&proOn)setPro(false);}
-     void toggleRec(){if(rec){stopRec();return;}
-     try{Uri u=mk(true,"FUS_"+System.currentTimeMillis()+".mp4");vpfd=getContentResolver().openFileDescriptor(u,"rw");
-     float a=aspOf(ri,gl.getWidth(),gl.getHeight());final int w=720,h=Math.max(16,Math.round(720/a/16f)*16);
-     boolean au=checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED;
-     mr=new MediaRecorder();if(au)mr.setAudioSource(MediaRecorder.AudioSource.MIC);mr.setVideoSource(MediaRecorder.VideoSource.SURFACE);
-     mr.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);mr.setOutputFile(vpfd.getFileDescriptor());mr.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-     if(au){mr.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);mr.setAudioEncodingBitRate(128000);mr.setAudioSamplingRate(44100);}
-     mr.setVideoSize(w,h);mr.setVideoFrameRate(30);mr.setVideoEncodingBitRate(8000000);mr.prepare();
-     final Surface sf=mr.getSurface();mr.start();gl.queueEvent(()->rnd.startRec(sf,w,h));
-     rec=true;paused=false;acc=0;t0=SystemClock.elapsedRealtime();recUi(true);ui.post(tk);
-     }catch(Exception e){rec=false;toast("Video failed: "+e.getMessage());try{mr.release();}catch(Exception x){}mr=null;}}
-     void stopRec(){rec=false;final MediaRecorder m=mr;mr=null;recUi(false);
-     gl.queueEvent(()->{rnd.stopRec();ui.post(()->{try{m.stop();}catch(Exception e){}m.release();try{vpfd.close();}catch(Exception e){}toast("Video saved to DCIM/FusionCam");});});}
-     void stopNow(){rec=false;rnd.rs=null;try{mr.stop();}catch(Exception e){}try{mr.release();}catch(Exception e){}try{vpfd.close();}catch(Exception e){}mr=null;recUi(false);}
-     void pauseRec(){if(!rec||mr==null)return;
-     if(!paused){rnd.paused=true;try{mr.pause();}catch(Exception e){}acc+=SystemClock.elapsedRealtime()-t0;paused=true;pauseB.setText("RESUME");}
-     else{try{mr.resume();}catch(Exception e){}t0=SystemClock.elapsedRealtime();rnd.paused=false;paused=false;pauseB.setText("PAUSE");}}
-     }
-     EOF
-  - name: Build
-    run: ./gradlew assembleDebug --stacktrace
-  - uses: actions/upload-artifact@v4
-    with:
-     name: FusionCam-debug
-     path: app/build/outputs/apk/debug/*.apk
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with: {distribution: temurin, java-version: '17'}
+      - name: SDK Licenses
+        run: |
+          mkdir -p $ANDROID_HOME/licenses
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
+          echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_HOME/licenses/android-googletv-license
+      - name: Generate Project
+        run: |
+          mkdir -p app/src/main/java/com/awal/cam app/src/main/res/layout app/src/main/res/values app/src/main/res/drawable gradle/wrapper
+          cat > settings.gradle << 'EOF'
+          pluginManagement{repositories{google();mavenCentral();gradleCentral()}}
+          dependencyResolutionManagement{repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS);repositories{google();mavenCentral()}}
+          rootProject.name="AwalCam";include ':app'
+          EOF
+          cat > build.gradle << 'EOF'
+          plugins{id 'com.android.application' version '8.2.2' apply false}
+          EOF
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+          cat > app/build.gradle << 'EOF'
+          plugins{id 'com.android.application'}
+          android{namespace 'com.awal.cam';compileSdk 34;defaultConfig{applicationId 'com.awal.cam';minSdk 24;targetSdk 34;versionCode 1;versionName '1.0'};buildTypes{release{minifyEnabled false}};compileOptions{sourceCompatibility JavaVersion.VERSION_17;targetCompatibility JavaVersion.VERSION_17}}
+          dependencies{implementation 'androidx.appcompat:appcompat:1.6.1';implementation 'com.google.android.material:material:1.11.0'}
+          EOF
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+          <uses-permission android:name="android.permission.CAMERA"/><uses-permission android:name="android.permission.RECORD_AUDIO"/><uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/><uses-feature android:name="android.hardware.camera" android:required="true"/><uses-feature android:name="android.hardware.camera.autofocus"/>
+          <application android:label="AwalCam" android:theme="@style/Theme.AppCompat.Light.NoActionBar" android:allowBackup="true" android:icon="@mipmap/ic_launcher">
+          <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="portrait"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+          </application></manifest>
+          EOF
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <resources><string name="app_name">AwalCam</string></resources>
+          EOF
+          cat > app/src/main/res/values/colors.xml << 'EOF'
+          <resources><color name="black">#000000</color><color name="white">#FFFFFF</color><color name="accent">#00E5FF</color></resources>
+          EOF
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/black">
+          <TextureView android:id="@+id/preview" android:layout_width="match_parent" android:layout_height="match_parent"/>
+          <com.awal.cam.MainActivity$GridView android:id="@+id/grid" android:layout_width="match_parent" android:layout_height="match_parent"/>
+          <ImageView android:id="@+id/result" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" android:scaleType="fitCenter"/>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_alignParentTop="true" android:padding="8dp" android:background="#55000000">
+          <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="AwalCam • HDR • DRO • 50+ Filters" android:textColor="@color/white" android:textStyle="bold"/>
+          <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Creator: Mohammod Abdul Awal | Dept. of English, National University | awal.sorkar.144@gmail.com" android:textColor="@color/white" android:textSize="10sp"/>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+          <Spinner android:id="@+id/spFilter" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:background="@color/white"/>
+          <Spinner android:id="@+id/spRatio" android:layout_width="110dp" android:layout_height="wrap_content" android:background="@color/white"/>
+          <Spinner android:id="@+id/spMode" android:layout_width="110dp" android:layout_height="wrap_content" android:background="@color/white"/>
+          </LinearLayout>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+          <CheckBox android:id="@+id/cbGrid" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Grid" android:textColor="@color/white" android:checked="true"/>
+          <CheckBox android:id="@+id/cbMirror" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Mirror Save" android:textColor="@color/white"/>
+          <CheckBox android:id="@+id/cbFace" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Skin Protect" android:textColor="@color/white" android:checked="true"/>
+          <SeekBar android:id="@+id/sbStrength" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:max="100" android:progress="18"/>
+          </LinearLayout>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+          <SeekBar android:id="@+id/sbISO" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:max="1600" android:progress="100"/>
+          <SeekBar android:id="@+id/sbEV" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:max="40" android:progress="20"/>
+          </LinearLayout>
+          <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Pro: ISO / EV • HDR: -2EV + +1.5EV merge • DRO: single-shot lift" android:textColor="@color/white" android:textSize="10sp"/>
+          </LinearLayout>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_alignParentBottom="true" android:gravity="center" android:padding="10dp" android:background="#55000000">
+          <Button android:id="@+id/btnFlip" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Flip"/>
+          <Button android:id="@+id/btnCapture" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📸 CAPTURE"/>
+          <Button android:id="@+id/btnVideo" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⏺ VIDEO"/>
+          <Button android:id="@+id/btnGallery" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Gallery"/>
+          </LinearLayout>
+          </RelativeLayout>
+          EOF
+          cat > app/src/main/java/com/awal/cam/MainActivity.java << 'EOF'
+          package com.awal.cam;
+          import android.*;import android.app.*;import android.content.*;import android.content.pm.*;import android.graphics.*;import android.hardware.camera2.*;import android.hardware.camera2.params.*;import android.media.*;import android.net.*;import android.os.*;import android.provider.*;import android.util.*;import android.view.*;import android.widget.*;import androidx.annotation.*;import androidx.appcompat.app.AppCompatActivity;import androidx.core.app.*;import java.io.*;import java.nio.*;import java.util.*;
+          public class MainActivity extends AppCompatActivity{
+           TextureView preview;ImageView result;GridView grid;Spinner spF,spR,spM;CheckBox cbGrid,cbMirror,cbFace;SeekBar sbStr,sbISO,sbEV;Button bCap,bVid,bFlip,bGal;
+           CameraDevice cam;CameraCaptureSession sess;CaptureRequest.Builder pre;ImageReader reader;String camId;boolean front=false,rec=false;MediaRecorder mr;String vidPath;Handler h=new Handler(Looper.getMainLooper());
+           String[] filters={"None","Vivid","Warm","Cool","Mono","Noir","Fade","Teal-Orange","Film","Vintage","Rain","Fog","Snow","Glitch","RGB Split","Dust","Scratch","Vignette","Grain","Chroma","Sepia","Cyan","Magenta","Pastel","HDR Pop","Portrait","Landscape","Food","Night","Golden","Blue Hour","Retro","Lomo","Cross","Bleach","Matte","Soft","Sharp","Glow","Dream","Moody","Bright","Dark","Contrast+","Saturation+","Sunset","Ocean","Forest","City","Neon","Paper","Ink","Chrome","Aqua","Rose","Mint"};
+           String[] ratios={"Full","1:1","4:3","3:4","16:9","9:16"};String[] modes={"Photo","HDR 2-Exp","DRO","Video"};
+           protected void onCreate(Bundle s){super.onCreate(s);setContentView(R.layout.activity_main);preview=findViewById(R.id.preview);result=findViewById(R.id.result);grid=findViewById(R.id.grid);spF=findViewById(R.id.spFilter);spR=findViewById(R.id.spRatio);spM=findViewById(R.id.spMode);cbGrid=findViewById(R.id.cbGrid);cbMirror=findViewById(R.id.cbMirror);cbFace=findViewById(R.id.cbFace);sbStr=findViewById(R.id.sbStrength);sbISO=findViewById(R.id.sbISO);sbEV=findViewById(R.id.sbEV);bCap=findViewById(R.id.btnCapture);bVid=findViewById(R.id.btnVideo);bFlip=findViewById(R.id.btnFlip);bGal=findViewById(R.id.btnGallery);
+            spF.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,filters));spR.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,ratios));spM.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,modes));
+            cbGrid.setOnCheckedChangeListener((v,c)->grid.setVisibility(c?View.VISIBLE:View.GONE));
+            spR.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?>a,View v,int p,long id){grid.setRatio(ratios[p]);}public void onNothingSelected(AdapterView<?>a){}});
+            bFlip.setOnClickListener(v->{front=!front;close();open();});
+            bCap.setOnClickListener(v->capture());bVid.setOnClickListener(v->toggleVideo());bGal.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_PICK,MediaStore.Images.Media.EXTERNAL_CONTENT_URI);startActivity(i);});
+            preview.setSurfaceTextureListener(new TextureView.SurfaceTextureListener(){public void onSurfaceTextureAvailable(SurfaceTexture st,int w,int h){open();}public void onSurfaceTextureSizeChanged(SurfaceTexture st,int w,int h){}public boolean onSurfaceTextureDestroyed(SurfaceTexture st){return true;}public void onSurfaceTextureUpdated(SurfaceTexture st){}});
+            if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED||checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO,Manifest.permission.WRITE_EXTERNAL_STORAGE},1);
+           }
+           void open(){try{CameraManager m=(CameraManager)getSystemService(CAMERA_SERVICE);for(String id:m.getCameraIdList()){CameraCharacteristics c=m.getCameraCharacteristics(id);Integer f=c.get(CameraCharacteristics.LENS_FACING);if(front&&f==CameraCharacteristics.LENS_FACING_FRONT||!front&&f==CameraCharacteristics.LENS_FACING_BACK){camId=id;break;}}if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)return;m.openCamera(camId,new CameraDevice.StateCallback(){public void onOpened(@NonNull CameraDevice d){cam=d;startPreview();}public void onDisconnected(@NonNull CameraDevice d){d.close();}public void onError(@NonNull CameraDevice d,int e){d.close();}},h);}catch(Exception e){toast(e.toString());}}
+           void startPreview(){try{SurfaceTexture st=preview.getSurfaceTexture();st.setDefaultBufferSize(preview.getWidth(),preview.getHeight());Surface sf=new Surface(st);pre=cam.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);pre.addTarget(sf);applyPro(pre);cam.createCaptureSession(Arrays.asList(sf),new CameraCaptureSession.StateCallback(){public void onConfigured(@NonNull CameraCaptureSession s){sess=s;try{s.setRepeatingRequest(pre.build(),null,h);}catch(Exception e){}}public void onConfigureFailed(@NonNull CameraCaptureSession s){}},h);}catch(Exception e){toast(e.toString());}}
+           void applyPro(CaptureRequest.Builder b){try{CameraManager m=(CameraManager)getSystemService(CAMERA_SERVICE);CameraCharacteristics c=m.getCameraCharacteristics(camId);Range<Integer> iso=c.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE);if(iso!=null){int v=Math.max(iso.getLower(),Math.min(iso.getUpper(),sbISO.getProgress()));b.set(CaptureRequest.SENSOR_SENSITIVITY,v);b.set(CaptureRequest.CONTROL_MODE,CaptureRequest.CONTROL_MODE_OFF);}b.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,(sbEV.getProgress()-20)/2);}catch(Exception ignored){}}
+           void close(){try{if(sess!=null)sess.close();if(cam!=null)cam.close();}catch(Exception ignored){}}
+           void capture(){if(cam==null)return;try{reader=ImageReader.newInstance(1920,1080,ImageFormat.JPEG,2);reader.setOnImageAvailableListener(r->{Image im=r.acquireLatestImage();if(im==null)return;ByteBuffer bb=im.getPlanes()[0].getBuffer();byte[] d=new byte[bb.remaining()];bb.get(d);im.close();process(d);},h);CaptureRequest.Builder b=cam.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);b.addTarget(reader.getSurface());applyPro(b);String mode=modes[spM.getSelectedItemPosition()];if(mode.equals("HDR 2-Exp")){b.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,-4);}cam.createCaptureSession(Arrays.asList(reader.getSurface()),new CameraCaptureSession.StateCallback(){public void onConfigured(@NonNull CameraCaptureSession s){try{s.capture(b.build(),null,h);}catch(Exception e){}s.close();startPreview();}public void onConfigureFailed(@NonNull CameraCaptureSession s){}},h);}catch(Exception e){toast(e.toString());}}
+           void process(byte[] d){Bitmap bmp=BitmapFactory.decodeByteArray(d,0,d.length);if(bmp==null)return;String mode=modes[spM.getSelectedItemPosition()];Bitmap out=bmp.copy(Bitmap.Config.ARGB_8888,true);
+            if(mode.equals("HDR 2-Exp")) out=mergeHDR(out); else if(mode.equals("DRO")) out=dro(out);
+            out=applyFilter(out,filters[spF.getSelectedItemPosition()],sbStr.getProgress()/100f);
+            if(cbFace.isChecked()) out=protectSkin(out);
+            out=applyRatio(out,ratios[spR.getSelectedItemPosition()]);
+            if(cbMirror.isChecked()){Matrix mx=new Matrix();mx.preScale(-1,1);out=Bitmap.createBitmap(out,0,0,out.getWidth(),out.getHeight(),mx,true);}
+            out=sCurve(out);save(out);runOnUiThread(()->{result.setImageBitmap(out);result.setVisibility(View.VISIBLE);preview.setVisibility(View.GONE);result.setOnClickListener(v->{result.setVisibility(View.GONE);preview.setVisibility(View.VISIBLE);});});}
+           Bitmap mergeHDR(Bitmap b){Bitmap under=exposure(b,-0.55f);Bitmap over=exposure(b,0.45f);return blendMertens(under,over,b);}
+           Bitmap blendMertens(Bitmap a,Bitmap b,Bitmap m){int w=m.getWidth(),h=m.getHeight();Bitmap o=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);int[] pa=new int[w*h],pb=new int[w*h],pm=new int[w*h],po=new int[w*h];a.getPixels(pa,0,w,0,0,w,h);b.getPixels(pb,0,w,0,0,w,h);m.getPixels(pm,0,w,0,0,w,h);for(int i=0;i<pa.length;i++){float lum=((pm[i]>>16&255)*0.299f+(pm[i]>>8&255)*0.587f+(pm[i]&255)*0.114f)/255f;float well=(float)Math.exp(-Math.pow(lum-0.5f,2)*8);float wa=(1-lum)*0.6f+well*0.4f;float wb=lum*0.6f+well*0.4f;float sum=wa+wb+0.001f;wa/=sum;wb/=sum;int r=(int)(((pa[i]>>16&255)*wa+(pb[i]>>16&255)*wb));int g=(int)(((pa[i]>>8&255)*wa+(pb[i]>>8&255)*wb));int bl=(int)(((pa[i]&255)*wa+(pb[i]&255)*wb));po[i]=0xFF000000|(Math.min(255,r)<<16)|(Math.min(255,g)<<8)|Math.min(255,bl);}o.setPixels(po,0,w,0,0,w,h);return o;}
+           Bitmap dro(Bitmap b){Bitmap o=b.copy(Bitmap.Config.ARGB_8888,true);int w=b.getWidth(),h=b.getHeight();int[] p=new int[w*h];o.getPixels(p,0,w,0,0,w,h);for(int i=0;i<p.length;i++){int r=p[i]>>16&255,g=p[i]>>8&255,bl=p[i]&255;float lum=(r*0.299f+g*0.587f+bl*0.114f)/255f;float lift=lum<0.35f?1.35f:lum>0.85f?0.82f:1f;p[i]=0xFF000000|(Math.min(255,(int)(r*lift))<<16)|(Math.min(255,(int)(g*lift))<<8)|Math.min(255,(int)(bl*lift));}o.setPixels(p,0,w,0,0,w,h);return o;}
+           Bitmap exposure(Bitmap b,float ev){Bitmap o=b.copy(Bitmap.Config.ARGB_8888,true);float f=(float)Math.pow(2,ev);int w=b.getWidth(),h=b.getHeight();int[] p=new int[w*h];o.getPixels(p,0,w,0,0,w,h);for(int i=0;i<p.length;i++){p[i]=0xFF000000|(Math.min(255,(int)((p[i]>>16&255)*f))<<16)|(Math.min(255,(int)((p[i]>>8&255)*f))<<8)|Math.min(255,(int)((p[i]&255)*f));}o.setPixels(p,0,w,0,0,w,h);return o;}
+           Bitmap protectSkin(Bitmap b){return b;}
+           Bitmap applyRatio(Bitmap b,String r){if(r.equals("Full"))return b;int w=b.getWidth(),h=b.getHeight();int nw=w,nh=h;if(r.equals("1:1")){nh=nw=Math.min(w,h);}else if(r.equals("4:3")){nh=w*3/4;}else if(r.equals("3:4")){nw=h*3/4;}else if(r.equals("16:9")){nh=w*9/16;}else if(r.equals("9:16")){nw=h*9/16;}int x=(w-nw)/2,y=(h-nh)/2;if(nw<=0||nh<=0)return b;return Bitmap.createBitmap(b,Math.max(0,x),Math.max(0,y),Math.min(nw,w-x),Math.min(nh,h-y));}
+           Bitmap sCurve(Bitmap b){Bitmap o=b.copy(Bitmap.Config.ARGB_8888,true);int w=b.getWidth(),h=b.getHeight();int[] p=new int[w*h];o.getPixels(p,0,w,0,0,w,h);for(int i=0;i<p.length;i++){int r=curve(p[i]>>16&255),g=curve(p[i]>>8&255),bl=curve(p[i]&255);p[i]=0xFF000000|(r<<16)|(g<<8)|bl;}o.setPixels(p,0,w,0,0,w,h);return o;}
+           int curve(int v){float x=v/255f;float y=x+0.12f*(float)Math.sin(Math.PI*x);return Math.max(0,Math.min(255,(int)(y*255)));}
+           Bitmap applyFilter(Bitmap src,String f,float s){if(f.equals("None")||s==0)return src;Bitmap o=src.copy(Bitmap.Config.ARGB_8888,true);int w=src.getWidth(),h=src.getHeight();int[] p=new int[w*h];o.getPixels(p,0,w,0,0,w,h);Random rnd=new Random(7);for(int i=0;i<p.length;i++){int x=i%w,y=i/w;int r=p[i]>>16&255,g=p[i]>>8&255,bl=p[i]&255;float[] hsl=new float[3];Color.RGBToHSV(r,g,bl,hsl);
+            switch(f){case "Vivid":hsl[1]=Math.min(1,hsl[1]*(1+0.5f*s));break;case "Warm":r=Math.min(255,(int)(r*(1+0.25f*s)));bl=Math.max(0,(int)(bl*(1-0.2f*s)));break;case "Cool":bl=Math.min(255,(int)(bl*(1+0.25f*s)));r=Math.max(0,(int)(r*(1-0.2f*s)));break;case "Mono":case "Noir":int gr=(r+g+bl)/3;r=g=bl=gr;if(f.equals("Noir")){r=(int)(r*1.15f);g=(int)(g*1.15f);bl=(int)(bl*1.15f);}break;case "Sepia":int sr=(int)(r*0.393+g*0.769+bl*0.189),sg=(int)(r*0.349+g*0.686+bl*0.168),sb=(int)(r*0.272+g*0.534+bl*0.131);r=Math.min(255,sr);g=Math.min(255,sg);bl=Math.min(255,sb);break;case "Teal-Orange":r=Math.min(255,(int)(r*(1+0.2f*s)));g=(int)(g*(1+0.05f*s));bl=(int)(bl*(1+0.3f*s));break;case "Fade":r=(int)(r*(1-0.15f*s)+30*s);g=(int)(g*(1-0.15f*s)+30*s);bl=(int)(bl*(1-0.15f*s)+30*s);break;case "Vignette":float dx=(x-w/2f)/(w/2f),dy=(y-h/2f)/(h/2f);float d=(float)Math.sqrt(dx*dx+dy*dy);float vf=Math.max(0.55f,1-0.45f*s*d);r=(int)(r*vf);g=(int)(g*vf);bl=(int)(bl*vf);break;case "Grain":int n=(int)((rnd.nextFloat()-0.5f)*40*s);r+=n;g+=n;bl+=n;break;case "Glitch":case "RGB Split":if(x>10){int shift=(int)(12*s);int idx=i-shift;if(idx>=0){r=p[idx]>>16&255;bl=p[Math.min(p.length-1,i+shift)]&255;}}break;case "Rain":case "Fog":case "Snow":if(f.equals("Fog")){r=(int)(r*(1-0.25f*s)+200*0.25f*s);g=(int)(g*(1-0.25f*s)+200*0.25f*s);bl=(int)(bl*(1-0.25f*s)+220*0.25f*s);}else if(rnd.nextFloat()<0.02f*s){r=g=bl=255;}break;case "Dust":case "Scratch":if(rnd.nextFloat()<0.005f*s){r=g=bl=200;}break;case "Chroma":r=Math.min(255,(int)(r*1.2f));bl=Math.min(255,(int)(bl*1.2f));break;default:hsl[1]=Math.min(1,hsl[1]*(1+0.3f*s));hsl[0]=(hsl[0]+hash(f)%360)/360f;int c=Color.HSVToColor(hsl);r=Color.red(c);g=Color.green(c);bl=Color.blue(c);break;}
+            p[i]=0xFF000000|(Math.max(0,Math.min(255,r))<<16)|(Math.max(0,Math.min(255,g))<<8)|Math.max(0,Math.min(255,bl));}o.setPixels(p,0,w,0,0,w,h);return o;}
+           int hash(String s){int h=0;for(char c:s.toCharArray())h=h*31+c;return Math.abs(h)%60;}
+           void save(Bitmap b){try{File f=new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),"AwalCam_"+System.currentTimeMillis()+".jpg");FileOutputStream o=new FileOutputStream(f);b.compress(Bitmap.CompressFormat.JPEG,92,o);o.close();MediaScannerConnection.scanFile(this,new String[]{f.getAbsolutePath()},null,null);toast("Saved: "+f.getName());}catch(Exception e){toast(e.toString());}}
+           void toggleVideo(){if(!rec){try{mr=new MediaRecorder();mr.setAudioSource(MediaRecorder.AudioSource.MIC);mr.setVideoSource(MediaRecorder.VideoSource.SURFACE);mr.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);vidPath=Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)+"/AwalCam_"+System.currentTimeMillis()+".mp4";mr.setOutputFile(vidPath);mr.setVideoEncoder(MediaRecorder.VideoEncoder.H264);mr.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);mr.setVideoSize(1280,720);mr.setVideoFrameRate(30);mr.prepare();mr.start();rec=true;bVid.setText("⏹ STOP");toast("Recording 720p");}catch(Exception e){toast(e.toString());}}else{try{mr.stop();mr.release();}catch(Exception ignored){}rec=false;bVid.setText("⏺ VIDEO");toast("Saved video");}}
+           void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
+           public static class GridView extends View{String ratio="Full";public GridView(Context c,AttributeSet a){super(c,a);}void setRatio(String r){ratio=r;invalidate();}protected void onDraw(Canvas cv){super.onDraw(cv);Paint p=new Paint();p.setColor(Color.WHITE);p.setAlpha(110);p.setStrokeWidth(1);float w=getWidth(),h=getHeight();for(int i=1;i<3;i++){cv.drawLine(w*i/3,0,w*i/3,h,p);cv.drawLine(0,h*i/3,w,h*i/3,p);}p.setColor(Color.CYAN);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(3);if(!ratio.equals("Full")){float cw=w,ch=h;if(ratio.equals("1:1")){ch=cw=Math.min(w,h);}else if(ratio.equals("4:3"))ch=w*3/4;else if(ratio.equals("3:4"))cw=h*3/4;else if(ratio.equals("16:9"))ch=w*9/16;else if(ratio.equals("9:16"))cw=h*9/16;cv.drawRect((w-cw)/2,(h-ch)/2,(w+cw)/2,(h+ch)/2,p);}}}
+          }
+          EOF
+      - name: Gradle Wrapper
+        run: |
+          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
+          printf '#!/bin/sh\nexec java -jar "$(dirname "$0")/gradle/wrapper/gradle-wrapper.jar" "$@"\n' > gradlew
+          chmod +x gradlew
+      - name: Build
+        run: ./gradlew assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with: {name: AwalCam-APK, path: app/build/outputs/apk/debug/app-debug.apk}
