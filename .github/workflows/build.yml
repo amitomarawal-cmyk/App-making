@@ -130,12 +130,13 @@ jobs:
            public static class GridView extends View{String ratio="Full";public GridView(Context c,AttributeSet a){super(c,a);}void setRatio(String r){ratio=r;invalidate();}protected void onDraw(Canvas cv){super.onDraw(cv);Paint p=new Paint();p.setColor(Color.WHITE);p.setAlpha(110);p.setStrokeWidth(1);float w=getWidth(),h=getHeight();for(int i=1;i<3;i++){cv.drawLine(w*i/3,0,w*i/3,h,p);cv.drawLine(0,h*i/3,w,h*i/3,p);}p.setColor(Color.CYAN);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(3);if(!ratio.equals("Full")){float cw=w,ch=h;if(ratio.equals("1:1")){ch=cw=Math.min(w,h);}else if(ratio.equals("4:3"))ch=w*3/4;else if(ratio.equals("3:4"))cw=h*3/4;else if(ratio.equals("16:9"))ch=w*9/16;else if(ratio.equals("9:16"))cw=h*9/16;cv.drawRect((w-cw)/2,(h-ch)/2,(w+cw)/2,(h+ch)/2,p);}}}
           }
           EOF
-      - name: Gradle Wrapper
+      - name: Install Gradle 8.4
         run: |
-          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
-          printf '#!/bin/sh\nexec java -jar "$(dirname "$0")/gradle/wrapper/gradle-wrapper.jar" "$@"\n' > gradlew
-          chmod +x gradlew
+          curl -sL "https://services.gradle.org/distributions/gradle-8.4-bin.zip" -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          echo "/tmp/gradle-8.4/bin" >> $GITHUB_PATH
+          /tmp/gradle-8.4/bin/gradle --version
       - name: Build
-        run: ./gradlew assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4
         with: {name: AwalCam-APK, path: app/build/outputs/apk/debug/app-debug.apk}
