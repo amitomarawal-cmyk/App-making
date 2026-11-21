@@ -33,103 +33,36 @@ jobs:
 
       - name: Create gradle.properties
         run: |
-          cat > gradle.properties << 'EOF'
-android.useAndroidX=true
-android.enableJetifier=true
-org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-EOF
+          printf 'android.useAndroidX=true\nandroid.enableJetifier=true\norg.gradle.jvmargs=-Xmx2048m\n' > gradle.properties
 
       - name: Create settings.gradle
         run: |
-          cat > settings.gradle << 'EOF'
-pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories {
-        google()
-        mavenCentral()
-        maven { url 'https://jitpack.io' }
-    }
-}
-rootProject.name = "PDFReader"
-include ':app'
-EOF
+          printf 'pluginManagement {\n    repositories {\n        google()\n        mavenCentral()\n        gradlePluginPortal()\n    }\n}\ndependencyResolutionManagement {\n    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)\n    repositories {\n        google()\n        mavenCentral()\n        maven { url "https://jitpack.io" }\n    }\n}\nrootProject.name = "PDFReader"\ninclude ":app"\n' > settings.gradle
 
       - name: Create root build.gradle
         run: |
-          cat > build.gradle << 'EOF'
-plugins {
-    id 'com.android.application' version '8.1.4' apply false
-}
-EOF
+          printf 'plugins {\n    id "com.android.application" version "8.1.4" apply false\n}\n' > build.gradle
 
       - name: Create app build.gradle
         run: |
-          cat > app/build.gradle << 'EOF'
-plugins {
-    id 'com.android.application'
-}
-android {
-    namespace 'com.awal.pdfreader'
-    compileSdk 34
-    defaultConfig {
-        applicationId "com.awal.pdfreader"
-        minSdk 24
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
-    }
-    buildTypes {
-        debug { minifyEnabled false }
-    }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-}
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
-    implementation 'androidx.recyclerview:recyclerview:1.3.2'
-    implementation 'com.github.barteksc:android-pdf-viewer:3.2.0-beta.1'
-}
-EOF
+          printf 'plugins {\n    id "com.android.application"\n}\nandroid {\n    namespace "com.awal.pdfreader"\n    compileSdk 34\n    defaultConfig {\n        applicationId "com.awal.pdfreader"\n        minSdk 24\n        targetSdk 34\n        versionCode 1\n        versionName "1.0"\n    }\n    buildTypes {\n        debug { minifyEnabled false }\n    }\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_17\n        targetCompatibility JavaVersion.VERSION_17\n    }\n}\ndependencies {\n    implementation "androidx.appcompat:appcompat:1.6.1"\n    implementation "com.google.android.material:material:1.11.0"\n    implementation "androidx.recyclerview:recyclerview:1.3.2"\n    implementation "com.github.barteksc:android-pdf-viewer:3.2.0-beta.1"\n}\n' > app/build.gradle
 
       - name: Create gradle wrapper properties
         run: |
-          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-distributionBase=GRADLE_USER_HOME
-distributionPath=wrapper/dists
-distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
-zipStoreBase=GRADLE_USER_HOME
-zipStorePath=wrapper/dists
-EOF
+          printf 'distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists\n' > gradle/wrapper/gradle-wrapper.properties
 
       - name: Download gradle wrapper jar
         run: |
-          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" \
-            -o gradle/wrapper/gradle-wrapper.jar
+          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
 
       - name: Create gradlew
         run: |
-          cat > gradlew << 'GRADLEW'
-#!/bin/sh
-APP_HOME=`dirname "$0"`
-APP_HOME=`cd "$APP_HOME" && pwd`
-CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
-exec java -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
-GRADLEW
+          printf '#!/bin/sh\nAPP_HOME=`dirname "$0"`\nAPP_HOME=`cd "$APP_HOME" && pwd`\nCLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar\nexec java -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"\n' > gradlew
           chmod +x gradlew
 
-      - name: Create AndroidManifest.xml
+      - name: Create AndroidManifest
         run: |
-          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          cat > app/src/main/AndroidManifest.xml << 'XMLEOF'
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
@@ -160,11 +93,11 @@ GRADLEW
         </activity>
     </application>
 </manifest>
-EOF
+XMLEOF
 
-      - name: Create strings.xml
+      - name: Create res values
         run: |
-          cat > app/src/main/res/values/strings.xml << 'EOF'
+          cat > app/src/main/res/values/strings.xml << 'XMLEOF'
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PDF Reader</string>
@@ -172,11 +105,8 @@ EOF
     <string name="department">Dept. of English, National University</string>
     <string name="email">awal.sorkar.144@gmail.com</string>
 </resources>
-EOF
-
-      - name: Create colors.xml
-        run: |
-          cat > app/src/main/res/values/colors.xml << 'EOF'
+XMLEOF
+          cat > app/src/main/res/values/colors.xml << 'XMLEOF'
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="primary">#1565C0</color>
@@ -187,11 +117,8 @@ EOF
     <color name="gray">#9E9E9E</color>
     <color name="gray_light">#EEEEEE</color>
 </resources>
-EOF
-
-      - name: Create styles.xml
-        run: |
-          cat > app/src/main/res/values/styles.xml << 'EOF'
+XMLEOF
+          cat > app/src/main/res/values/styles.xml << 'XMLEOF'
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
@@ -201,27 +128,27 @@ EOF
         <item name="windowNoTitle">true</item>
     </style>
 </resources>
-EOF
+XMLEOF
 
       - name: Create drawables
         run: |
-          cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
+          cat > app/src/main/res/drawable/ic_launcher.xml << 'XMLEOF'
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="#1565C0"/>
     <corners android:radius="8dp"/>
 </shape>
-EOF
-          cat > app/src/main/res/drawable/ic_launcher_round.xml << 'EOF'
+XMLEOF
+          cat > app/src/main/res/drawable/ic_launcher_round.xml << 'XMLEOF'
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
     <solid android:color="#1565C0"/>
 </shape>
-EOF
+XMLEOF
 
-      - name: Create activity_main.xml
+      - name: Create layouts
         run: |
-          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          cat > app/src/main/res/layout/activity_main.xml << 'XMLEOF'
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -234,253 +161,103 @@ EOF
         android:orientation="vertical"
         android:padding="16dp"
         android:background="@color/primary">
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="PDF Reader"
-            android:textColor="@color/white"
-            android:textSize="20sp"
-            android:textStyle="bold"/>
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/creator"
-            android:textColor="#BBDEFB"
-            android:textSize="12sp"/>
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/department"
-            android:textColor="#BBDEFB"
-            android:textSize="11sp"/>
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/email"
-            android:textColor="#BBDEFB"
-            android:textSize="11sp"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="PDF Reader" android:textColor="@color/white" android:textSize="20sp" android:textStyle="bold"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="@string/creator" android:textColor="#BBDEFB" android:textSize="12sp"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="@string/department" android:textColor="#BBDEFB" android:textSize="11sp"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="@string/email" android:textColor="#BBDEFB" android:textSize="11sp"/>
     </LinearLayout>
-    <Button
-        android:id="@+id/btn_open"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:text="Open PDF File"
-        android:backgroundTint="@color/primary"
-        android:textColor="@color/white"/>
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="16dp"
-        android:text="Recent Files"
-        android:textSize="16sp"
-        android:textStyle="bold"/>
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rv_recent"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:padding="8dp"/>
+    <Button android:id="@+id/btn_open" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_margin="16dp"
+        android:text="Open PDF File" android:backgroundTint="@color/primary" android:textColor="@color/white"/>
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:padding="16dp" android:text="Recent Files" android:textSize="16sp" android:textStyle="bold"/>
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/rv_recent"
+        android:layout_width="match_parent" android:layout_height="match_parent" android:padding="8dp"/>
 </LinearLayout>
-EOF
-
-      - name: Create activity_pdf_viewer.xml
-        run: |
-          cat > app/src/main/res/layout/activity_pdf_viewer.xml << 'EOF'
+XMLEOF
+          cat > app/src/main/res/layout/activity_pdf_viewer.xml << 'XMLEOF'
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/black">
-    <com.github.barteksc.pdfviewer.PDFView
-        android:id="@+id/pdfView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
-    <com.awal.pdfreader.DrawingView
-        android:id="@+id/drawing_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone"/>
-    <LinearLayout
-        android:id="@+id/toolbar_layout"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="#CC1565C0"
-        android:padding="4dp"
-        android:gravity="center_vertical">
-        <ImageButton
-            android:id="@+id/btn_back"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_media_previous"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="@color/white"
-            android:contentDescription="Back"/>
-        <TextView
-            android:id="@+id/tv_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:textColor="@color/white"
-            android:textSize="13sp"
-            android:maxLines="1"
-            android:ellipsize="end"/>
-        <ImageButton
-            android:id="@+id/btn_rotate"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_rotate"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="@color/white"
-            android:contentDescription="Rotate"/>
-        <ImageButton
-            android:id="@+id/btn_draw"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_edit"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="@color/white"
-            android:contentDescription="Draw"/>
-        <ImageButton
-            android:id="@+id/btn_mode"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_gallery"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="@color/white"
-            android:contentDescription="Mode"/>
+    android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/black">
+    <com.github.barteksc.pdfviewer.PDFView android:id="@+id/pdfView"
+        android:layout_width="match_parent" android:layout_height="match_parent"/>
+    <com.awal.pdfreader.DrawingView android:id="@+id/drawing_view"
+        android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone"/>
+    <LinearLayout android:id="@+id/toolbar_layout" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:orientation="horizontal"
+        android:background="#CC1565C0" android:padding="4dp" android:gravity="center_vertical">
+        <ImageButton android:id="@+id/btn_back" android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@android:drawable/ic_media_previous" android:tint="@color/white"
+            android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="Back"/>
+        <TextView android:id="@+id/tv_title" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:gravity="center" android:textColor="@color/white"
+            android:textSize="13sp" android:maxLines="1" android:ellipsize="end"/>
+        <ImageButton android:id="@+id/btn_rotate" android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_rotate" android:tint="@color/white"
+            android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="Rotate"/>
+        <ImageButton android:id="@+id/btn_draw" android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_edit" android:tint="@color/white"
+            android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="Draw"/>
+        <ImageButton android:id="@+id/btn_mode" android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_gallery" android:tint="@color/white"
+            android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="Mode"/>
     </LinearLayout>
-    <LinearLayout
-        android:id="@+id/bottom_bar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:orientation="horizontal"
-        android:background="#CC000000"
-        android:padding="8dp"
-        android:gravity="center_vertical">
-        <ImageButton
-            android:id="@+id/btn_prev"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_media_rew"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="@color/white"
-            android:contentDescription="Prev"/>
-        <SeekBar
-            android:id="@+id/seekbar_page"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginLeft="8dp"
-            android:layout_marginRight="8dp"/>
-        <ImageButton
-            android:id="@+id/btn_next"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/ic_media_ff"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="@color/white"
-            android:contentDescription="Next"/>
-        <TextView
-            android:id="@+id/tv_page"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="@color/white"
-            android:textSize="12sp"
-            android:layout_marginLeft="8dp"
-            android:minWidth="60dp"/>
+    <LinearLayout android:id="@+id/bottom_bar" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:layout_gravity="bottom"
+        android:orientation="horizontal" android:background="#CC000000" android:padding="8dp" android:gravity="center_vertical">
+        <ImageButton android:id="@+id/btn_prev" android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@android:drawable/ic_media_rew" android:tint="@color/white"
+            android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="Prev"/>
+        <SeekBar android:id="@+id/seekbar_page" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginLeft="8dp" android:layout_marginRight="8dp"/>
+        <ImageButton android:id="@+id/btn_next" android:layout_width="40dp" android:layout_height="40dp"
+            android:src="@android:drawable/ic_media_ff" android:tint="@color/white"
+            android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="Next"/>
+        <TextView android:id="@+id/tv_page" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textColor="@color/white" android:textSize="12sp" android:layout_marginLeft="8dp" android:minWidth="60dp"/>
     </LinearLayout>
-    <LinearLayout
-        android:id="@+id/side_toggle"
-        android:layout_width="36dp"
-        android:layout_height="wrap_content"
-        android:layout_gravity="end|center_vertical"
-        android:orientation="vertical"
-        android:background="#CC000000"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:gravity="center">
-        <ImageButton
-            android:id="@+id/btn_fast_up"
-            android:layout_width="34dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/arrow_up_float"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="@color/white"
-            android:contentDescription="Fast Up"/>
-        <ImageButton
-            android:id="@+id/btn_fast_down"
-            android:layout_width="34dp"
-            android:layout_height="40dp"
-            android:src="@android:drawable/arrow_down_float"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="@color/white"
-            android:contentDescription="Fast Down"/>
+    <LinearLayout android:id="@+id/side_toggle" android:layout_width="36dp" android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical" android:orientation="vertical"
+        android:background="#CC000000" android:paddingTop="8dp" android:paddingBottom="8dp" android:gravity="center">
+        <ImageButton android:id="@+id/btn_fast_up" android:layout_width="34dp" android:layout_height="40dp"
+            android:src="@android:drawable/arrow_up_float" android:tint="@color/white"
+            android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="Up"/>
+        <ImageButton android:id="@+id/btn_fast_down" android:layout_width="34dp" android:layout_height="40dp"
+            android:src="@android:drawable/arrow_down_float" android:tint="@color/white"
+            android:background="?attr/selectableItemBackgroundBorderless" android:contentDescription="Down"/>
     </LinearLayout>
-    <ProgressBar
-        android:id="@+id/progress_bar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:visibility="gone"/>
+    <ProgressBar android:id="@+id/progress_bar" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:layout_gravity="center" android:visibility="gone"/>
 </FrameLayout>
-EOF
-
-      - name: Create item_recent.xml
-        run: |
-          cat > app/src/main/res/layout/item_recent.xml << 'EOF'
+XMLEOF
+          cat > app/src/main/res/layout/item_recent.xml << 'XMLEOF'
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:padding="12dp"
-    android:gravity="center_vertical"
-    android:background="@color/white"
-    android:layout_marginBottom="2dp">
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical">
-        <TextView
-            android:id="@+id/tv_name"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:maxLines="1"
-            android:ellipsize="end"/>
-        <TextView
-            android:id="@+id/tv_path"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="11sp"
-            android:textColor="@color/gray"
-            android:maxLines="1"
-            android:ellipsize="start"/>
-        <TextView
-            android:id="@+id/tv_page_info"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="11sp"
-            android:textColor="@color/gray"/>
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:orientation="horizontal" android:padding="12dp" android:gravity="center_vertical"
+    android:background="@color/white" android:layout_marginBottom="2dp">
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_weight="1" android:orientation="vertical">
+        <TextView android:id="@+id/tv_name" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="14sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end"/>
+        <TextView android:id="@+id/tv_path" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="11sp" android:textColor="@color/gray" android:maxLines="1" android:ellipsize="start"/>
+        <TextView android:id="@+id/tv_page_info" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textSize="11sp" android:textColor="@color/gray"/>
     </LinearLayout>
-    <ImageButton
-        android:id="@+id/btn_delete"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:src="@android:drawable/ic_menu_delete"
-        android:background="?attr/selectableItemBackgroundBorderless"
+    <ImageButton android:id="@+id/btn_delete" android:layout_width="32dp" android:layout_height="32dp"
+        android:src="@android:drawable/ic_menu_delete" android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Delete"/>
 </LinearLayout>
-EOF
+XMLEOF
 
-      - name: Create RecentFile.java
+      - name: Create Java sources
         run: |
-          cat > app/src/main/java/com/awal/pdfreader/RecentFile.java << 'EOF'
+          cat > app/src/main/java/com/awal/pdfreader/RecentFile.java << 'JAVAEOF'
 package com.awal.pdfreader;
 public class RecentFile {
     public String path, name;
@@ -491,11 +268,8 @@ public class RecentFile {
         this.lastPage = lastPage; this.lastOpened = lastOpened;
     }
 }
-EOF
-
-      - name: Create RecentFilesManager.java
-        run: |
-          cat > app/src/main/java/com/awal/pdfreader/RecentFilesManager.java << 'EOF'
+JAVAEOF
+          cat > app/src/main/java/com/awal/pdfreader/RecentFilesManager.java << 'JAVAEOF'
 package com.awal.pdfreader;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -552,11 +326,8 @@ public class RecentFilesManager {
         return 0;
     }
 }
-EOF
-
-      - name: Create DrawingView.java
-        run: |
-          cat > app/src/main/java/com/awal/pdfreader/DrawingView.java << 'EOF'
+JAVAEOF
+          cat > app/src/main/java/com/awal/pdfreader/DrawingView.java << 'JAVAEOF'
 package com.awal.pdfreader;
 import android.content.Context;
 import android.graphics.*;
@@ -588,28 +359,19 @@ public class DrawingView extends View {
         if (e.getPointerCount() > 1) return false;
         switch (e.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                currentPath = new Path();
-                currentPath.moveTo(e.getX(), e.getY());
-                break;
+                currentPath = new Path(); currentPath.moveTo(e.getX(), e.getY()); break;
             case MotionEvent.ACTION_MOVE:
-                currentPath.lineTo(e.getX(), e.getY());
-                break;
+                currentPath.lineTo(e.getX(), e.getY()); break;
             case MotionEvent.ACTION_UP:
-                paths.add(currentPath);
-                paints.add(new Paint(paint));
-                break;
+                paths.add(currentPath); paints.add(new Paint(paint)); break;
         }
         invalidate();
         return true;
     }
-    public void setPaintColor(int color) { paint.setColor(color); }
     public void clear() { paths.clear(); paints.clear(); currentPath = new Path(); invalidate(); }
 }
-EOF
-
-      - name: Create RecentAdapter.java
-        run: |
-          cat > app/src/main/java/com/awal/pdfreader/RecentAdapter.java << 'EOF'
+JAVAEOF
+          cat > app/src/main/java/com/awal/pdfreader/RecentAdapter.java << 'JAVAEOF'
 package com.awal.pdfreader;
 import android.view.*;
 import android.widget.*;
@@ -648,18 +410,13 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.VH> {
         TextView name, path, pageInfo; ImageButton delete;
         VH(View v) {
             super(v);
-            name = v.findViewById(R.id.tv_name);
-            path = v.findViewById(R.id.tv_path);
-            pageInfo = v.findViewById(R.id.tv_page_info);
-            delete = v.findViewById(R.id.btn_delete);
+            name = v.findViewById(R.id.tv_name); path = v.findViewById(R.id.tv_path);
+            pageInfo = v.findViewById(R.id.tv_page_info); delete = v.findViewById(R.id.btn_delete);
         }
     }
 }
-EOF
-
-      - name: Create MainActivity.java
-        run: |
-          cat > app/src/main/java/com/awal/pdfreader/MainActivity.java << 'EOF'
+JAVAEOF
+          cat > app/src/main/java/com/awal/pdfreader/MainActivity.java << 'JAVAEOF'
 package com.awal.pdfreader;
 import android.Manifest;
 import android.content.Intent;
@@ -677,8 +434,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
 public class MainActivity extends AppCompatActivity {
-    private static final int REQ_PICK = 1001;
-    private static final int REQ_PERM = 1002;
+    private static final int REQ_PICK = 1001, REQ_PERM = 1002;
     private RecentFilesManager manager;
     private RecentAdapter adapter;
     private List<RecentFile> files;
@@ -698,9 +454,8 @@ public class MainActivity extends AppCompatActivity {
         Button btn = findViewById(R.id.btn_open);
         btn.setOnClickListener(v -> checkPermAndPick());
         Intent intent = getIntent();
-        if (Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null) {
+        if (Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null)
             openViewer(intent.getData(), getFileName(intent.getData()));
-        }
     }
     @Override
     protected void onResume() {
@@ -711,8 +466,7 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { pickPdf(); return; }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
             == PackageManager.PERMISSION_GRANTED) { pickPdf(); return; }
-        ActivityCompat.requestPermissions(this,
-            new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_PERM);
+        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_PERM);
     }
     @Override
     public void onRequestPermissionsResult(int req, String[] perms, int[] results) {
@@ -721,8 +475,7 @@ public class MainActivity extends AppCompatActivity {
     }
     private void pickPdf() {
         Intent i = new Intent(Intent.ACTION_GET_CONTENT);
-        i.setType("application/pdf");
-        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("application/pdf"); i.addCategory(Intent.CATEGORY_OPENABLE);
         startActivityForResult(Intent.createChooser(i, "Select PDF"), REQ_PICK);
     }
     @Override
@@ -733,8 +486,7 @@ public class MainActivity extends AppCompatActivity {
     }
     private void openViewer(Uri uri, String name) {
         Intent i = new Intent(this, PdfViewerActivity.class);
-        i.putExtra("uri", uri.toString()); i.putExtra("name", name);
-        startActivity(i);
+        i.putExtra("uri", uri.toString()); i.putExtra("name", name); startActivity(i);
     }
     private String getFileName(Uri uri) {
         String name = "document.pdf";
@@ -747,11 +499,8 @@ public class MainActivity extends AppCompatActivity {
         return name;
     }
 }
-EOF
-
-      - name: Create PdfViewerActivity.java
-        run: |
-          cat > app/src/main/java/com/awal/pdfreader/PdfViewerActivity.java << 'EOF'
+JAVAEOF
+          cat > app/src/main/java/com/awal/pdfreader/PdfViewerActivity.java << 'JAVAEOF'
 package com.awal.pdfreader;
 import android.app.AlertDialog;
 import android.content.Intent;
@@ -774,11 +523,8 @@ public class PdfViewerActivity extends AppCompatActivity {
     private String uriStr, fileName;
     private int currentPage = 0, totalPages = 0, rotation = 0, currentMode = 0;
     private boolean drawMode = false;
-    private static final int[] BG = {
-        Color.WHITE, Color.parseColor("#121212"),
-        Color.parseColor("#F5E6C8"), Color.parseColor("#0A1628"),
-        Color.parseColor("#0D2B0D")
-    };
+    private static final int[] BG = {Color.WHITE, Color.parseColor("#121212"),
+        Color.parseColor("#F5E6C8"), Color.parseColor("#0A1628"), Color.parseColor("#0D2B0D")};
     private static final String[] MODES = {"Day","Dark","Sepia","Night Blue","Green"};
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -809,30 +555,16 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void loadPdf() {
         progressBar.setVisibility(View.VISIBLE);
         pdfView.fromUri(Uri.parse(uriStr))
-            .defaultPage(currentPage)
-            .enableSwipe(true)
-            .swipeHorizontal(false)
-            .enableDoubletap(true)
-            .onLoad(n -> {
-                totalPages = n;
-                progressBar.setVisibility(View.GONE);
-                seekbar.setMax(Math.max(0, n - 1));
-                seekbar.setProgress(currentPage);
-                updatePage();
-            })
-            .onPageChange((p, total) -> {
-                currentPage = p; totalPages = total;
-                seekbar.setProgress(p); updatePage();
-                manager.addOrUpdate(uriStr, fileName, p);
-            })
-            .onError(t -> {
-                progressBar.setVisibility(View.GONE);
-                Toast.makeText(this, "Error: " + t.getMessage(), Toast.LENGTH_LONG).show();
-            })
+            .defaultPage(currentPage).enableSwipe(true).swipeHorizontal(false).enableDoubletap(true)
+            .onLoad(n -> { totalPages = n; progressBar.setVisibility(View.GONE);
+                seekbar.setMax(Math.max(0, n - 1)); seekbar.setProgress(currentPage); updatePage(); })
+            .onPageChange((p, total) -> { currentPage = p; totalPages = total;
+                seekbar.setProgress(p); updatePage(); manager.addOrUpdate(uriStr, fileName, p); })
+            .onError(t -> { progressBar.setVisibility(View.GONE);
+                Toast.makeText(this, "Error: " + t.getMessage(), Toast.LENGTH_LONG).show(); })
             .enableAnnotationRendering(true)
             .scrollHandle(new DefaultScrollHandle(this))
-            .spacing(4)
-            .pageFitPolicy(FitPolicy.WIDTH)
+            .spacing(4).pageFitPolicy(FitPolicy.WIDTH)
             .nightMode(currentMode == 1 || currentMode == 3 || currentMode == 4)
             .load();
         pdfView.setBackgroundColor(BG[currentMode]);
@@ -840,33 +572,25 @@ public class PdfViewerActivity extends AppCompatActivity {
     private void setupButtons() {
         findViewById(R.id.btn_back).setOnClickListener(v -> finish());
         findViewById(R.id.btn_rotate).setOnClickListener(v -> {
-            rotation = (rotation + 90) % 360;
-            pdfView.setRotation(rotation);
-        });
+            rotation = (rotation + 90) % 360; pdfView.setRotation(rotation); });
         findViewById(R.id.btn_draw).setOnClickListener(v -> {
-            drawMode = !drawMode;
-            drawingView.setVisibility(drawMode ? View.VISIBLE : View.GONE);
-            Toast.makeText(this, drawMode ? "Draw ON" : "Draw OFF", Toast.LENGTH_SHORT).show();
-        });
+            drawMode = !drawMode; drawingView.setVisibility(drawMode ? View.VISIBLE : View.GONE);
+            Toast.makeText(this, drawMode ? "Draw ON" : "Draw OFF", Toast.LENGTH_SHORT).show(); });
         findViewById(R.id.btn_mode).setOnClickListener(v ->
             new AlertDialog.Builder(this).setTitle("Reading Mode")
                 .setSingleChoiceItems(MODES, currentMode, (d, w) -> {
-                    currentMode = w; d.dismiss(); loadPdf();
-                }).show());
+                    currentMode = w; d.dismiss(); loadPdf(); }).show());
         findViewById(R.id.btn_prev).setOnClickListener(v -> {
-            if (currentPage > 0) pdfView.jumpTo(currentPage - 1, true);
-        });
+            if (currentPage > 0) pdfView.jumpTo(currentPage - 1, true); });
         findViewById(R.id.btn_next).setOnClickListener(v -> {
-            if (currentPage < totalPages - 1) pdfView.jumpTo(currentPage + 1, true);
-        });
+            if (currentPage < totalPages - 1) pdfView.jumpTo(currentPage + 1, true); });
         findViewById(R.id.btn_fast_up).setOnClickListener(v ->
             pdfView.jumpTo(Math.max(0, currentPage - 10), true));
         findViewById(R.id.btn_fast_down).setOnClickListener(v ->
             pdfView.jumpTo(Math.min(totalPages - 1, currentPage + 10), true));
         seekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar s, int p, boolean user) {
-                if (user) pdfView.jumpTo(p, true);
-            }
+                if (user) pdfView.jumpTo(p, true); }
             @Override public void onStartTrackingTouch(SeekBar s) {}
             @Override public void onStopTrackingTouch(SeekBar s) {}
         });
@@ -878,7 +602,7 @@ public class PdfViewerActivity extends AppCompatActivity {
         if (uriStr != null) manager.addOrUpdate(uriStr, fileName, currentPage);
     }
 }
-EOF
+JAVAEOF
 
       - name: Build APK
         run: ./gradlew assembleDebug --stacktrace
