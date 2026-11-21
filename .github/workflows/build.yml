@@ -1,1428 +1,2266 @@
-name: Build Awal Keyboard APK
-
+name: Build Awal PDF Reader APK
 on:
   push:
-    branches: [main, master]
+    branches: [ main, master ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-
+      - name: Accept SDK licenses
+        run: |
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;34.0.0" > /dev/null || true
+          echo "sdk.dir=$SDK" > local.properties
       - name: Create project files
         run: |
-          mkdir -p app/src/main/java/com/awal/keyboard app/src/main/res/values app/src/main/res/xml app/src/main/res/drawable app/src/main/res/mipmap-anydpi-v26 gradle/wrapper
+          mkdir -p app/src/main/java/com/awal/pdfreader app/src/main/res/drawable app/src/main/res/values gradle/wrapper
 
-          cat > settings.gradle <<'EOF'
+          cat > settings.gradle << 'EOF'
           pluginManagement {
-           repositories {
-            google()
-            mavenCentral()
-            gradlePluginPortal()
-           }
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
           }
           dependencyResolutionManagement {
-           repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-           repositories {
-            google()
-            mavenCentral()
-           }
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
           }
-          rootProject.name = "AwalKeyboard"
+          rootProject.name = 'AwalPdfReader'
           include ':app'
           EOF
 
-          cat > build.gradle <<'EOF'
+          cat > build.gradle << 'EOF'
           plugins {
-           id 'com.android.application' version '8.5.2' apply false
+              id 'com.android.application' version '8.2.2' apply false
           }
           EOF
 
-          cat > gradle.properties <<'EOF'
-          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
-          android.nonTransitiveRClass=true
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
+          android.useAndroidX=false
           EOF
 
-          cat > gradle/wrapper/gradle-wrapper.properties <<'EOF'
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-bin.zip
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
           zipStoreBase=GRADLE_USER_HOME
           zipStorePath=wrapper/dists
           EOF
 
-          cat > app/build.gradle <<'EOF'
+          cat > app/build.gradle << 'EOF'
           plugins {
-           id 'com.android.application'
+              id 'com.android.application'
           }
           android {
-           namespace 'com.awal.keyboard'
-           compileSdk 34
-           defaultConfig {
-            applicationId 'com.awal.keyboard'
-            minSdk 26
-            targetSdk 34
-            versionCode 1
-            versionName '1.0'
-           }
-           buildTypes {
-            release {
-             minifyEnabled false
-            }
-           }
-           compileOptions {
-            sourceCompatibility JavaVersion.VERSION_17
-            targetCompatibility JavaVersion.VERSION_17
-           }
+              namespace 'com.awal.pdfreader'
+              compileSdk 34
+              defaultConfig {
+                  applicationId 'com.awal.pdfreader'
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+              packaging {
+                  resources {
+                      excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/LICENSE.txt', 'META-INF/NOTICE', 'META-INF/NOTICE.txt']
+                  }
+              }
           }
-          tasks.withType(JavaCompile).configureEach {
-           options.encoding = 'UTF-8'
+          dependencies {
+              implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+          }
+          tasks.withType(JavaCompile) {
+              options.encoding = 'UTF-8'
           }
           EOF
 
-          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-           <application
-            android:label="@string/app_name"
-            android:icon="@mipmap/ic_launcher"
-            android:allowBackup="true"
-            android:theme="@android:style/Theme.Material.Light.NoActionBar">
-            <activity android:name=".MainActivity" android:exported="true">
-             <intent-filter>
-              <action android:name="android.intent.action.MAIN"/>
-              <category android:name="android.intent.category.LAUNCHER"/>
-             </intent-filter>
-            </activity>
-            <service
-             android:name=".KeyboardService"
-             android:label="@string/app_name"
-             android:permission="android.permission.BIND_INPUT_METHOD"
-             android:exported="true">
-             <intent-filter>
-              <action android:name="android.view.InputMethod"/>
-             </intent-filter>
-             <meta-data android:name="android.view.im" android:resource="@xml/method"/>
-            </service>
-           </application>
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+              <application
+                  android:allowBackup="false"
+                  android:icon="@drawable/ic_launcher"
+                  android:label="Awal PDF Reader"
+                  android:largeHeap="true"
+                  android:theme="@style/AppTheme">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+                  <activity
+                      android:name=".ReaderActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode">
+                      <intent-filter>
+                          <action android:name="android.intent.action.VIEW" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <category android:name="android.intent.category.BROWSABLE" />
+                          <data android:scheme="content" />
+                          <data android:scheme="file" />
+                          <data android:mimeType="application/pdf" />
+                          <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.intent.action.VIEW" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <category android:name="android.intent.category.BROWSABLE" />
+                          <data android:scheme="content" />
+                          <data android:scheme="file" />
+                          <data android:host="*" />
+                          <data android:pathPattern=".*\\.pdf" />
+                          <data android:pathPattern=".*\\.PDF" />
+                          <data android:pathPattern=".*\\.docx" />
+                      </intent-filter>
+                  </activity>
+              </application>
           </manifest>
           EOF
 
-          cat > app/src/main/res/xml/method.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <input-method xmlns:android="http://schemas.android.com/apk/res/android"
-           android:settingsActivity="com.awal.keyboard.MainActivity"/>
-          EOF
-
-          cat > app/src/main/res/values/strings.xml <<'EOF'
+          cat > app/src/main/res/values/styles.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-           <string name="app_name">Awal Keyboard</string>
+              <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+                  <item name="android:windowBackground">@android:color/white</item>
+              </style>
           </resources>
           EOF
 
-          cat > app/src/main/res/drawable/ic_bg.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-           <gradient android:startColor="#1E6FD9" android:endColor="#0D47A1" android:angle="270"/>
-          </shape>
-          EOF
-
-          cat > app/src/main/res/drawable/ic_fg.xml <<'EOF'
+          cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
-           android:width="108dp"
-           android:height="108dp"
-           android:viewportWidth="108"
-           android:viewportHeight="108">
-           <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M30,40L78,40Q82,40 82,44L82,64Q82,68 78,68L30,68Q26,68 26,64L26,44Q26,40 30,40Z"/>
-           <path
-            android:fillColor="#0D47A1"
-            android:pathData="M32,45h6v5h-6z M41,45h6v5h-6z M50,45h6v5h-6z M59,45h6v5h-6z M68,45h6v5h-6z M36,53h6v5h-6z M45,53h6v5h-6z M54,53h6v5h-6z M63,53h6v5h-6z M40,61h28v4h-28z"/>
+              android:width="96dp"
+              android:height="96dp"
+              android:viewportWidth="96"
+              android:viewportHeight="96">
+              <path
+                  android:fillColor="#1F6FEB"
+                  android:pathData="M48,48m-46,0a46,46 0 1,0 92,0a46,46 0 1,0 -92,0" />
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M30,18h26l14,14v46a4,4 0 0,1 -4,4h-32a4,4 0 0,1 -4,-4v-56a4,4 0 0,1 4,-4z" />
+              <path
+                  android:fillColor="#BBD3FA"
+                  android:pathData="M56,18v14h14z" />
+              <path
+                  android:fillColor="#00000000"
+                  android:strokeColor="#1F6FEB"
+                  android:strokeWidth="3"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:pathData="M40,48L48,28L56,48M43,41L53,41" />
+              <path
+                  android:fillColor="#E53935"
+                  android:pathData="M30,60h40v12h-40z" />
           </vector>
           EOF
 
-          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-           <background android:drawable="@drawable/ic_bg"/>
-           <foreground android:drawable="@drawable/ic_fg"/>
-          </adaptive-icon>
-          EOF
-
-          cat > app/src/main/java/com/awal/keyboard/Themes.java <<'EOF'
-          package com.awal.keyboard;
-
-          public class Themes {
-           public static final String[] N = {"Light","Sky","Crimson","Rose","Peach","Forest","Teal","Mint","Blue","Indigo","Purple","Lavender","Slate","Midnight","Charcoal","AMOLED","Sunset","Coffee","Sand","Pearl"};
-           public static final int[][] C = {
-            {0xFFE9EBF0,0xFFE9EBF0,0xFFFFFFFF,0xFF1C1C1E,0xFFD3D7DF,0xFF1A73E8,0xFF8A8F98},
-            {0xFFA9C4F5,0xFFF0C4F2,0xE6FFFFFF,0xFF222244,0x88FFFFFF,0xFF4DA3FF,0xFF666688},
-            {0xFFB01E24,0xFF780A3C,0x33FFFFFF,0xFFFFFFFF,0x22FFFFFF,0xFFE53935,0xCCFFFFFF},
-            {0xFFF3B6CC,0xFFEA8DB0,0x77FFFFFF,0xFF4A1530,0x44FFFFFF,0xFFFF6B9A,0xFF7A3550},
-            {0xFFFFC09A,0xFFFF7FA0,0x66FFFFFF,0xFF4A1F1F,0x33FFFFFF,0xFFFF5C8A,0xFF7A3F3F},
-            {0xFF2E7D32,0xFF1B5E20,0x33FFFFFF,0xFFFFFFFF,0x22FFFFFF,0xFF4CAF50,0xCCFFFFFF},
-            {0xFF00796B,0xFF004D40,0x33FFFFFF,0xFFFFFFFF,0x22FFFFFF,0xFF00BFA5,0xCCFFFFFF},
-            {0xFFA8EBD3,0xFF5BA8C4,0x88FFFFFF,0xFF12384A,0x44FFFFFF,0xFF26A69A,0xFF2E6070},
-            {0xFF1E6FD9,0xFF0D47A1,0x33FFFFFF,0xFFFFFFFF,0x22FFFFFF,0xFF29B6F6,0xCCFFFFFF},
-            {0xFF283593,0xFF1A237E,0x33FFFFFF,0xFFFFFFFF,0x22FFFFFF,0xFF5C6BC0,0xCCFFFFFF},
-            {0xFF6A1B9A,0xFF4A148C,0x33FFFFFF,0xFFFFFFFF,0x22FFFFFF,0xFF29B6F6,0xCCFFFFFF},
-            {0xFFDCC8F7,0xFF9FC4F8,0x88FFFFFF,0xFF2B2250,0x44FFFFFF,0xFF5AA9FF,0xFF5A4F80},
-            {0xFF455A64,0xFF263238,0x2EFFFFFF,0xFFFFFFFF,0x1AFFFFFF,0xFF78909C,0xCCFFFFFF},
-            {0xFF1B1535,0xFF0B2A44,0x26FFFFFF,0xFFFFFFFF,0x16FFFFFF,0xFF3F5FA8,0xCCFFFFFF},
-            {0xFF3A3A3A,0xFF222222,0x2EFFFFFF,0xFFFFFFFF,0x1AFFFFFF,0xFF2F4B7C,0xCCFFFFFF},
-            {0xFF000000,0xFF000000,0xFF1B1B1B,0xFFEEEEEE,0xFF101010,0xFF5B8DEF,0xFF888888},
-            {0xFF1F1560,0xFFB03A9E,0x2EFFFFFF,0xFFFFFFFF,0x1AFFFFFF,0xFFEC407A,0xCCFFFFFF},
-            {0xFF5D4037,0xFF3E2723,0x2EFFFFFF,0xFFFFFFFF,0x1AFFFFFF,0xFFD7803F,0xCCFFFFFF},
-            {0xFFF5E6C8,0xFFEBD3A8,0xAAFFFFFF,0xFF4A3B1E,0x66FFFFFF,0xFFD08A3C,0xFF7A6A44},
-            {0xFFFFFFFF,0xFFF2F2F5,0xFFF1F2F6,0xFF111111,0xFFE1E3EA,0xFF2962FF,0xFF888888}
-           };
-          }
-          EOF
-
-          cat > app/src/main/java/com/awal/keyboard/Avro.java <<'EOF'
-          package com.awal.keyboard;
-
-          import java.util.*;
-
-          public class Avro {
-           static final HashMap<String,String> CJ = new HashMap<>(), CN = new HashMap<>();
-           static final HashMap<String,String[]> VW = new HashMap<>();
-           static String[] kc, kn, kv;
-
-           static void cj(String... a) { for (int i = 0; i + 1 < a.length; i += 2) CJ.put(a[i], a[i + 1]); }
-           static void cn(String... a) { for (int i = 0; i + 1 < a.length; i += 2) CN.put(a[i], a[i + 1]); }
-           static void vw(String k, String a, String b) { VW.put(k, new String[]{a, b}); }
-           static String[] srt(Set<String> s) {
-            String[] a = s.toArray(new String[0]);
-            Arrays.sort(a, (x, y) -> y.length() - x.length());
-            return a;
-           }
-
-           static {
-            cj("gg","জ্ঞ","GG","জ্ঞ","ksh","ক্ষ","kkh","ক্ষ","kSh","ক্ষ","kshm","ক্ষ্ম","kt","ক্ত","kk","ক্ক","kl","ক্ল","ks","ক্স","kT","ক্ট");
-            cj("gn","গ্ন","gdh","গ্ধ","gm","গ্ম","gl","গ্ল","ngk","ঙ্ক","ngkh","ঙ্খ","ngg","ঙ্গ","nggh","ঙ্ঘ","ngm","ঙ্ম");
-            cj("cch","চ্ছ","cc","চ্চ","jj","জ্জ","jjh","জ্ঝ","NGc","ঞ্চ","NGch","ঞ্ছ","NGj","ঞ্জ");
-            cj("TT","ট্ট","DD","ড্ড","NT","ণ্ট","ND","ণ্ড","NN","ণ্ণ","NTh","ণ্ঠ","NDh","ণ্ঢ","Nm","ণ্ম");
-            cj("tt","ত্ত","tth","ত্থ","tn","ত্ন","tm","ত্ম","dd","দ্দ","ddh","দ্ধ","db","দ্ব","dbh","দ্ভ","dm","দ্ম","dg","দ্গ","dgh","দ্ঘ","dhn","ধ্ন","dhm","ধ্ম");
-            cj("nt","ন্ত","nth","ন্থ","nd","ন্দ","ndh","ন্ধ","nn","ন্ন","ns","ন্স","nm","ন্ম","nj","ন্জ","nc","ন্চ","nch","ন্ছ");
-            cj("pt","প্ত","pp","প্প","pl","প্ল","ps","প্স","pn","প্ন","bj","ব্জ","bd","ব্দ","bdh","ব্ধ","bb","ব্ব","bl","ব্ল");
-            cj("mp","ম্প","mph","ম্ফ","mb","ম্ব","mbh","ম্ভ","mm","ম্ম","ml","ম্ল","mn","ম্ন");
-            cj("lk","ল্ক","lg","ল্গ","lT","ল্ট","lp","ল্প","lph","ল্ফ","lb","ল্ব","lm","ল্ম","ll","ল্ল","ld","ল্দ");
-            cj("shc","শ্চ","shch","শ্ছ","shn","শ্ন","shm","শ্ম","shl","শ্ল","sht","শ্ত","shth","শ্থ","shb","শ্ব");
-            cj("ShT","ষ্ট","ShTh","ষ্ঠ","ShN","ষ্ণ","Shk","ষ্ক","Shp","ষ্প","Shph","ষ্ফ","Shm","ষ্ম");
-            cj("sk","স্ক","skh","স্খ","st","স্ত","sth","স্থ","sn","স্ন","sp","স্প","sph","স্ফ","sm","স্ম","sl","স্ল","ss","স্স","sT","স্ট");
-            cj("hn","হ্ন","hm","হ্ম","hl","হ্ল");
-            cn("Ng","ঙ","NG","ঞ","kh","খ","gh","ঘ","ch","ছ","jh","ঝ","Th","ঠ","Dh","ঢ","th","থ","dh","ধ","ph","ফ","bh","ভ","sh","শ","Sh","ষ","Rh","ঢ়","ng","ং");
-            cn("k","ক","g","গ","c","চ","j","জ","T","ট","D","ড","N","ণ","t","ত","d","দ","n","ন","p","প","f","ফ","b","ব","v","ভ","m","ম","z","য","r","র","l","ল","s","স","h","হ");
-            cn("R","ড়","y","য়","Y","য়","w","ওয়","q","ক","x","ক্স","J","জ","Z","্য","S","শ");
-            vw("rri","ঋ","ৃ"); vw("OI","ঐ","ৈ"); vw("OU","ঔ","ৌ"); vw("ii","ঈ","ী"); vw("uu","ঊ","ূ");
-            vw("o","অ",""); vw("O","ও","ো"); vw("a","আ","া"); vw("i","ই","ি"); vw("I","ঈ","ী");
-            vw("u","উ","ু"); vw("U","ঊ","ূ"); vw("e","এ","ে");
-            kc = srt(CJ.keySet()); kn = srt(CN.keySet()); kv = srt(VW.keySet());
-           }
-
-           static String mt(String[] keys, String s, int i) {
-            for (String k : keys) if (s.startsWith(k, i)) return k;
-            return null;
-           }
-
-           static String conv(String s) {
-            StringBuilder o = new StringBuilder();
-            boolean ac = false;
-            int u = 0, i = 0;
-            while (i < s.length()) {
-             String m = mt(kc, s, i);
-             if (m != null) { o.append(CJ.get(m)); i += m.length(); ac = true; u += 2; continue; }
-             m = mt(kv, s, i);
-             if (m != null) {
-              String[] v = VW.get(m);
-              i += m.length();
-              if (ac) {
-               if (m.equals("o") && i == s.length() && u >= 2) o.append("ো");
-               else o.append(v[1]);
-              } else o.append(v[0]);
-              ac = false; u++; continue;
-             }
-             if (s.startsWith("rr", i)) { o.append("র্"); i += 2; ac = false; u++; continue; }
-             m = mt(kn, s, i);
-             if (m != null) {
-              i += m.length();
-              if (ac && m.equals("r")) o.append("্র");
-              else if (ac && (m.equals("y") || m.equals("Z"))) o.append("্য");
-              else if (ac && m.equals("w")) o.append("্ব");
-              else { o.append(CN.get(m)); ac = !m.equals("ng"); }
-              u++; continue;
-             }
-             char ch = s.charAt(i);
-             if (Character.isUpperCase(ch)) {
-              s = s.substring(0, i) + Character.toLowerCase(ch) + s.substring(i + 1);
-              continue;
-             }
-             o.append(ch); i++; ac = false; u++;
-            }
-            return o.toString();
-           }
-          }
-          EOF
-
-          cat > app/src/main/java/com/awal/keyboard/Suggest.java <<'EOF'
-          package com.awal.keyboard;
+          cat > app/src/main/java/com/awal/pdfreader/Store.java << 'EOF'
+          package com.awal.pdfreader;
 
           import android.content.Context;
-          import java.io.*;
-          import java.util.*;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+          import java.io.ByteArrayOutputStream;
+          import java.io.File;
+          import java.io.FileInputStream;
+          import java.io.FileOutputStream;
+          import java.io.IOException;
+          import java.security.MessageDigest;
+          import java.util.ArrayList;
+          import java.util.Arrays;
 
-          public class Suggest {
-           HashMap<String,Integer> u = new HashMap<>();
-           HashMap<String,HashMap<String,Integer>> b = new HashMap<>(), t = new HashMap<>();
-           File f;
-           int dirty;
+          public class Store {
+              public static class Stroke {
+                  public int page, color, n;
+                  public float w;
+                  public float[] p = new float[32];
 
-           Suggest(Context c) {
-            f = new File(c.getFilesDir(), "dict.txt");
-            load();
-            if (u.isEmpty()) seed();
-           }
-
-           static void inc(HashMap<String,Integer> m, String k, int n) {
-            Integer v = m.get(k);
-            m.put(k, v == null ? n : v + n);
-           }
-
-           void learn(String p2, String p1, String w) {
-            inc(u, w, 3);
-            if (p1 != null) {
-             inc(b.computeIfAbsent(p1, x -> new HashMap<>()), w, 1);
-             if (p2 != null) inc(t.computeIfAbsent(p2 + "\u0001" + p1, x -> new HashMap<>()), w, 1);
-            }
-            if (++dirty >= 20) {
-             if (u.size() > 15000) prune();
-             save();
-            }
-           }
-
-           void prune() {
-            Iterator<Map.Entry<String,Integer>> it = u.entrySet().iterator();
-            while (it.hasNext()) if (it.next().getValue() <= 3) it.remove();
-            for (HashMap<String,HashMap<String,Integer>> m : Arrays.asList(b, t)) {
-             Iterator<Map.Entry<String,HashMap<String,Integer>>> i2 = m.entrySet().iterator();
-             while (i2.hasNext()) {
-              HashMap<String,Integer> in = i2.next().getValue();
-              Iterator<Map.Entry<String,Integer>> i3 = in.entrySet().iterator();
-              while (i3.hasNext()) if (i3.next().getValue() <= 1) i3.remove();
-              if (in.isEmpty()) i2.remove();
-             }
-            }
-           }
-
-           void save() {
-            try {
-             File tmp = new File(f.getPath() + ".tmp");
-             BufferedWriter w = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(tmp), "UTF-8"));
-             for (Map.Entry<String,Integer> e : u.entrySet()) w.write("u\t" + e.getKey() + "\t" + e.getValue() + "\n");
-             for (Map.Entry<String,HashMap<String,Integer>> e : b.entrySet())
-              for (Map.Entry<String,Integer> g : e.getValue().entrySet())
-               w.write("b\t" + e.getKey() + "\t" + g.getKey() + "\t" + g.getValue() + "\n");
-             for (Map.Entry<String,HashMap<String,Integer>> e : t.entrySet())
-              for (Map.Entry<String,Integer> g : e.getValue().entrySet())
-               w.write("t\t" + e.getKey().replace('\u0001', '\t') + "\t" + g.getKey() + "\t" + g.getValue() + "\n");
-             w.close();
-             tmp.renameTo(f);
-             dirty = 0;
-            } catch (Exception e) { }
-           }
-
-           void load() {
-            try {
-             if (!f.exists()) return;
-             BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(f), "UTF-8"));
-             String line;
-             while ((line = r.readLine()) != null) {
-              String[] p = line.split("\t");
-              try {
-               if (p[0].equals("u") && p.length == 3) u.put(p[1], Integer.parseInt(p[2]));
-               else if (p[0].equals("b") && p.length == 4) inc(b.computeIfAbsent(p[1], x -> new HashMap<>()), p[2], Integer.parseInt(p[3]));
-               else if (p[0].equals("t") && p.length == 5) inc(t.computeIfAbsent(p[1] + "\u0001" + p[2], x -> new HashMap<>()), p[3], Integer.parseInt(p[4]));
-              } catch (NumberFormatException e) { }
-             }
-             r.close();
-            } catch (Exception e) { }
-           }
-
-           void pair(String p, String w) { inc(b.computeIfAbsent(p, x -> new HashMap<>()), w, 2); }
-
-           void seed() {
-            String[] en = {"the","and","you","that","for","are","with","this","have","what","how","your","not","but","can","will","hello","thanks","thank","please","good","morning","night","okay","where","when","why","who","love","friend","going","coming","today","tomorrow","yesterday","bro","sorry","welcome","yes","no","time","home","work","know","see","call","message","tell","come","now"};
-            String[] bn = {"আমি","তুমি","আপনি","কেমন","আছো","আছি","ভালো","আছেন","আজ","কাল","না","হ্যাঁ","কি","কী","কেন","কোথায়","কখন","কে","এখন","তারপর","ঠিক","আছে","হবে","যাবো","আসবো","করছি","করো","খেয়েছো","ধন্যবাদ","সালাম","আসসালামু","আলাইকুম","ওয়ালাইকুম","বন্ধু","ভাই","আপু","বাসা","বাড়ি","কাজ","সময়","দেখা","কথা","বলো","বলছি","পারবো","পারছি","নাই","আমার","তোমার","তোর","আমাকে","তোমাকে","অনেক","একটু","সুন্দর","মন","ভালোবাসি","শুভ","সকাল","রাত","সন্ধ্যা"};
-            for (String w : en) inc(u, w, 1);
-            for (String w : bn) inc(u, w, 1);
-            pair("thank", "you"); pair("how", "are"); pair("are", "you"); pair("good", "morning"); pair("good", "night");
-            pair("আসসালামু", "আলাইকুম"); pair("কেমন", "আছো"); pair("কেমন", "আছেন"); pair("আমি", "ভালো"); pair("ভালো", "আছি");
-           }
-
-           static String cap(String w, String pre) {
-            if (!pre.isEmpty() && !w.isEmpty() && Character.isUpperCase(pre.charAt(0)))
-             return Character.toUpperCase(w.charAt(0)) + w.substring(1);
-            return w;
-           }
-
-           List<String> suggest(String pre, String p1, String p2) {
-            String lp = pre.toLowerCase(Locale.ROOT);
-            HashMap<String,Integer> sc = new HashMap<>();
-            HashMap<String,Integer> bb = p1 == null ? null : b.get(p1);
-            HashMap<String,Integer> tt = (p1 == null || p2 == null) ? null : t.get(p2 + "\u0001" + p1);
-            if (lp.isEmpty()) {
-             if (tt != null) for (Map.Entry<String,Integer> e : tt.entrySet()) inc(sc, e.getKey(), e.getValue() * 30);
-             if (bb != null) for (Map.Entry<String,Integer> e : bb.entrySet()) inc(sc, e.getKey(), e.getValue() * 8);
-            } else {
-             for (Map.Entry<String,Integer> e : u.entrySet()) {
-              String w = e.getKey();
-              if (w.startsWith(lp) && !w.equals(lp)) {
-               int s = e.getValue();
-               if (bb != null && bb.containsKey(w)) s += bb.get(w) * 8;
-               if (tt != null && tt.containsKey(w)) s += tt.get(w) * 30;
-               sc.put(w, s);
+                  public void add(float x, float y) {
+                      if (n + 2 > p.length) p = Arrays.copyOf(p, p.length * 2);
+                      p[n++] = x;
+                      p[n++] = y;
+                  }
               }
-             }
-            }
-            ArrayList<Map.Entry<String,Integer>> l = new ArrayList<>(sc.entrySet());
-            Collections.sort(l, (x, y) -> y.getValue() - x.getValue());
-            ArrayList<String> r = new ArrayList<>();
-            for (Map.Entry<String,Integer> e : l) if (r.size() < 4) r.add(cap(e.getKey(), pre));
-            if (lp.isEmpty() && r.size() < 4) {
-             int need = 4 - r.size();
-             ArrayList<String> top = new ArrayList<>();
-             for (Map.Entry<String,Integer> e : u.entrySet()) {
-              if (r.contains(e.getKey())) continue;
-              int i = 0;
-              while (i < top.size() && u.get(top.get(i)) >= e.getValue()) i++;
-              if (i < need) {
-               top.add(i, e.getKey());
-               if (top.size() > need) top.remove(top.size() - 1);
+
+              public static class Txt {
+                  public int page, color;
+                  public float x, y, size;
+                  public String t;
               }
-             }
-             r.addAll(top);
-            }
-            if (r.isEmpty() && !pre.isEmpty()) r.add(pre);
-            return r;
-           }
+
+              public static class Doc {
+                  public String key, name, uri;
+                  public int page, rot, mode, pages;
+                  public float frac, zoom = 1f, txn;
+                  public ArrayList<Integer> marks = new ArrayList<>();
+                  public ArrayList<Stroke> strokes = new ArrayList<>();
+                  public ArrayList<Txt> texts = new ArrayList<>();
+              }
+
+              public static class Entry {
+                  public String key, name, uri;
+                  public int page, pages;
+                  public long time;
+              }
+
+              static final int MAX = 100;
+
+              static File dir(Context c) {
+                  File d = new File(c.getFilesDir(), "docs");
+                  d.mkdirs();
+                  return d;
+              }
+
+              public static String hash(String s) {
+                  try {
+                      byte[] b = MessageDigest.getInstance("SHA-1").digest(s.getBytes("UTF-8"));
+                      StringBuilder sb = new StringBuilder();
+                      for (byte x : b) sb.append(String.format("%02x", x));
+                      return sb.toString();
+                  } catch (Exception e) {
+                      return Integer.toHexString(s.hashCode());
+                  }
+              }
+
+              static String read(File f) throws IOException {
+                  FileInputStream in = new FileInputStream(f);
+                  try {
+                      ByteArrayOutputStream o = new ByteArrayOutputStream();
+                      byte[] buf = new byte[8192];
+                      int r;
+                      while ((r = in.read(buf)) > 0) o.write(buf, 0, r);
+                      return o.toString("UTF-8");
+                  } finally {
+                      in.close();
+                  }
+              }
+
+              static void write(File f, String s) throws IOException {
+                  File t = new File(f.getPath() + ".tmp");
+                  FileOutputStream o = new FileOutputStream(t);
+                  try {
+                      o.write(s.getBytes("UTF-8"));
+                  } finally {
+                      o.close();
+                  }
+                  if (!t.renameTo(f)) {
+                      f.delete();
+                      t.renameTo(f);
+                  }
+              }
+
+              static JSONArray index(Context c) {
+                  try {
+                      File f = new File(dir(c), "index.json");
+                      if (f.exists()) return new JSONArray(read(f));
+                  } catch (Exception e) {
+                  }
+                  return new JSONArray();
+              }
+
+              public static ArrayList<Entry> list(Context c) {
+                  ArrayList<Entry> r = new ArrayList<>();
+                  JSONArray a = index(c);
+                  for (int i = 0; i < a.length(); i++) {
+                      JSONObject o = a.optJSONObject(i);
+                      if (o == null) continue;
+                      Entry e = new Entry();
+                      e.key = o.optString("k");
+                      e.name = o.optString("n");
+                      e.uri = o.optString("u");
+                      e.page = o.optInt("p");
+                      e.pages = o.optInt("c");
+                      e.time = o.optLong("t");
+                      r.add(e);
+                  }
+                  return r;
+              }
+
+              public static Doc load(Context c, String key, String name, String uri) {
+                  Doc d = new Doc();
+                  d.key = key;
+                  d.name = name;
+                  d.uri = uri;
+                  try {
+                      File f = new File(dir(c), key + ".json");
+                      if (!f.exists()) return d;
+                      JSONObject o = new JSONObject(read(f));
+                      d.page = o.optInt("page");
+                      d.rot = o.optInt("rot");
+                      d.mode = o.optInt("mode");
+                      d.pages = o.optInt("pages");
+                      d.frac = (float) o.optDouble("frac", 0);
+                      d.zoom = (float) o.optDouble("zoom", 1);
+                      d.txn = (float) o.optDouble("txn", 0);
+                      JSONArray m = o.optJSONArray("marks");
+                      if (m != null) for (int i = 0; i < m.length(); i++) d.marks.add(m.getInt(i));
+                      JSONArray s = o.optJSONArray("strokes");
+                      if (s != null) {
+                          for (int i = 0; i < s.length(); i++) {
+                              JSONObject so = s.getJSONObject(i);
+                              Stroke st = new Stroke();
+                              st.page = so.getInt("p");
+                              st.color = so.getInt("c");
+                              st.w = (float) so.getDouble("w");
+                              JSONArray pa = so.getJSONArray("d");
+                              for (int j = 0; j + 1 < pa.length(); j += 2) st.add((float) pa.getDouble(j), (float) pa.getDouble(j + 1));
+                              d.strokes.add(st);
+                          }
+                      }
+                      JSONArray ta = o.optJSONArray("texts");
+                      if (ta != null) {
+                          for (int i = 0; i < ta.length(); i++) {
+                              JSONObject to = ta.getJSONObject(i);
+                              Txt t = new Txt();
+                              t.page = to.getInt("p");
+                              t.color = to.getInt("c");
+                              t.x = (float) to.getDouble("x");
+                              t.y = (float) to.getDouble("y");
+                              t.size = (float) to.getDouble("s");
+                              t.t = to.getString("t");
+                              d.texts.add(t);
+                          }
+                      }
+                  } catch (Exception e) {
+                  }
+                  return d;
+              }
+
+              public static synchronized void save(Context c, Doc d) {
+                  try {
+                      JSONObject o = new JSONObject();
+                      o.put("page", d.page);
+                      o.put("rot", d.rot);
+                      o.put("mode", d.mode);
+                      o.put("pages", d.pages);
+                      o.put("frac", Float.isNaN(d.frac) ? 0 : d.frac);
+                      o.put("zoom", Float.isNaN(d.zoom) ? 1 : d.zoom);
+                      o.put("txn", Float.isNaN(d.txn) ? 0 : d.txn);
+                      JSONArray m = new JSONArray();
+                      for (int x : d.marks) m.put(x);
+                      o.put("marks", m);
+                      JSONArray s = new JSONArray();
+                      for (Stroke st : d.strokes) {
+                          JSONObject so = new JSONObject();
+                          so.put("p", st.page);
+                          so.put("c", st.color);
+                          so.put("w", st.w);
+                          JSONArray pa = new JSONArray();
+                          for (int i = 0; i < st.n; i++) pa.put(Math.round(st.p[i] * 10000f) / 10000.0);
+                          so.put("d", pa);
+                          s.put(so);
+                      }
+                      o.put("strokes", s);
+                      JSONArray ta = new JSONArray();
+                      for (Txt t : d.texts) {
+                          JSONObject to = new JSONObject();
+                          to.put("p", t.page);
+                          to.put("c", t.color);
+                          to.put("x", t.x);
+                          to.put("y", t.y);
+                          to.put("s", t.size);
+                          to.put("t", t.t);
+                          ta.put(to);
+                      }
+                      o.put("texts", ta);
+                      write(new File(dir(c), d.key + ".json"), o.toString());
+                      JSONArray a = index(c);
+                      JSONArray n = new JSONArray();
+                      JSONObject e = new JSONObject();
+                      e.put("k", d.key);
+                      e.put("n", d.name);
+                      e.put("u", d.uri == null ? "" : d.uri);
+                      e.put("p", d.page);
+                      e.put("c", d.pages);
+                      e.put("t", System.currentTimeMillis());
+                      n.put(e);
+                      for (int i = 0; i < a.length(); i++) {
+                          JSONObject x = a.optJSONObject(i);
+                          if (x != null && !d.key.equals(x.optString("k"))) n.put(x);
+                      }
+                      while (n.length() > MAX) {
+                          JSONObject x = n.getJSONObject(n.length() - 1);
+                          forget(c, x.optString("k"));
+                          n.remove(n.length() - 1);
+                      }
+                      write(new File(dir(c), "index.json"), n.toString());
+                  } catch (Exception e) {
+                  }
+              }
+
+              static void forget(Context c, String key) {
+                  new File(dir(c), key + ".json").delete();
+                  new File(new File(c.getCacheDir(), "pdfs"), key + ".pdf").delete();
+              }
+
+              public static synchronized void delete(Context c, String key) {
+                  try {
+                      JSONArray a = index(c);
+                      JSONArray n = new JSONArray();
+                      for (int i = 0; i < a.length(); i++) {
+                          JSONObject x = a.optJSONObject(i);
+                          if (x != null && !key.equals(x.optString("k"))) n.put(x);
+                      }
+                      forget(c, key);
+                      write(new File(dir(c), "index.json"), n.toString());
+                  } catch (Exception e) {
+                  }
+              }
           }
           EOF
 
-          cat > app/src/main/java/com/awal/keyboard/MainActivity.java <<'EOF'
-          package com.awal.keyboard;
+          cat > app/src/main/java/com/awal/pdfreader/DocConv.java << 'EOF'
+          package com.awal.pdfreader;
 
+          import android.graphics.Canvas;
+          import android.graphics.Color;
+          import android.graphics.Paint;
+          import android.graphics.pdf.PdfDocument;
+          import android.text.Layout;
+          import android.text.StaticLayout;
+          import android.text.TextPaint;
+          import android.util.Xml;
+          import org.xmlpull.v1.XmlPullParser;
+          import java.io.BufferedInputStream;
+          import java.io.ByteArrayInputStream;
+          import java.io.ByteArrayOutputStream;
+          import java.io.File;
+          import java.io.FileInputStream;
+          import java.io.FileOutputStream;
+          import java.io.IOException;
+          import java.util.zip.ZipEntry;
+          import java.util.zip.ZipInputStream;
+
+          public class DocConv {
+              public static void toPdf(File src, File out) throws Exception {
+                  byte[] xml = null;
+                  ZipInputStream z = new ZipInputStream(new BufferedInputStream(new FileInputStream(src)));
+                  try {
+                      ZipEntry e;
+                      while ((e = z.getNextEntry()) != null) {
+                          if (e.getName().equals("word/document.xml")) {
+                              ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                              byte[] b = new byte[8192];
+                              int r;
+                              while ((r = z.read(b)) > 0) bo.write(b, 0, r);
+                              xml = bo.toByteArray();
+                              break;
+                          }
+                      }
+                  } finally {
+                      z.close();
+                  }
+                  if (xml == null) throw new IOException("no document");
+                  StringBuilder sb = new StringBuilder();
+                  XmlPullParser p = Xml.newPullParser();
+                  p.setInput(new ByteArrayInputStream(xml), "UTF-8");
+                  boolean inT = false;
+                  int ev = p.getEventType();
+                  while (ev != XmlPullParser.END_DOCUMENT) {
+                      if (ev == XmlPullParser.START_TAG) {
+                          String nm = p.getName();
+                          if ("w:t".equals(nm)) inT = true;
+                          else if ("w:tab".equals(nm)) sb.append('\t');
+                          else if ("w:br".equals(nm) || "w:cr".equals(nm)) sb.append('\n');
+                      } else if (ev == XmlPullParser.TEXT) {
+                          if (inT) sb.append(p.getText());
+                      } else if (ev == XmlPullParser.END_TAG) {
+                          String nm = p.getName();
+                          if ("w:t".equals(nm)) inT = false;
+                          else if ("w:p".equals(nm)) sb.append('\n');
+                          else if ("w:tc".equals(nm)) sb.append('\t');
+                      }
+                      ev = p.next();
+                  }
+                  String text = sb.toString();
+                  if (text.trim().isEmpty()) text = " ";
+                  int pw = 595, ph = 842, mg = 40, tw = pw - 2 * mg, maxH = ph - 2 * mg;
+                  TextPaint tp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+                  tp.setTextSize(13);
+                  tp.setColor(Color.BLACK);
+                  StaticLayout sl = new StaticLayout(text, tp, tw, Layout.Alignment.ALIGN_NORMAL, 1.25f, 0f, false);
+                  PdfDocument doc = new PdfDocument();
+                  try {
+                      int lines = sl.getLineCount();
+                      int i = 0, pageNo = 1;
+                      do {
+                          int startTop = i < lines ? sl.getLineTop(i) : 0;
+                          int j = i;
+                          while (j < lines && sl.getLineBottom(j) - startTop <= maxH) j++;
+                          if (j == i && i < lines) j = i + 1;
+                          int endBottom = j > i ? sl.getLineBottom(j - 1) : 0;
+                          PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(pw, ph, pageNo).create();
+                          PdfDocument.Page pg = doc.startPage(info);
+                          Canvas c = pg.getCanvas();
+                          if (j > i) {
+                              c.save();
+                              c.translate(mg, mg - startTop);
+                              c.clipRect(0, startTop, tw, endBottom);
+                              sl.draw(c);
+                              c.restore();
+                          }
+                          doc.finishPage(pg);
+                          i = j;
+                          pageNo++;
+                      } while (i < lines);
+                      FileOutputStream fo = new FileOutputStream(out);
+                      try {
+                          doc.writeTo(fo);
+                      } finally {
+                          fo.close();
+                      }
+                  } finally {
+                      doc.close();
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/awal/pdfreader/PdfView.java << 'EOF'
+          package com.awal.pdfreader;
+
+          import android.content.Context;
+          import android.graphics.Bitmap;
+          import android.graphics.Canvas;
+          import android.graphics.Color;
+          import android.graphics.ColorMatrix;
+          import android.graphics.ColorMatrixColorFilter;
+          import android.graphics.Matrix;
+          import android.graphics.Paint;
+          import android.graphics.Path;
+          import android.graphics.RectF;
+          import android.graphics.pdf.PdfRenderer;
+          import android.os.ParcelFileDescriptor;
+          import android.util.LruCache;
+          import android.view.GestureDetector;
+          import android.view.MotionEvent;
+          import android.view.ScaleGestureDetector;
+          import android.view.View;
+          import android.widget.OverScroller;
+          import java.io.File;
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.HashMap;
+          import java.util.HashSet;
+          import java.util.Iterator;
+          import java.util.Set;
+
+          public class PdfView extends View {
+              public interface Host {
+                  void onReady(int pages);
+                  void onFail(String m);
+                  void onPage(int p);
+                  void onTap();
+                  void onText(int page, float x, float y, Store.Txt hit);
+                  void onChanged();
+              }
+
+              public static final int VIEW = 0, PEN = 1, TEXT = 2, ERASE = 3;
+              public static final String[] MODES = {"সাধারণ", "ডার্ক", "সেপিয়া", "গ্রে", "সবুজ (চোখ আরাম)", "নাইট", "নীল"};
+              static final float MIN = 0.25f, MAX = 8f;
+              static final int[] BG = {0xFF6E7378, 0xFF0B0B0B, 0xFF6B5A44, 0xFF505050, 0xFF4F6B54, 0xFF000000, 0xFF566A82};
+              static final float[][] CM = {
+                  null,
+                  {-0.9f, 0, 0, 0, 229.5f, 0, -0.9f, 0, 0, 229.5f, 0, 0, -0.9f, 0, 229.5f, 0, 0, 0, 1, 0},
+                  {0.287f, 0.563f, 0.109f, 0, 0, 0.263f, 0.517f, 0.100f, 0, 0, 0.203f, 0.399f, 0.078f, 0, 0, 0, 0, 0, 1, 0},
+                  {0.299f, 0.587f, 0.114f, 0, 0, 0.299f, 0.587f, 0.114f, 0, 0, 0.299f, 0.587f, 0.114f, 0, 0, 0, 0, 0, 1, 0},
+                  {0.80f, 0, 0, 0, 0, 0, 0.93f, 0, 0, 0, 0, 0, 0.80f, 0, 0, 0, 0, 0, 1, 0},
+                  {-0.9f, 0, 0, 0, 229.5f, 0, -0.702f, 0, 0, 179f, 0, 0, -0.45f, 0, 114.75f, 0, 0, 0, 1, 0},
+                  {0.84f, 0, 0, 0, 0, 0, 0.91f, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0}
+              };
+              static final float[] WIDTHS = {0.003f, 0.006f, 0.012f};
+              static final float[] TSIZES = {0.03f, 0.045f, 0.07f};
+
+              static class Req {
+                  int type, page, tier, key, rot, w, h;
+                  float s, rl, rt, rr, rb, docW;
+              }
+
+              static class Detail {
+                  Bitmap b;
+                  int rot;
+                  float s, rl, rt, rr, rb;
+              }
+
+              Host host;
+              Store.Doc doc;
+              PdfRenderer renderer;
+              ParcelFileDescriptor pfd;
+              Thread worker;
+              final Object lock = new Object();
+              ArrayList<Req> wanted = new ArrayList<>();
+              volatile boolean alive = true;
+              volatile int inflight = -1;
+              int[] pw, ph;
+              float[] top, hh;
+              int n, rot, theme, lastPage = -1, penColor = 0xFFE53935;
+              public int tool = VIEW;
+              boolean ready, restored, thumbDrag, busy;
+              float docW, docH, gap, dens, s = 1f, tx, ty, hx, hy, ox, oy;
+              float penWidth = WIDTHS[1], textSize = TSIZES[1];
+              long lastMove;
+              LruCache<Integer, Bitmap> cache;
+              final HashMap<Integer, Detail> details = new HashMap<>();
+              final Set<Integer> failed = Collections.synchronizedSet(new HashSet<Integer>());
+              final ArrayList<Object> history = new ArrayList<>();
+              OverScroller scroller;
+              GestureDetector gd;
+              ScaleGestureDetector sd;
+              Paint bmpPaint, pagePaint, ink, tp, thumbPaint, pillBg, pillText;
+              Path path = new Path();
+              RectF rect = new RectF(), rect2 = new RectF(), pr = new RectF();
+              Store.Stroke cur;
+
+              public PdfView(Context c) {
+                  super(c);
+                  dens = c.getResources().getDisplayMetrics().density;
+                  gap = 10 * dens;
+                  int mem = (int) Math.max(24L << 20, Runtime.getRuntime().maxMemory() / 5);
+                  cache = new LruCache<Integer, Bitmap>(mem) {
+                      @Override
+                      protected int sizeOf(Integer k, Bitmap v) {
+                          return v.getByteCount();
+                      }
+                  };
+                  scroller = new OverScroller(c);
+                  gd = new GestureDetector(c, new GL());
+                  gd.setIsLongpressEnabled(false);
+                  sd = new ScaleGestureDetector(c, new SL());
+                  bmpPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+                  pagePaint = new Paint();
+                  pagePaint.setColor(Color.WHITE);
+                  ink = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  ink.setStyle(Paint.Style.STROKE);
+                  ink.setStrokeCap(Paint.Cap.ROUND);
+                  ink.setStrokeJoin(Paint.Join.ROUND);
+                  tp = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  thumbPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  thumbPaint.setColor(0xCC3A7BEF);
+                  pillBg = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  pillBg.setColor(0xCC202020);
+                  pillText = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  pillText.setColor(Color.WHITE);
+                  pillText.setTextAlign(Paint.Align.CENTER);
+                  pillText.setTextSize(14 * dens);
+              }
+
+              public void open(final File f, Store.Doc d, Host h) {
+                  doc = d;
+                  host = h;
+                  rot = d.rot & 3;
+                  theme = d.mode >= 0 && d.mode < BG.length ? d.mode : 0;
+                  applyTheme();
+                  worker = new Thread(new Runnable() {
+                      public void run() {
+                          loop(f);
+                      }
+                  });
+                  worker.start();
+              }
+
+              void fail(final String m) {
+                  post(new Runnable() {
+                      public void run() {
+                          if (alive && host != null) host.onFail(m);
+                      }
+                  });
+              }
+
+              void loop(File f) {
+                  try {
+                      pfd = ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY);
+                      renderer = new PdfRenderer(pfd);
+                      final int cnt = renderer.getPageCount();
+                      if (cnt <= 0) {
+                          fail("ফাইল খোলা যায়নি");
+                          return;
+                      }
+                      final int[] w = new int[cnt], h = new int[cnt];
+                      for (int i = 0; i < cnt && alive; i++) {
+                          PdfRenderer.Page p = renderer.openPage(i);
+                          w[i] = Math.max(1, p.getWidth());
+                          h[i] = Math.max(1, p.getHeight());
+                          p.close();
+                      }
+                      if (!alive) return;
+                      post(new Runnable() {
+                          public void run() {
+                              if (!alive) return;
+                              pw = w;
+                              ph = h;
+                              n = cnt;
+                              top = new float[n];
+                              hh = new float[n];
+                              ready = true;
+                              settle();
+                              if (host != null) host.onReady(n);
+                              invalidate();
+                          }
+                      });
+                      while (true) {
+                          Req r;
+                          synchronized (lock) {
+                              while (alive && wanted.isEmpty()) lock.wait();
+                              if (!alive) break;
+                              r = wanted.remove(0);
+                              inflight = r.key;
+                          }
+                          try {
+                              render(r);
+                          } catch (OutOfMemoryError e) {
+                              cache.evictAll();
+                              failed.add(r.key);
+                          } catch (Throwable e) {
+                              failed.add(r.key);
+                          }
+                          inflight = -1;
+                          postInvalidate();
+                      }
+                  } catch (SecurityException e) {
+                      if (alive) fail("PASSWORD");
+                  } catch (Throwable e) {
+                      if (alive) fail("ফাইল খোলা যায়নি");
+                  } finally {
+                      try {
+                          if (renderer != null) renderer.close();
+                      } catch (Throwable t) {
+                      }
+                      try {
+                          if (pfd != null) pfd.close();
+                      } catch (Throwable t) {
+                      }
+                  }
+              }
+
+              void render(Req r) throws Exception {
+                  PdfRenderer.Page pg = renderer.openPage(r.page);
+                  try {
+                      float pwp = pg.getWidth(), php = pg.getHeight();
+                      boolean odd = (r.rot & 1) == 1;
+                      float dw = odd ? php : pwp;
+                      Matrix m = new Matrix();
+                      m.postRotate(90 * r.rot);
+                      if (r.rot == 1) m.postTranslate(php, 0);
+                      else if (r.rot == 2) m.postTranslate(pwp, php);
+                      else if (r.rot == 3) m.postTranslate(0, pwp);
+                      Bitmap b = Bitmap.createBitmap(r.w, r.h, Bitmap.Config.ARGB_8888);
+                      b.eraseColor(Color.WHITE);
+                      if (r.type == 0) {
+                          float k = r.w / dw;
+                          m.postScale(k, k);
+                      } else {
+                          float k = r.docW * r.s / dw;
+                          m.postScale(k, k);
+                          m.postTranslate(-r.rl * r.s, -r.rt * r.s);
+                      }
+                      pg.render(b, null, m, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                      if (r.type == 0) {
+                          cache.put(r.key, b);
+                      } else {
+                          Detail d = new Detail();
+                          d.b = b;
+                          d.rot = r.rot;
+                          d.s = r.s;
+                          d.rl = r.rl;
+                          d.rt = r.rt;
+                          d.rr = r.rr;
+                          d.rb = r.rb;
+                          synchronized (details) {
+                              details.put(r.page, d);
+                          }
+                      }
+                  } finally {
+                      pg.close();
+                  }
+              }
+
+              public void destroy() {
+                  alive = false;
+                  synchronized (lock) {
+                      lock.notifyAll();
+                  }
+                  cache.evictAll();
+              }
+
+              public void trim() {
+                  cache.evictAll();
+                  synchronized (details) {
+                      details.clear();
+                  }
+                  invalidate();
+              }
+
+              void applyTheme() {
+                  float[] m = CM[theme];
+                  ColorMatrixColorFilter f = m == null ? null : new ColorMatrixColorFilter(new ColorMatrix(m));
+                  bmpPaint.setColorFilter(f);
+                  pagePaint.setColorFilter(f);
+              }
+
+              public void setTheme(int t) {
+                  theme = t;
+                  applyTheme();
+                  invalidate();
+              }
+
+              public void setTool(int t) {
+                  tool = t;
+                  busy = false;
+                  cur = null;
+                  invalidate();
+              }
+
+              public void setPen(int col, int wi) {
+                  penColor = col;
+                  penWidth = WIDTHS[wi];
+                  textSize = TSIZES[wi];
+              }
+
+              void clearDetails() {
+                  synchronized (details) {
+                      details.clear();
+                  }
+              }
+
+              void relayout() {
+                  if (!ready || getWidth() == 0) return;
+                  docW = getWidth();
+                  float y = gap;
+                  boolean odd = (rot & 1) == 1;
+                  for (int i = 0; i < n; i++) {
+                      float dw = odd ? ph[i] : pw[i], dh = odd ? pw[i] : ph[i];
+                      hh[i] = docW * dh / dw;
+                      top[i] = y;
+                      y += hh[i] + gap;
+                  }
+                  docH = y;
+              }
+
+              void settle() {
+                  if (!ready || restored || getWidth() == 0 || getHeight() == 0) return;
+                  relayout();
+                  restored = true;
+                  int p = Math.max(0, Math.min(n - 1, doc.page));
+                  applyState(p, doc.frac, doc.zoom <= 0 ? 1f : doc.zoom, doc.txn);
+              }
+
+              void applyState(int p, float frac, float z, float txn) {
+                  p = Math.max(0, Math.min(n - 1, p));
+                  s = Math.max(MIN, Math.min(MAX, z));
+                  tx = txn * getWidth();
+                  ty = -(top[p] + frac * hh[p]) * s;
+                  clampPos();
+                  notifyPage();
+                  invalidate();
+              }
+
+              float[] capture() {
+                  float vt = -ty / s;
+                  int p = findPage(vt);
+                  return new float[]{p, (vt - top[p]) / hh[p], s, tx / docW};
+              }
+
+              @Override
+              protected void onSizeChanged(int w, int h, int ow, int oh) {
+                  super.onSizeChanged(w, h, ow, oh);
+                  if (!ready) return;
+                  cache.evictAll();
+                  clearDetails();
+                  if (!restored) {
+                      settle();
+                      return;
+                  }
+                  float[] st = capture();
+                  relayout();
+                  applyState((int) st[0], st[1], st[2], st[3]);
+              }
+
+              int findPage(float y) {
+                  int lo = 0, hi = n - 1;
+                  while (lo < hi) {
+                      int mid = (lo + hi + 1) >>> 1;
+                      if (top[mid] <= y) lo = mid;
+                      else hi = mid - 1;
+                  }
+                  return lo;
+              }
+
+              void clampPos() {
+                  float W = getWidth(), H = getHeight(), cw = docW * s, ch = docH * s;
+                  if (cw <= W) tx = (W - cw) / 2;
+                  else tx = Math.max(W - cw, Math.min(0, tx));
+                  if (ch <= H) ty = 0;
+                  else ty = Math.max(H - ch, Math.min(0, ty));
+              }
+
+              void toScreen(int p, float nx, float ny) {
+                  float u = nx, v = ny;
+                  switch (rot) {
+                      case 1: u = 1 - ny; v = nx; break;
+                      case 2: u = 1 - nx; v = 1 - ny; break;
+                      case 3: u = ny; v = 1 - nx; break;
+                      default: break;
+                  }
+                  ox = tx + u * docW * s;
+                  oy = ty + (top[p] + v * hh[p]) * s;
+              }
+
+              void mapTo(int p, float x, float y) {
+                  float u = Math.max(0, Math.min(1, (x - tx) / s / docW));
+                  float v = Math.max(0, Math.min(1, ((y - ty) / s - top[p]) / hh[p]));
+                  switch (rot) {
+                      case 1: hx = v; hy = 1 - u; break;
+                      case 2: hx = 1 - u; hy = 1 - v; break;
+                      case 3: hx = 1 - v; hy = u; break;
+                      default: hx = u; hy = v; break;
+                  }
+              }
+
+              int hitPage(float x, float y) {
+                  float dx = (x - tx) / s, dy = (y - ty) / s;
+                  if (dx < 0 || dx > docW) return -1;
+                  int p = findPage(dy);
+                  if (dy < top[p] || dy > top[p] + hh[p]) return -1;
+                  mapTo(p, x, y);
+                  return p;
+              }
+
+              int key(int p, int t) {
+                  return (p * 4 + rot) * 4 + t;
+              }
+
+              void add(ArrayList<Req> l, Req q) {
+                  if (!failed.contains(q.key) && q.key != inflight) l.add(q);
+              }
+
+              Req base(int i, int t, int[] tw) {
+                  Req q = new Req();
+                  q.type = 0;
+                  q.page = i;
+                  q.tier = t;
+                  q.key = key(i, t);
+                  q.rot = rot;
+                  q.w = tw[t];
+                  q.h = Math.max(1, Math.round(tw[t] * hh[i] / docW));
+                  return q;
+              }
+
+              int curPage() {
+                  float H = getHeight();
+                  if (docH * s > H && -ty + H >= docH * s - 2) return n - 1;
+                  return findPage((-ty + H * 0.25f) / s);
+              }
+
+              public int current() {
+                  return ready && restored ? curPage() : 0;
+              }
+
+              void notifyPage() {
+                  if (!ready || !restored || host == null) return;
+                  final int p = curPage();
+                  if (p != lastPage) {
+                      lastPage = p;
+                      post(new Runnable() {
+                          public void run() {
+                              if (alive && host != null) host.onPage(p);
+                          }
+                      });
+                  }
+              }
+
+              void touch() {
+                  lastMove = System.currentTimeMillis();
+                  notifyPage();
+                  invalidate();
+              }
+
+              void changed() {
+                  if (host != null) host.onChanged();
+              }
+
+              public void go(int p) {
+                  if (!ready || !restored) return;
+                  applyState(p, 0, s, tx / docW);
+                  lastMove = System.currentTimeMillis();
+              }
+
+              public void rotate() {
+                  if (!ready || !restored) return;
+                  float[] st = capture();
+                  rot = (rot + 1) & 3;
+                  cache.evictAll();
+                  clearDetails();
+                  failed.clear();
+                  relayout();
+                  applyState((int) st[0], st[1], st[2], st[3]);
+                  doc.rot = rot;
+              }
+
+              public void sync() {
+                  if (doc == null) return;
+                  if (ready && restored) {
+                      float[] st = capture();
+                      doc.page = (int) st[0];
+                      doc.frac = st[1];
+                      doc.zoom = st[2];
+                      doc.txn = st[3];
+                      doc.pages = n;
+                  }
+                  doc.rot = rot;
+                  doc.mode = theme;
+              }
+
+              public void addText(int p, float x, float y, String t) {
+                  if (t == null || t.trim().isEmpty()) return;
+                  Store.Txt o = new Store.Txt();
+                  o.page = p;
+                  o.x = x;
+                  o.y = y;
+                  o.t = t;
+                  o.color = penColor;
+                  o.size = textSize;
+                  doc.texts.add(o);
+                  history.add(o);
+                  invalidate();
+                  changed();
+              }
+
+              public void editText(Store.Txt o, String t) {
+                  if (t == null || t.trim().isEmpty()) doc.texts.remove(o);
+                  else o.t = t;
+                  invalidate();
+                  changed();
+              }
+
+              public void undo() {
+                  while (!history.isEmpty()) {
+                      Object o = history.remove(history.size() - 1);
+                      boolean ok;
+                      if (o instanceof Store.Stroke) ok = doc.strokes.remove(o);
+                      else ok = doc.texts.remove(o);
+                      if (ok) {
+                          invalidate();
+                          changed();
+                          return;
+                      }
+                  }
+              }
+
+              void drawNotes(Canvas c, int p) {
+                  for (Store.Stroke st : doc.strokes) {
+                      if (st.page != p || st.n < 2) continue;
+                      path.rewind();
+                      for (int k = 0; k < st.n; k += 2) {
+                          toScreen(p, st.p[k], st.p[k + 1]);
+                          if (k == 0) path.moveTo(ox, oy);
+                          else path.lineTo(ox, oy);
+                      }
+                      if (st.n == 2) path.lineTo(ox + 0.1f, oy);
+                      ink.setColor(st.color);
+                      ink.setStrokeWidth(Math.max(1f, st.w * docW * s));
+                      c.drawPath(path, ink);
+                  }
+                  for (Store.Txt t : doc.texts) {
+                      if (t.page != p) continue;
+                      toScreen(p, t.x, t.y);
+                      tp.setColor(t.color);
+                      tp.setTextSize(Math.max(6f, t.size * docW * s));
+                      float lh = tp.getFontSpacing();
+                      String[] ls = t.t.split("\n");
+                      c.save();
+                      c.translate(ox, oy);
+                      c.rotate(90 * rot);
+                      for (int k = 0; k < ls.length; k++) c.drawText(ls[k], 0, -tp.ascent() + k * lh, tp);
+                      c.restore();
+                  }
+              }
+
+              float thumbH() {
+                  return 48 * dens;
+              }
+
+              void pill(Canvas c, String t, float cx, float cy) {
+                  float w = pillText.measureText(t) + 24 * dens, h = 30 * dens;
+                  pr.set(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2);
+                  c.drawRoundRect(pr, h / 2, h / 2, pillBg);
+                  c.drawText(t, cx, cy + pillText.getTextSize() * 0.35f, pillText);
+              }
+
+              @Override
+              protected void onDraw(Canvas c) {
+                  c.drawColor(BG[theme]);
+                  if (!ready || !restored) return;
+                  float W = getWidth(), H = getHeight();
+                  float vt = -ty / s, vb = (H - ty) / s;
+                  int a = Math.max(0, findPage(vt) - 1), b = Math.min(n - 1, findPage(vb) + 1);
+                  synchronized (details) {
+                      if (s <= 1.3f) {
+                          details.clear();
+                      } else {
+                          Iterator<Integer> it = details.keySet().iterator();
+                          while (it.hasNext()) {
+                              int k = it.next();
+                              if (k < a || k > b) it.remove();
+                          }
+                      }
+                  }
+                  float pwid = docW * s;
+                  int need = pwid <= W * 0.45f ? 1 : 2;
+                  int bw = (int) Math.min(W, 1600f);
+                  int[] tw = {Math.max(96, bw / 6), Math.max(96, bw / 2), bw};
+                  ArrayList<Req> r0 = new ArrayList<>(), r1 = new ArrayList<>(), r2 = new ArrayList<>();
+                  boolean zoomed = s > 1.3f && !sd.isInProgress() && !thumbDrag;
+                  for (int i = a; i <= b; i++) {
+                      float sy = ty + top[i] * s, sh = hh[i] * s;
+                      boolean vis = sy + sh > 0 && sy < H;
+                      if (!vis && thumbDrag) continue;
+                      Bitmap bm = null;
+                      int got = -1;
+                      int[] order = need == 1 ? new int[]{1, 2, 0} : new int[]{2, 1, 0};
+                      for (int t : order) {
+                          Bitmap x = cache.get(key(i, t));
+                          if (x != null) {
+                              bm = x;
+                              got = t;
+                              break;
+                          }
+                      }
+                      if (cache.get(key(i, 0)) == null) add(vis ? r0 : r2, base(i, 0, tw));
+                      boolean have = got == need || (need == 1 && got == 2);
+                      if (!have && !thumbDrag) add(vis ? r1 : r2, base(i, need, tw));
+                      if (!vis) continue;
+                      rect.set(tx, sy, tx + pwid, sy + sh);
+                      if (bm == null) c.drawRect(rect, pagePaint);
+                      else c.drawBitmap(bm, null, rect, bmpPaint);
+                      if (s > 1.3f) {
+                          Detail dt;
+                          synchronized (details) {
+                              dt = details.get(i);
+                          }
+                          if (dt != null && dt.rot == rot) {
+                              rect2.set(tx + dt.rl * s, sy + dt.rt * s, tx + dt.rr * s, sy + dt.rb * s);
+                              c.drawBitmap(dt.b, null, rect2, bmpPaint);
+                          }
+                          if (zoomed) {
+                              float vl = Math.max(0, -tx / s), vr = Math.min(docW, (W - tx) / s);
+                              float vp = Math.max(0, vt - top[i]), vq = Math.min(hh[i], vb - top[i]);
+                              boolean ok = dt != null && dt.rot == rot && Math.abs(s / dt.s - 1) < 0.12f
+                                      && dt.rl <= vl + 1 && dt.rt <= vp + 1 && dt.rr >= vr - 1 && dt.rb >= vq - 1;
+                              if (!ok && vr > vl && vq > vp) {
+                                  float mw = (vr - vl) * 0.08f, mh = (vq - vp) * 0.08f;
+                                  Req q = new Req();
+                                  q.type = 1;
+                                  q.page = i;
+                                  q.rot = rot;
+                                  q.s = s;
+                                  q.docW = docW;
+                                  q.rl = Math.max(0, vl - mw);
+                                  q.rr = Math.min(docW, vr + mw);
+                                  q.rt = Math.max(0, vp - mh);
+                                  q.rb = Math.min(hh[i], vq + mh);
+                                  q.w = (int) Math.ceil((q.rr - q.rl) * s);
+                                  q.h = (int) Math.ceil((q.rb - q.rt) * s);
+                                  q.key = 0x40000000 | (i << 2) | rot;
+                                  if (q.w > 0 && q.h > 0 && (long) q.w * q.h <= 6000000L) add(r1, q);
+                              }
+                          }
+                      }
+                      c.save();
+                      c.clipRect(rect);
+                      drawNotes(c, i);
+                      c.restore();
+                  }
+                  float ch = docH * s;
+                  boolean recent = System.currentTimeMillis() - lastMove < 1000;
+                  if (ch > H) {
+                      float th = thumbH(), tt = (-ty) / (ch - H) * (H - th);
+                      rect.set(W - 12 * dens, tt, W - 3 * dens, tt + th);
+                      c.drawRoundRect(rect, 5 * dens, 5 * dens, thumbPaint);
+                      if (thumbDrag) pill(c, (curPage() + 1) + " / " + n, W - 80 * dens, tt + th / 2);
+                  }
+                  if (recent && !thumbDrag) {
+                      pill(c, (curPage() + 1) + " / " + n, W / 2, H - 36 * dens);
+                      postInvalidateDelayed(400);
+                  }
+                  r0.addAll(r1);
+                  r0.addAll(r2);
+                  synchronized (lock) {
+                      wanted = r0;
+                      lock.notify();
+                  }
+              }
+
+              @Override
+              public void computeScroll() {
+                  if (scroller.computeScrollOffset()) {
+                      tx = scroller.getCurrX();
+                      ty = scroller.getCurrY();
+                      clampPos();
+                      touch();
+                  }
+              }
+
+              boolean hitThumb(float x, float y) {
+                  float H = getHeight(), ch = docH * s;
+                  if (ch <= H) return false;
+                  float th = thumbH(), tt = (-ty) / (ch - H) * (H - th);
+                  return x > getWidth() - 36 * dens && y > tt - 16 * dens && y < tt + th + 16 * dens;
+              }
+
+              void dragThumb(float y) {
+                  float H = getHeight(), ch = docH * s, th = thumbH();
+                  float f = Math.max(0, Math.min(1, (y - th / 2) / (H - th)));
+                  ty = -f * (ch - H);
+                  clampPos();
+                  touch();
+              }
+
+              @Override
+              public boolean onTouchEvent(MotionEvent e) {
+                  if (!ready || !restored) return true;
+                  int a = e.getActionMasked();
+                  float x = e.getX(), y = e.getY();
+                  if (a == MotionEvent.ACTION_DOWN) {
+                      scroller.forceFinished(true);
+                      if (hitThumb(x, y)) {
+                          thumbDrag = true;
+                          dragThumb(y);
+                          return true;
+                      }
+                  }
+                  if (thumbDrag) {
+                      if (a == MotionEvent.ACTION_MOVE) {
+                          dragThumb(y);
+                      } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
+                          thumbDrag = false;
+                          invalidate();
+                      }
+                      return true;
+                  }
+                  gd.onTouchEvent(e);
+                  sd.onTouchEvent(e);
+                  if (tool == PEN || tool == ERASE) annotate(e, a);
+                  return true;
+              }
+
+              void abort() {
+                  if (cur != null && cur.n < 12) doc.strokes.remove(cur);
+                  cur = null;
+                  busy = false;
+                  invalidate();
+              }
+
+              void annotate(MotionEvent e, int a) {
+                  float x = e.getX(), y = e.getY();
+                  switch (a) {
+                      case MotionEvent.ACTION_DOWN:
+                          busy = false;
+                          if (tool == PEN) {
+                              int p = hitPage(x, y);
+                              if (p >= 0) {
+                                  cur = new Store.Stroke();
+                                  cur.page = p;
+                                  cur.color = penColor;
+                                  cur.w = penWidth;
+                                  cur.add(hx, hy);
+                                  doc.strokes.add(cur);
+                                  history.add(cur);
+                                  busy = true;
+                                  invalidate();
+                              }
+                          } else {
+                              busy = true;
+                              erase(x, y);
+                          }
+                          break;
+                      case MotionEvent.ACTION_MOVE:
+                          if (!busy) break;
+                          if (e.getPointerCount() > 1) {
+                              abort();
+                              break;
+                          }
+                          if (tool == PEN && cur != null) {
+                              for (int k = 0; k < e.getHistorySize(); k++) {
+                                  mapTo(cur.page, e.getHistoricalX(k), e.getHistoricalY(k));
+                                  cur.add(hx, hy);
+                              }
+                              mapTo(cur.page, x, y);
+                              cur.add(hx, hy);
+                              invalidate();
+                          } else if (tool == ERASE) {
+                              erase(x, y);
+                          }
+                          break;
+                      case MotionEvent.ACTION_POINTER_DOWN:
+                          if (busy) abort();
+                          break;
+                      case MotionEvent.ACTION_UP:
+                          if (busy) changed();
+                          busy = false;
+                          cur = null;
+                          break;
+                      case MotionEvent.ACTION_CANCEL:
+                          abort();
+                          break;
+                      default:
+                          break;
+                  }
+              }
+
+              void erase(float x, float y) {
+                  int p = hitPage(x, y);
+                  if (p < 0) return;
+                  float rad = 14 * dens;
+                  boolean any = false;
+                  for (int i = doc.strokes.size() - 1; i >= 0; i--) {
+                      Store.Stroke st = doc.strokes.get(i);
+                      if (st.page != p) continue;
+                      for (int k = 0; k + 1 < st.n; k += 2) {
+                          toScreen(p, st.p[k], st.p[k + 1]);
+                          if (Math.abs(ox - x) < rad && Math.abs(oy - y) < rad) {
+                              doc.strokes.remove(i);
+                              any = true;
+                              break;
+                          }
+                      }
+                  }
+                  for (int i = doc.texts.size() - 1; i >= 0; i--) {
+                      Store.Txt t = doc.texts.get(i);
+                      if (t.page != p) continue;
+                      toScreen(p, t.x, t.y);
+                      if (Math.abs(ox - x) < rad * 3 && Math.abs(oy - y) < rad * 3) {
+                          doc.texts.remove(i);
+                          any = true;
+                      }
+                  }
+                  if (any) invalidate();
+              }
+
+              void textTap(float x, float y) {
+                  int p = hitPage(x, y);
+                  if (p < 0 || host == null) return;
+                  float nx = hx, ny = hy;
+                  Store.Txt hit = null;
+                  for (Store.Txt t : doc.texts) {
+                      if (t.page != p) continue;
+                      toScreen(p, t.x, t.y);
+                      if (Math.abs(ox - x) < 36 * dens && Math.abs(oy - y) < 36 * dens) hit = t;
+                  }
+                  host.onText(p, nx, ny, hit);
+              }
+
+              class GL extends GestureDetector.SimpleOnGestureListener {
+                  @Override
+                  public boolean onDown(MotionEvent e) {
+                      return true;
+                  }
+
+                  @Override
+                  public boolean onScroll(MotionEvent e1, MotionEvent e2, float dx, float dy) {
+                      if (busy) return true;
+                      tx -= dx;
+                      ty -= dy;
+                      clampPos();
+                      touch();
+                      return true;
+                  }
+
+                  @Override
+                  public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
+                      if (busy || sd.isInProgress()) return false;
+                      float W = getWidth(), H = getHeight(), cw = docW * s, ch = docH * s;
+                      int minX = cw <= W ? (int) tx : (int) (W - cw), maxX = cw <= W ? (int) tx : 0;
+                      int minY = ch <= H ? (int) ty : (int) (H - ch), maxY = ch <= H ? (int) ty : 0;
+                      scroller.fling((int) tx, (int) ty, (int) vx, (int) vy, minX, maxX, minY, maxY);
+                      postInvalidateOnAnimation();
+                      return true;
+                  }
+
+                  @Override
+                  public boolean onSingleTapConfirmed(MotionEvent e) {
+                      if (tool == VIEW && host != null) host.onTap();
+                      return true;
+                  }
+
+                  @Override
+                  public boolean onSingleTapUp(MotionEvent e) {
+                      if (tool == TEXT && !sd.isInProgress()) textTap(e.getX(), e.getY());
+                      return false;
+                  }
+
+                  @Override
+                  public boolean onDoubleTap(MotionEvent e) {
+                      if (tool != VIEW) return false;
+                      float ns = s > 1.05f ? 1f : 2.5f, r = ns / s, fx = e.getX(), fy = e.getY();
+                      tx = fx - (fx - tx) * r;
+                      ty = fy - (fy - ty) * r;
+                      s = ns;
+                      clampPos();
+                      failed.clear();
+                      touch();
+                      return true;
+                  }
+              }
+
+              class SL extends ScaleGestureDetector.SimpleOnScaleGestureListener {
+                  @Override
+                  public boolean onScaleBegin(ScaleGestureDetector d) {
+                      scroller.forceFinished(true);
+                      return true;
+                  }
+
+                  @Override
+                  public boolean onScale(ScaleGestureDetector d) {
+                      float ns = Math.max(MIN, Math.min(MAX, s * d.getScaleFactor()));
+                      float r = ns / s, fx = d.getFocusX(), fy = d.getFocusY();
+                      tx = fx - (fx - tx) * r;
+                      ty = fy - (fy - ty) * r;
+                      s = ns;
+                      clampPos();
+                      touch();
+                      return true;
+                  }
+
+                  @Override
+                  public void onScaleEnd(ScaleGestureDetector d) {
+                      failed.clear();
+                      invalidate();
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/awal/pdfreader/ReaderActivity.java << 'EOF'
+          package com.awal.pdfreader;
+
+          import android.Manifest;
           import android.app.Activity;
-          import android.content.*;
-          import android.graphics.*;
+          import android.app.AlertDialog;
+          import android.content.pm.PackageManager;
+          import android.database.Cursor;
+          import android.graphics.Color;
           import android.graphics.drawable.GradientDrawable;
+          import android.net.Uri;
+          import android.os.Build;
           import android.os.Bundle;
-          import android.provider.Settings;
-          import android.view.*;
-          import android.view.inputmethod.InputMethodManager;
-          import android.widget.*;
-
-          public class MainActivity extends Activity {
-           float d;
-           SharedPreferences sp;
-           GradientDrawable[] gd;
-
-           int p(float v) { return Math.round(v * d); }
-
-           TextView tv(String s, float sz, boolean bold) {
-            TextView t = new TextView(this);
-            t.setText(s);
-            t.setTextSize(sz);
-            t.setTextColor(0xFF1C1C1E);
-            t.setPadding(0, p(10), 0, p(4));
-            if (bold) t.setTypeface(null, Typeface.BOLD);
-            return t;
-           }
-
-           Button btn(String s, View.OnClickListener c) {
-            Button b = new Button(this);
-            b.setText(s);
-            b.setAllCaps(false);
-            b.setOnClickListener(c);
-            return b;
-           }
-
-           void refresh() {
-            int cur = sp.getInt("theme", 0);
-            for (int i = 0; i < gd.length; i++) {
-             if (i == cur) gd[i].setStroke(p(3), Themes.C[i][5]);
-             else gd[i].setStroke(p(1), 0x55808080);
-            }
-           }
-
-           @Override
-           protected void onCreate(Bundle b) {
-            super.onCreate(b);
-            d = getResources().getDisplayMetrics().density;
-            sp = getSharedPreferences("kb", 0);
-            ScrollView sc = new ScrollView(this);
-            LinearLayout l = new LinearLayout(this);
-            l.setOrientation(LinearLayout.VERTICAL);
-            l.setPadding(p(20), p(36), p(20), p(28));
-            sc.addView(l);
-            ImageView iv = new ImageView(this);
-            iv.setImageResource(R.mipmap.ic_launcher);
-            l.addView(iv, new LinearLayout.LayoutParams(p(88), p(88)));
-            l.addView(tv("Awal Keyboard", 28, true));
-            l.addView(tv("Bangla (Avro phonetic) and English keyboard with smart next-word suggestions, 50-item clipboard history and many themes.", 14, false));
-            l.addView(btn("1. Enable keyboard", v -> startActivity(new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))));
-            l.addView(btn("2. Select keyboard", v -> ((InputMethodManager) getSystemService(INPUT_METHOD_SERVICE)).showInputMethodPicker()));
-            EditText et = new EditText(this);
-            et.setHint("Tap here to test the keyboard");
-            l.addView(et);
-            l.addView(tv("Themes", 20, true));
-            int n = Themes.C.length;
-            gd = new GradientDrawable[n];
-            for (int i = 0; i < n; i += 4) {
-             LinearLayout row = new LinearLayout(this);
-             for (int j = i; j < i + 4; j++) {
-              LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, p(56), 1);
-              lp.setMargins(p(4), p(4), p(4), p(4));
-              if (j >= n) { row.addView(new View(this), lp); continue; }
-              final int idx = j;
-              TextView t = new TextView(this);
-              t.setText(Themes.N[j]);
-              t.setTextSize(11);
-              t.setGravity(Gravity.CENTER);
-              t.setTextColor(Themes.C[j][3]);
-              GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{Themes.C[j][0], Themes.C[j][1]});
-              g.setCornerRadius(p(12));
-              gd[j] = g;
-              t.setBackground(g);
-              t.setOnClickListener(v -> { sp.edit().putInt("theme", idx).apply(); refresh(); });
-              row.addView(t, lp);
-             }
-             l.addView(row);
-            }
-            refresh();
-            l.addView(tv("Bangla shortcuts (Avro phonetic)", 18, true));
-            l.addView(tv("gg = জ্ঞ,  ksh / kkh = ক্ষ,  kt = ক্ত,  nt = ন্ত,  nd = ন্দ,  ndh = ন্ধ,  ngk = ঙ্ক,  ngg = ঙ্গ,  cch = চ্ছ,  jj = জ্জ,  st = স্ত,  sth = স্থ,  mp = ম্প,  mb = ম্ব,  ShT = ষ্ট,  hm = হ্ম,  shn = শ্ন\n\nconsonant + r / y / w makes র / য / ব ফলা (kra = ক্রা, kya = ক্যা)\nrr = রেফ (dhorrmo = ধর্ম)\nT Th D Dh N = ট ঠ ড ঢ ণ,  Sh = ষ,  ng = ং,  Ng = ঙ,  R = ড়,  Y = য়\nঁ ঃ ৎ ্ ৳ are on the ?123 page 2/2.\nLong-press space or tap the language key to switch Bangla / English.", 13, false));
-            l.addView(tv("Creator: Mohammod Abdul Awal\nStudent: Department of English, National University\nMail: awal.sorkar.144@gmail.com", 13, true));
-            setContentView(sc);
-           }
-
-           @Override
-           protected void onResume() {
-            super.onResume();
-            if (gd != null) refresh();
-           }
-          }
-          EOF
-
-          cat > app/src/main/java/com/awal/keyboard/KeyboardService.java <<'EOF'
-          package com.awal.keyboard;
-
-          import android.content.*;
-          import android.content.res.Configuration;
-          import android.graphics.*;
-          import android.graphics.drawable.GradientDrawable;
-          import android.inputmethodservice.InputMethodService;
-          import android.os.*;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.OpenableColumns;
           import android.text.InputType;
           import android.text.TextUtils;
-          import android.view.*;
-          import android.view.inputmethod.*;
-          import android.widget.*;
-          import org.json.JSONArray;
-          import java.util.*;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.WindowManager;
+          import android.widget.EditText;
+          import android.widget.FrameLayout;
+          import android.widget.LinearLayout;
+          import android.widget.ProgressBar;
+          import android.widget.TextView;
+          import android.widget.Toast;
+          import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
+          import com.tom_roush.pdfbox.io.MemoryUsageSetting;
+          import com.tom_roush.pdfbox.pdmodel.PDDocument;
+          import java.io.File;
+          import java.io.FileInputStream;
+          import java.io.FileOutputStream;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.util.ArrayList;
+          import java.util.Collections;
 
-          public class KeyboardService extends InputMethodService {
-           SharedPreferences sp;
-           Handler h = new Handler(Looper.getMainLooper());
-           float d = 3;
-           int[] c = Themes.C[0];
-           int curTheme;
-           boolean bn, plain, selMode, clipPins;
-           int shift, panel, symPage;
-           long lastShift;
-           StringBuilder buf = new StringBuilder();
-           String curPre = "";
-           LinearLayout root, bar, sug;
-           TextView[] sv = new TextView[4];
-           FrameLayout body;
-           List<K> lk = new ArrayList<>();
-           K langK, spaceK, perK, shiftK, selK;
-           Suggest sg;
-           ClipboardManager cm;
-           ArrayList<String> clips = new ArrayList<>(), pins = new ArrayList<>();
-           EditorInfo ei;
-           Runnable upd = () -> updSug();
+          public class ReaderActivity extends Activity implements PdfView.Host {
+              static final int GOLD = 0xFFFFD54F;
+              static final int[] COLORS = {0xFFE53935, 0xFF1E88E5, 0xFF43A047, 0x99FDD835, 0xFF000000, 0xFFFB8C00};
+              PdfView view;
+              LinearLayout topBar, bottom, palette;
+              TextView title, pageTv, bmBtn, penB, textB, eraseB, sizeB;
+              ProgressBar pb;
+              Store.Doc doc;
+              File curPdf;
+              Handler h;
+              int pages, widthIdx = 1, color = COLORS[0];
+              GradientDrawable[] gds = new GradientDrawable[COLORS.length];
+              final Runnable saver = new Runnable() {
+                  public void run() {
+                      save();
+                  }
+              };
 
-           static final String QW = "qwertyuiopasdfghjklzxcvbnm";
-           static final String[] BL = {"ক","ও","এ","র","ত","য়","উ","ই","অ","প","আ","স","দ","ফ","গ","হ","জ","ক","ল","য","ক্স","চ","ভ","ব","ন","ম"};
-           static final String UP = "TDNSRYZJOIU";
-           static final String[] UH = {"ট","ড","ণ","শ","ড়","য়","্য","জ","ও","ঈ","ঊ"};
-           static final String EMO = "😀 😃 😄 😁 😆 😅 😂 🤣 😊 🙂 😉 😍 🥰 😘 😗 😋 😛 😜 🤪 😎 🤩 🥳 😏 😒 😞 😔 😟 😕 🙁 😣 😖 😫 😩 🥺 😢 😭 😤 😠 😡 🤬 🤯 😳 🥵 🥶 😱 😨 😰 😥 😓 🤗 🤔 🤭 🤫 😶 😐 😑 😬 🙄 😯 😦 😧 😮 😲 🥱 😴 🤤 😪 😵 🤐 🥴 🤢 🤮 🤧 😷 🤒 🤕 🤑 🤠 😈 👿 👹 👺 🤡 💩 👻 💀 👽 👾 🤖 🎃 😺 😸 😹 😻 😼 😽 🙀 😿 😾 👋 🤚 ✋ 🖖 👌 🤌 ✌ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 👍 👎 ✊ 👊 👏 🙌 🤝 🙏 💪 ❤ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 💕 💞 💓 💗 💖 💘 💝 🔥 ✨ ⭐ 🌟 💯 ✅ ❌ 🎉 🎁 🌹 🌸 ☀ 🌙 ☕ 🍕 🍔 🍟 🍎 🎂 🏆 ⚽ 🏏 🚗 ✈ 🏠 📱 💻 📷 🎵 🇧🇩 🇵🇸";
-
-           int dp(float v) { return Math.round(v * d); }
-
-           LinearLayout.LayoutParams lp(int w, int hh, float wt) { return new LinearLayout.LayoutParams(w, hh, wt); }
-
-           LinearLayout hl() { return new LinearLayout(this); }
-
-           LinearLayout vl() {
-            LinearLayout l = new LinearLayout(this);
-            l.setOrientation(LinearLayout.VERTICAL);
-            return l;
-           }
-
-           static boolean isW(char ch) {
-            int t = Character.getType(ch);
-            return Character.isLetter(ch) || t == Character.NON_SPACING_MARK || t == Character.COMBINING_SPACING_MARK || ch == '\'';
-           }
-
-           static ArrayList<String> toks(String s) {
-            ArrayList<String> r = new ArrayList<>();
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i <= s.length(); i++) {
-             if (i < s.length() && isW(s.charAt(i))) sb.append(s.charAt(i));
-             else if (sb.length() > 0) {
-              String w = sb.toString();
-              while (w.startsWith("'")) w = w.substring(1);
-              while (w.endsWith("'")) w = w.substring(0, w.length() - 1);
-              if (!w.isEmpty() && w.length() <= 24) r.add(w.toLowerCase(Locale.ROOT));
-              sb.setLength(0);
-             }
-            }
-            return r;
-           }
-
-           class K extends View {
-            String l, hn = "", h2 = "";
-            int ty, ic;
-            char base;
-            float ts = 22, lf, rf, wt = 1;
-            Runnable a, la;
-            boolean rp, fired, pr;
-            Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-            RectF rc = new RectF();
-            Path pa = new Path();
-            Runnable lr = new Runnable() { public void run() { fired = true; if (la != null) la.run(); } };
-            Runnable rr = new Runnable() { public void run() { if (a != null) a.run(); h.postDelayed(this, 45); } };
-
-            K(String t, int type) { super(KeyboardService.this); l = t; ty = type; }
-
-            @Override
-            protected void onDraw(Canvas cv) {
-             int w = getWidth(), hh = getHeight();
-             float gx = dp(2.5f), gy = dp(3.5f), rad = dp(8);
-             rc.set(gx + w * lf, gy, w - gx - w * rf, hh - gy);
-             int col = ty == 0 ? c[2] : ty == 1 ? c[4] : ty == 2 ? c[5] : 0;
-             if (col != 0) { p.setStyle(Paint.Style.FILL); p.setColor(col); cv.drawRoundRect(rc, rad, rad, p); }
-             if (pr) { p.setStyle(Paint.Style.FILL); p.setColor(0x44808080); cv.drawRoundRect(rc, rad, rad, p); }
-             int fg = ty == 2 ? 0xFFFFFFFF : c[3];
-             float cx = rc.centerX(), cy = rc.centerY();
-             p.setColor(fg);
-             if (ic != 0) {
-              p.setStyle(Paint.Style.STROKE);
-              p.setStrokeWidth(dp(2));
-              p.setStrokeCap(Paint.Cap.ROUND);
-              p.setStrokeJoin(Paint.Join.ROUND);
-              float s = dp(8);
-              pa.reset();
-              if (ic == 1) {
-               pa.moveTo(cx, cy - s); pa.lineTo(cx + s, cy); pa.lineTo(cx + s * .45f, cy); pa.lineTo(cx + s * .45f, cy + s * .9f);
-               pa.lineTo(cx - s * .45f, cy + s * .9f); pa.lineTo(cx - s * .45f, cy); pa.lineTo(cx - s, cy); pa.close();
-               if (shift > 0) p.setStyle(Paint.Style.FILL);
-               cv.drawPath(pa, p);
-               if (shift == 2) { p.setStyle(Paint.Style.STROKE); cv.drawLine(cx - s * .45f, cy + s * 1.4f, cx + s * .45f, cy + s * 1.4f, p); }
-              } else if (ic == 2) {
-               pa.moveTo(cx - s * 1.2f, cy); pa.lineTo(cx - s * .4f, cy - s * .85f); pa.lineTo(cx + s * 1.2f, cy - s * .85f);
-               pa.lineTo(cx + s * 1.2f, cy + s * .85f); pa.lineTo(cx - s * .4f, cy + s * .85f); pa.close();
-               cv.drawPath(pa, p);
-               cv.drawLine(cx, cy - s * .35f, cx + s * .7f, cy + s * .35f, p);
-               cv.drawLine(cx + s * .7f, cy - s * .35f, cx, cy + s * .35f, p);
-              } else {
-               cv.drawLine(cx + s, cy - s * .8f, cx + s, cy, p); cv.drawLine(cx + s, cy, cx - s, cy, p);
-               cv.drawLine(cx - s, cy, cx - s * .3f, cy - s * .6f, p); cv.drawLine(cx - s, cy, cx - s * .3f, cy + s * .6f, p);
+              int dp(int v) {
+                  return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
               }
-              return;
-             }
-             p.setStyle(Paint.Style.FILL);
-             p.setTextAlign(Paint.Align.CENTER);
-             p.setTextSize(ts * d);
-             cv.drawText(l, cx, cy - (p.ascent() + p.descent()) / 2, p);
-             if (!hn.isEmpty()) {
-              p.setTextSize(10 * d); p.setColor(c[6]); p.setTextAlign(Paint.Align.RIGHT);
-              cv.drawText(hn, rc.right - dp(4), rc.top + dp(12), p);
-             }
-             if (!h2.isEmpty()) {
-              p.setTextSize(11 * d); p.setColor(c[6]); p.setTextAlign(Paint.Align.LEFT);
-              cv.drawText(h2, rc.left + dp(4), rc.top + dp(13), p);
-             }
-            }
 
-            @Override
-            public boolean onTouchEvent(MotionEvent e) {
-             switch (e.getActionMasked()) {
-              case MotionEvent.ACTION_DOWN:
-               pr = true; fired = false; invalidate();
-               performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
-               if (rp) { if (a != null) a.run(); h.postDelayed(rr, 380); }
-               else if (la != null) h.postDelayed(lr, 380);
-               return true;
-              case MotionEvent.ACTION_UP:
-               pr = false; h.removeCallbacks(rr); h.removeCallbacks(lr); invalidate();
-               if (!rp && !fired && a != null) a.run();
-               return true;
-              case MotionEvent.ACTION_CANCEL:
-               pr = false; h.removeCallbacks(rr); h.removeCallbacks(lr); invalidate();
-               return true;
-             }
-             return true;
-            }
-           }
+              TextView lab(String t, View.OnClickListener l) {
+                  TextView v = new TextView(this);
+                  v.setText(t);
+                  v.setTextColor(Color.WHITE);
+                  v.setTextSize(13);
+                  v.setGravity(Gravity.CENTER);
+                  v.setOnClickListener(l);
+                  v.setLayoutParams(new LinearLayout.LayoutParams(0, dp(48), 1));
+                  return v;
+              }
 
-           K mk(String l, int ty, float ts, Runnable a) {
-            K k = new K(l, ty);
-            k.ts = ts;
-            k.a = a;
-            return k;
-           }
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  getWindow().setStatusBarColor(0xFF1F2A3C);
+                  h = new Handler(Looper.getMainLooper());
+                  FrameLayout root = new FrameLayout(this);
+                  view = new PdfView(this);
+                  root.addView(view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-           @Override
-           public void onCreate() {
-            super.onCreate();
-            sp = getSharedPreferences("kb", 0);
-            d = getResources().getDisplayMetrics().density;
-            sg = new Suggest(this);
-            bn = sp.getBoolean("bn", false);
-            loadClips();
-            cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-            cm.addPrimaryClipChangedListener(this::addPrimary);
-           }
+                  topBar = new LinearLayout(this);
+                  topBar.setOrientation(LinearLayout.HORIZONTAL);
+                  topBar.setGravity(Gravity.CENTER_VERTICAL);
+                  topBar.setBackgroundColor(0xE61F2A3C);
+                  TextView back = new TextView(this);
+                  back.setText("<");
+                  back.setTextColor(Color.WHITE);
+                  back.setTextSize(22);
+                  back.setGravity(Gravity.CENTER);
+                  back.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          finish();
+                      }
+                  });
+                  topBar.addView(back, new LinearLayout.LayoutParams(dp(48), dp(48)));
+                  title = new TextView(this);
+                  title.setTextColor(Color.WHITE);
+                  title.setTextSize(15);
+                  title.setSingleLine(true);
+                  title.setEllipsize(TextUtils.TruncateAt.END);
+                  topBar.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+                  pageTv = new TextView(this);
+                  pageTv.setTextColor(GOLD);
+                  pageTv.setTextSize(14);
+                  pageTv.setGravity(Gravity.CENTER);
+                  pageTv.setPadding(dp(14), 0, dp(14), 0);
+                  pageTv.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          goDialog();
+                      }
+                  });
+                  topBar.addView(pageTv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)));
+                  root.addView(topBar, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP));
 
-           @Override
-           public void onDestroy() {
-            sg.save();
-            super.onDestroy();
-           }
+                  bottom = new LinearLayout(this);
+                  bottom.setOrientation(LinearLayout.VERTICAL);
+                  palette = new LinearLayout(this);
+                  palette.setOrientation(LinearLayout.VERTICAL);
+                  palette.setBackgroundColor(0xE61F2A3C);
+                  palette.setVisibility(View.GONE);
+                  LinearLayout row1 = new LinearLayout(this);
+                  row1.setOrientation(LinearLayout.HORIZONTAL);
+                  penB = lab("কলম", new View.OnClickListener() {
+                      public void onClick(View v) {
+                          setTool(PdfView.PEN);
+                      }
+                  });
+                  textB = lab("লেখা", new View.OnClickListener() {
+                      public void onClick(View v) {
+                          setTool(PdfView.TEXT);
+                      }
+                  });
+                  eraseB = lab("মোছা", new View.OnClickListener() {
+                      public void onClick(View v) {
+                          setTool(PdfView.ERASE);
+                      }
+                  });
+                  TextView undoB = lab("আনডু", new View.OnClickListener() {
+                      public void onClick(View v) {
+                          view.undo();
+                      }
+                  });
+                  sizeB = lab("সাইজ 2", new View.OnClickListener() {
+                      public void onClick(View v) {
+                          widthIdx = (widthIdx + 1) % 3;
+                          sizeB.setText("সাইজ " + (widthIdx + 1));
+                          view.setPen(color, widthIdx);
+                      }
+                  });
+                  TextView doneB = lab("শেষ", new View.OnClickListener() {
+                      public void onClick(View v) {
+                          setTool(PdfView.VIEW);
+                      }
+                  });
+                  row1.addView(penB);
+                  row1.addView(textB);
+                  row1.addView(eraseB);
+                  row1.addView(undoB);
+                  row1.addView(sizeB);
+                  row1.addView(doneB);
+                  LinearLayout row2 = new LinearLayout(this);
+                  row2.setOrientation(LinearLayout.HORIZONTAL);
+                  row2.setGravity(Gravity.CENTER);
+                  for (int i = 0; i < COLORS.length; i++) {
+                      final int idx = i;
+                      View dot = new View(this);
+                      GradientDrawable g = new GradientDrawable();
+                      g.setShape(GradientDrawable.OVAL);
+                      g.setColor(COLORS[i]);
+                      gds[i] = g;
+                      dot.setBackgroundDrawable(g);
+                      dot.setOnClickListener(new View.OnClickListener() {
+                          public void onClick(View v) {
+                              color = COLORS[idx];
+                              markColor(idx);
+                              view.setPen(color, widthIdx);
+                          }
+                      });
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(30), dp(30));
+                      lp.setMargins(dp(9), dp(6), dp(9), dp(6));
+                      row2.addView(dot, lp);
+                  }
+                  markColor(0);
+                  palette.addView(row1);
+                  palette.addView(row2);
 
-           @Override
-           public boolean onEvaluateFullscreenMode() { return false; }
+                  LinearLayout bar = new LinearLayout(this);
+                  bar.setOrientation(LinearLayout.HORIZONTAL);
+                  bar.setBackgroundColor(0xE61F2A3C);
+                  bmBtn = lab("বুকমার্ক", new View.OnClickListener() {
+                      public void onClick(View v) {
+                          toggleMark();
+                      }
+                  });
+                  TextView listB = lab("সূচি", new View.OnClickListener() {
+                      public void onClick(View v) {
+                          markList();
+                      }
+                  });
+                  TextView rotB = lab("ঘোরান", new View.OnClickListener() {
+                      public void onClick(View v) {
+                          if (doc != null) {
+                              view.rotate();
+                              save();
+                          }
+                      }
+                  });
+                  TextView modeB = lab("মোড", new View.OnClickListener() {
+                      public void onClick(View v) {
+                          modeDialog();
+                      }
+                  });
+                  TextView drawB = lab("আঁকুন", new View.OnClickListener() {
+                      public void onClick(View v) {
+                          if (doc != null) setTool(view.tool == PdfView.VIEW ? PdfView.PEN : PdfView.VIEW);
+                      }
+                  });
+                  bar.addView(bmBtn);
+                  bar.addView(listB);
+                  bar.addView(rotB);
+                  bar.addView(modeB);
+                  bar.addView(drawB);
+                  bottom.addView(palette);
+                  bottom.addView(bar);
+                  root.addView(bottom, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
 
-           void loadClips() {
-            try {
-             JSONArray a = new JSONArray(sp.getString("clips", "[]"));
-             for (int i = 0; i < a.length(); i++) clips.add(a.getString(i));
-             JSONArray b = new JSONArray(sp.getString("pins", "[]"));
-             for (int i = 0; i < b.length(); i++) pins.add(b.getString(i));
-            } catch (Exception e) { }
-           }
+                  pb = new ProgressBar(this);
+                  root.addView(pb, new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER));
+                  setContentView(root);
 
-           void saveClips() {
-            sp.edit().putString("clips", new JSONArray(clips).toString()).putString("pins", new JSONArray(pins).toString()).apply();
-           }
+                  Uri u = getIntent().getData();
+                  if (u != null && "file".equals(u.getScheme()) && Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT < 33
+                          && checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                      requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 7);
+                  } else {
+                      begin();
+                  }
+              }
 
-           void addPrimary() {
-            try {
-             ClipData cd = cm.getPrimaryClip();
-             if (cd != null && cd.getItemCount() > 0) {
-              CharSequence t = cd.getItemAt(0).coerceToText(this);
-              if (t != null && t.toString().trim().length() > 0) addClip(t.toString());
-             }
-            } catch (Exception e) { }
-           }
+              @Override
+              public void onRequestPermissionsResult(int rc, String[] perms, int[] res) {
+                  super.onRequestPermissionsResult(rc, perms, res);
+                  begin();
+              }
 
-           void addClip(String t) {
-            if (pins.contains(t)) return;
-            if (!clips.isEmpty() && clips.get(0).equals(t)) return;
-            clips.remove(t);
-            clips.add(0, t);
-            while (clips.size() > 50) clips.remove(clips.size() - 1);
-            saveClips();
-            if (panel == 3 && body != null) showPanel(3);
-           }
+              void markColor(int sel) {
+                  for (int i = 0; i < gds.length; i++) {
+                      gds[i].setStroke(dp(i == sel ? 3 : 1), i == sel ? Color.WHITE : 0x88FFFFFF);
+                  }
+              }
 
-           @Override
-           public View onCreateInputView() {
-            curTheme = Math.min(Math.max(sp.getInt("theme", 0), 0), Themes.C.length - 1);
-            c = Themes.C[curTheme];
-            boolean land = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
-            root = vl();
-            applyBg();
-            sug = hl();
-            for (int i = 0; i < 4; i++) {
-             final int k = i;
-             TextView t = new TextView(this);
-             t.setGravity(Gravity.CENTER);
-             t.setSingleLine();
-             t.setEllipsize(TextUtils.TruncateAt.END);
-             t.setTextSize(15);
-             t.setTextColor(c[3]);
-             t.setPadding(dp(4), 0, dp(4), 0);
-             t.setOnClickListener(v -> pick(k));
-             sug.addView(t, lp(0, -1, 1));
-             sv[i] = t;
-            }
-            root.addView(sug, lp(-1, dp(land ? 34 : 42), 0));
-            bar = hl();
-            fillBar();
-            root.addView(bar, lp(-1, dp(land ? 36 : 44), 0));
-            body = new FrameLayout(this);
-            root.addView(body, lp(-1, dp(land ? 150 : 220), 0));
-            showPanel(0);
-            return root;
-           }
+              void setTool(int t) {
+                  view.setTool(t);
+                  view.setPen(color, widthIdx);
+                  palette.setVisibility(t == PdfView.VIEW ? View.GONE : View.VISIBLE);
+                  penB.setTextColor(t == PdfView.PEN ? GOLD : Color.WHITE);
+                  textB.setTextColor(t == PdfView.TEXT ? GOLD : Color.WHITE);
+                  eraseB.setTextColor(t == PdfView.ERASE ? GOLD : Color.WHITE);
+                  if (t != PdfView.VIEW) {
+                      topBar.setVisibility(View.VISIBLE);
+                      bottom.setVisibility(View.VISIBLE);
+                  }
+              }
 
-           void applyBg() {
-            root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{c[0], c[1]}));
-           }
+              @Override
+              public void onBackPressed() {
+                  if (doc != null && view.tool != PdfView.VIEW) setTool(PdfView.VIEW);
+                  else super.onBackPressed();
+              }
 
-           void useTheme(int i) {
-            curTheme = i;
-            c = Themes.C[i];
-            sp.edit().putInt("theme", i).apply();
-            applyBg();
-            for (TextView t : sv) t.setTextColor(c[3]);
-            fillBar();
-            showPanel(panel);
-           }
+              void begin() {
+                  final Uri u = getIntent().getData();
+                  final String kx = getIntent().getStringExtra("key"), nx = getIntent().getStringExtra("name");
+                  new Thread(new Runnable() {
+                      public void run() {
+                          try {
+                              File dir = new File(getCacheDir(), "pdfs");
+                              dir.mkdirs();
+                              String key = null, name = nx;
+                              File pdf = null;
+                              if (kx != null) {
+                                  File f = new File(dir, kx + ".pdf");
+                                  if (f.exists() && f.length() > 0) {
+                                      pdf = f;
+                                      key = kx;
+                                  }
+                              }
+                              if (pdf == null) {
+                                  if (u == null) throw new IOException();
+                                  name = queryName(u);
+                                  File tmp = new File(dir, "tmp" + System.nanoTime() + ".src");
+                                  InputStream in = getContentResolver().openInputStream(u);
+                                  if (in == null) throw new IOException();
+                                  copy(in, tmp);
+                                  key = Store.hash(name + "|" + tmp.length());
+                                  pdf = new File(dir, key + ".pdf");
+                                  if (pdf.exists() && pdf.length() > 0) {
+                                      tmp.delete();
+                                  } else {
+                                      byte[] hd = new byte[4];
+                                      FileInputStream fi = new FileInputStream(tmp);
+                                      int rd = fi.read(hd);
+                                      fi.close();
+                                      if (rd == 4 && hd[0] == 'P' && hd[1] == 'K') {
+                                          DocConv.toPdf(tmp, pdf);
+                                          tmp.delete();
+                                      } else if (rd == 4 && (hd[0] & 0xFF) == 0xD0 && (hd[1] & 0xFF) == 0xCF) {
+                                          tmp.delete();
+                                          throw new IOException("doc");
+                                      } else if (!tmp.renameTo(pdf)) {
+                                          copy(new FileInputStream(tmp), pdf);
+                                          tmp.delete();
+                                      }
+                                  }
+                              }
+                              if (name == null) name = "document";
+                              pdf.setLastModified(System.currentTimeMillis());
+                              prune(dir, key);
+                              final File fp = pdf;
+                              final String fk = key, fn = name, fu = u == null ? "" : u.toString();
+                              runOnUiThread(new Runnable() {
+                                  public void run() {
+                                      if (!isFinishing()) start(fp, fk, fn, fu);
+                                  }
+                              });
+                          } catch (final Throwable t) {
+                              final String m = "doc".equals(t.getMessage()) ? "পুরোনো .doc ফাইল সাপোর্ট করে না, .docx ব্যবহার করুন" : "ফাইল খোলা যায়নি";
+                              runOnUiThread(new Runnable() {
+                                  public void run() {
+                                      Toast.makeText(ReaderActivity.this, m, Toast.LENGTH_LONG).show();
+                                      finish();
+                                  }
+                              });
+                          }
+                      }
+                  }).start();
+              }
 
-           void fillBar() {
-            bar.removeAllViews();
-            langK = mk(bn ? "বা" : "EN", 3, 17, this::toggleLang);
-            bar.addView(langK, lp(0, -1, 1));
-            bar.addView(mk("😊", 3, 20, () -> tog(5)), lp(0, -1, 1));
-            bar.addView(mk("↔", 3, 22, () -> tog(4)), lp(0, -1, 1));
-            bar.addView(mk("123", 3, 15, () -> tog(2)), lp(0, -1, 1));
-            bar.addView(mk("📋", 3, 20, () -> tog(3)), lp(0, -1, 1));
-            bar.addView(mk("🎨", 3, 20, () -> tog(6)), lp(0, -1, 1));
-            bar.addView(mk("∑", 3, 20, () -> tog(7)), lp(0, -1, 1));
-           }
+              static void copy(InputStream in, File out) throws IOException {
+                  OutputStream o = new FileOutputStream(out);
+                  try {
+                      byte[] b = new byte[65536];
+                      int r;
+                      while ((r = in.read(b)) > 0) o.write(b, 0, r);
+                  } finally {
+                      o.close();
+                      in.close();
+                  }
+              }
 
-           void tog(int p) { showPanel(panel == p ? 0 : p); }
+              static void prune(File dir, String keep) {
+                  File[] fs = dir.listFiles();
+                  if (fs == null) return;
+                  ArrayList<File> l = new ArrayList<>();
+                  long now = System.currentTimeMillis();
+                  for (File f : fs) {
+                      String nm = f.getName();
+                      if ((nm.endsWith(".src") || nm.endsWith(".dec")) && now - f.lastModified() > 600000L) f.delete();
+                      else if (nm.endsWith(".pdf") && !nm.equals(keep + ".pdf")) l.add(f);
+                  }
+                  if (l.size() < 12) return;
+                  Collections.sort(l, new java.util.Comparator<File>() {
+                      public int compare(File a, File b) {
+                          return Long.compare(a.lastModified(), b.lastModified());
+                      }
+                  });
+                  for (int i = 0; i < l.size() - 11; i++) l.get(i).delete();
+              }
 
-           void toggleLang() {
-            flushBn();
-            bn = !bn;
-            sp.edit().putBoolean("bn", bn).apply();
-            refreshLetters();
-            updSug();
-           }
+              String queryName(Uri u) {
+                  String n = null;
+                  if ("content".equals(u.getScheme())) {
+                      Cursor c = null;
+                      try {
+                          c = getContentResolver().query(u, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null);
+                          if (c != null && c.moveToFirst()) n = c.getString(0);
+                      } catch (Exception e) {
+                      } finally {
+                          if (c != null) c.close();
+                      }
+                  }
+                  if (n == null) n = u.getLastPathSegment();
+                  if (n == null) n = "document";
+                  return n;
+              }
 
-           void showPanel(int p) {
-            flushBn();
-            panel = p;
-            body.removeAllViews();
-            lk.clear();
-            View v;
-            switch (p) {
-             case 1: v = syms(); break;
-             case 2: v = nums(); break;
-             case 3: v = clipP(); break;
-             case 4: v = edit(); break;
-             case 5: v = emoji(); break;
-             case 6: v = themes(); break;
-             case 7: v = mathP(); break;
-             default: v = letters();
-            }
-            body.addView(v, new FrameLayout.LayoutParams(-1, -1));
-            if (p == 0) refreshLetters();
-            updSug();
-           }
+              void start(File pdf, String key, String name, String uri) {
+                  curPdf = pdf;
+                  doc = Store.load(this, key, name, uri);
+                  title.setText(name);
+                  view.open(pdf, doc, this);
+              }
 
-           K spaceKey() {
-            spaceK = new K("", 0);
-            spaceK.ts = 15;
-            spaceK.a = this::space;
-            spaceK.la = this::toggleLang;
-            spaceK.l = bn ? "বাংলা (Avro)" : "English";
-            return spaceK;
-           }
+              void askPass(boolean wrong) {
+                  pb.setVisibility(View.GONE);
+                  final EditText et = new EditText(this);
+                  et.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                  new AlertDialog.Builder(this).setTitle(wrong ? "ভুল পাসওয়ার্ড, আবার দিন" : "PDF-এর পাসওয়ার্ড দিন").setView(et).setCancelable(false)
+                          .setPositiveButton("খুলুন", new android.content.DialogInterface.OnClickListener() {
+                              public void onClick(android.content.DialogInterface d, int w) {
+                                  unlock(et.getText().toString());
+                              }
+                          }).setNegativeButton("বাতিল", new android.content.DialogInterface.OnClickListener() {
+                              public void onClick(android.content.DialogInterface d, int w) {
+                                  finish();
+                              }
+                          }).show();
+              }
 
-           K perKey() {
-            perK = new K(bn ? "।" : ".", 0);
-            perK.a = () -> onSym(".");
-            perK.la = () -> raw(".");
-            return perK;
-           }
+              void unlock(final String pw) {
+                  pb.setVisibility(View.VISIBLE);
+                  final File f = curPdf;
+                  new Thread(new Runnable() {
+                      public void run() {
+                          try {
+                              PDFBoxResourceLoader.init(getApplicationContext());
+                              File tmp = new File(f.getPath() + ".dec");
+                              PDDocument d = PDDocument.load(f, pw, MemoryUsageSetting.setupMixed(20L * 1024 * 1024).setTempDir(getCacheDir()));
+                              try {
+                                  d.setAllSecurityToBeRemoved(true);
+                                  d.save(tmp);
+                              } finally {
+                                  d.close();
+                              }
+                              if (!tmp.renameTo(f)) {
+                                  copy(new FileInputStream(tmp), f);
+                                  tmp.delete();
+                              }
+                              runOnUiThread(new Runnable() {
+                                  public void run() {
+                                      if (!isFinishing()) view.open(f, doc, ReaderActivity.this);
+                                  }
+                              });
+                          } catch (final Throwable t) {
+                              final boolean wrong = t.getClass().getSimpleName().contains("InvalidPassword");
+                              runOnUiThread(new Runnable() {
+                                  public void run() {
+                                      if (isFinishing()) return;
+                                      if (wrong) {
+                                          askPass(true);
+                                      } else {
+                                          Toast.makeText(ReaderActivity.this, "ফাইল খোলা যায়নি", Toast.LENGTH_LONG).show();
+                                          finish();
+                                      }
+                                  }
+                              });
+                          }
+                      }
+                  }).start();
+              }
 
-           K enterKey() {
-            K e = new K("", 2);
-            e.ic = 3;
-            e.a = this::enter;
-            return e;
-           }
+              void save() {
+                  if (doc != null && view != null) {
+                      view.sync();
+                      Store.save(this, doc);
+                  }
+              }
 
-           K delKey() {
-            K k = new K("", 1);
-            k.ic = 2;
-            k.rp = true;
-            k.a = this::del;
-            return k;
-           }
+              void toggleMark() {
+                  if (doc == null || pages == 0) return;
+                  int p = view.current();
+                  if (doc.marks.contains(p)) doc.marks.remove(Integer.valueOf(p));
+                  else doc.marks.add(p);
+                  bmBtn.setTextColor(doc.marks.contains(p) ? GOLD : Color.WHITE);
+                  save();
+              }
 
-           void bottom(LinearLayout v, String f, Runnable fa) {
-            LinearLayout row = hl();
-            row.addView(mk(f, 1, 15, fa), lp(0, -1, 1.4f));
-            K cmK = new K(",", 0);
-            cmK.a = () -> onSym(",");
-            row.addView(cmK, lp(0, -1, 1));
-            row.addView(spaceKey(), lp(0, -1, 5.1f));
-            row.addView(perKey(), lp(0, -1, 1));
-            row.addView(enterKey(), lp(0, -1, 1.5f));
-            v.addView(row, lp(-1, 0, 1));
-           }
+              void markList() {
+                  if (doc == null) return;
+                  final ArrayList<Integer> m = new ArrayList<>(doc.marks);
+                  if (m.isEmpty()) {
+                      Toast.makeText(this, "কোনো বুকমার্ক নেই", Toast.LENGTH_SHORT).show();
+                      return;
+                  }
+                  Collections.sort(m);
+                  String[] it = new String[m.size()];
+                  for (int i = 0; i < it.length; i++) it[i] = "পৃষ্ঠা " + (m.get(i) + 1);
+                  new AlertDialog.Builder(this).setTitle("বুকমার্ক").setItems(it, new android.content.DialogInterface.OnClickListener() {
+                      public void onClick(android.content.DialogInterface d, int w) {
+                          view.go(m.get(w));
+                      }
+                  }).show();
+              }
 
-           View letters() {
-            LinearLayout v = vl();
-            String[] R = {"qwertyuiop", "asdfghjkl", "zxcvbnm"};
-            String H1 = "1234567890", H2 = "@#$%&-+()", H3 = "*\"':;!?";
-            for (int r = 0; r < 3; r++) {
-             LinearLayout row = hl();
-             if (r == 2) {
-              shiftK = new K("", 1);
-              shiftK.ic = 1;
-              shiftK.a = this::doShift;
-              row.addView(shiftK, lp(0, -1, 1.5f));
-             }
-             String s = R[r];
-             for (int i = 0; i < s.length(); i++) {
-              char ch = s.charAt(i);
-              final String hint = String.valueOf(r == 0 ? H1.charAt(i) : r == 1 ? H2.charAt(i) : H3.charAt(i));
-              final K k = new K(String.valueOf(ch), 0);
-              k.base = ch;
-              k.hn = hint;
-              k.a = () -> onLetter(k);
-              k.la = () -> onSym(hint);
-              float w = 1;
-              if (r == 1 && i == 0) { w = 1.5f; k.lf = 1f / 3; }
-              if (r == 1 && i == 8) { w = 1.5f; k.rf = 1f / 3; }
-              lk.add(k);
-              row.addView(k, lp(0, -1, w));
-             }
-             if (r == 2) row.addView(delKey(), lp(0, -1, 1.5f));
-             v.addView(row, lp(-1, 0, 1));
-            }
-            bottom(v, "?123", () -> { symPage = 0; showPanel(1); });
-            return v;
-           }
+              void modeDialog() {
+                  new AlertDialog.Builder(this).setTitle("রিডিং মোড").setItems(PdfView.MODES, new android.content.DialogInterface.OnClickListener() {
+                      public void onClick(android.content.DialogInterface d, int w) {
+                          view.setTheme(w);
+                          if (doc != null) {
+                              doc.mode = w;
+                              save();
+                          }
+                      }
+                  }).show();
+              }
 
-           View syms() {
-            LinearLayout v = vl();
-            String[][] P = {{"1234567890", "@#$%&-+()/", "*\"':;!?"}, {"ঁংঃৎ্৳।~`|", "<>{}[]=^_\\", "©®°•√÷×"}};
-            String[] rs = P[symPage];
-            for (int r = 0; r < 3; r++) {
-             LinearLayout row = hl();
-             if (r == 2) row.addView(mk(symPage == 0 ? "1/2" : "2/2", 1, 14, () -> { symPage = 1 - symPage; showPanel(1); }), lp(0, -1, 1.5f));
-             String s = rs[r];
-             for (int i = 0; i < s.length(); i++) {
-              final String ch = String.valueOf(s.charAt(i));
-              K k = new K(ch, 0);
-              k.a = () -> onSym(ch);
-              row.addView(k, lp(0, -1, 1));
-             }
-             if (r == 2) row.addView(delKey(), lp(0, -1, 1.5f));
-             v.addView(row, lp(-1, 0, 1));
-            }
-            bottom(v, "ABC", () -> showPanel(0));
-            return v;
-           }
+              void goDialog() {
+                  if (doc == null || pages == 0) return;
+                  final EditText et = new EditText(this);
+                  et.setInputType(InputType.TYPE_CLASS_NUMBER);
+                  new AlertDialog.Builder(this).setTitle("পৃষ্ঠা নম্বর (1 - " + pages + ")").setView(et)
+                          .setPositiveButton("যান", new android.content.DialogInterface.OnClickListener() {
+                              public void onClick(android.content.DialogInterface d, int w) {
+                                  try {
+                                      int p = Integer.parseInt(et.getText().toString().trim());
+                                      view.go(Math.max(1, Math.min(pages, p)) - 1);
+                                  } catch (Exception e) {
+                                  }
+                              }
+                          }).setNegativeButton("বাতিল", null).show();
+              }
 
-           View nums() {
-            LinearLayout v = vl();
-            String[][] R = {{"1", "2", "3"}, {"4", "5", "6"}, {"7", "8", "9"}};
-            String[] ex = {"", "+", "-"};
-            for (int r = 0; r < 3; r++) {
-             LinearLayout row = hl();
-             for (String s : R[r]) {
-              K k = new K(s, 0);
-              k.ts = 24;
-              k.a = () -> onSym(s);
-              row.addView(k, lp(0, -1, 1));
-             }
-             if (r == 0) row.addView(delKey(), lp(0, -1, 1));
-             else {
-              final String e = ex[r];
-              K k = new K(e, 1);
-              k.ts = 22;
-              k.a = () -> onSym(e);
-              row.addView(k, lp(0, -1, 1));
-             }
-             v.addView(row, lp(-1, 0, 1));
-            }
-            LinearLayout row = hl();
-            row.addView(mk("ABC", 1, 15, () -> showPanel(0)), lp(0, -1, 1));
-            K cmK = new K(",", 1);
-            cmK.a = () -> onSym(",");
-            row.addView(cmK, lp(0, -1, 1));
-            K z = new K("0", 0);
-            z.ts = 24;
-            z.a = () -> onSym("0");
-            row.addView(z, lp(0, -1, 1));
-            K pk = new K(".", 1);
-            pk.a = () -> raw(".");
-            row.addView(pk, lp(0, -1, 1));
-            row.addView(enterKey(), lp(0, -1, 1));
-            v.addView(row, lp(-1, 0, 1));
-            return v;
-           }
+              @Override
+              public void onReady(int n) {
+                  pb.setVisibility(View.GONE);
+                  pages = n;
+                  doc.pages = n;
+                  view.setPen(color, widthIdx);
+                  pageTv.setText("1 / " + n);
+                  save();
+              }
 
-           View withBack(View content, boolean keys) {
-            LinearLayout v = vl();
-            v.addView(content, lp(-1, 0, 1));
-            LinearLayout r = hl();
-            r.addView(mk("ABC", 1, 15, () -> showPanel(0)), lp(0, -1, 1.5f));
-            if (keys) {
-             r.addView(mk("space", 0, 14, this::space), lp(0, -1, 3.5f));
-             r.addView(delKey(), lp(0, -1, 1.5f));
-            }
-            v.addView(r, lp(-1, dp(46), 0));
-            return v;
-           }
+              @Override
+              public void onFail(String m) {
+                  if ("PASSWORD".equals(m) && curPdf != null) {
+                      askPass(false);
+                      return;
+                  }
+                  Toast.makeText(this, m, Toast.LENGTH_LONG).show();
+                  finish();
+              }
 
-           View emoji() {
-            ScrollView sc = new ScrollView(this);
-            LinearLayout v = vl();
-            String[] E = EMO.split(" ");
-            LinearLayout row = null;
-            for (int i = 0; i < E.length; i++) {
-             if (i % 8 == 0) { row = hl(); v.addView(row, lp(-1, dp(44), 0)); }
-             final String e = E[i];
-             TextView t = new TextView(this);
-             t.setText(e);
-             t.setTextSize(24);
-             t.setGravity(Gravity.CENTER);
-             t.setOnClickListener(x -> {
-              flushBn();
-              InputConnection ic = getCurrentInputConnection();
-              if (ic != null) ic.commitText(e, 1);
-              updSug();
-             });
-             row.addView(t, lp(0, -1, 1));
-            }
-            int rem = E.length % 8;
-            if (rem != 0) for (int j = rem; j < 8; j++) row.addView(new View(this), lp(0, -1, 1));
-            sc.addView(v);
-            return withBack(sc, true);
-           }
+              @Override
+              public void onPage(int p) {
+                  pageTv.setText((p + 1) + " / " + pages);
+                  bmBtn.setTextColor(doc != null && doc.marks.contains(p) ? GOLD : Color.WHITE);
+              }
 
-           int mathPage;
+              @Override
+              public void onTap() {
+                  int v = topBar.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE;
+                  topBar.setVisibility(v);
+                  bottom.setVisibility(v);
+              }
 
-           static final String[] MT = {
-            "+ − × ÷ ± ∓ = ≠ ≈ ≡ ≅ ∼ ≃ ≤ ≥ < > ≪ ≫ ∝ ∞ √ ∛ ∜ ∑ ∏ ∫ ∬ ∭ ∮ ∂ ∇ ∆ % ‰ ° ′ ″ ½ ⅓ ¼ ¾ ⅔ ⅕ ⅛ π θ α β γ δ ε ζ η λ μ ν ξ ρ σ τ φ χ ψ ω Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω ∈ ∉ ∋ ⊂ ⊃ ⊆ ⊇ ∪ ∩ ∅ ∀ ∃ ∄ ∴ ∵ ∧ ∨ ¬ ⊕ ⊗ ⇒ ⇔ ⟹ → ← ↑ ↓ ↔ ∠ ⊥ ∥ ∘ · ⋅ ⌊ ⌋ ⌈ ⌉ ⟨ ⟩ ‖ ℝ ℕ ℤ ℚ ℂ ℓ ℏ ∖ ⊄ ⊈ ≜ ≔ ⁄ ‼",
-            "⁰ ¹ ² ³ ⁴ ⁵ ⁶ ⁷ ⁸ ⁹ ⁺ ⁻ ⁼ ⁽ ⁾ ᵃ ᵇ ᶜ ᵈ ᵉ ᶠ ᵍ ʰ ⁱ ʲ ᵏ ˡ ᵐ ⁿ ᵒ ᵖ ᑫ ʳ ˢ ᵗ ᵘ ᵛ ʷ ˣ ʸ ᶻ ᴬ ᴮ ᴰ ᴱ ᴳ ᴴ ᴵ ᴶ ᴷ ᴸ ᴹ ᴺ ᴼ ᴾ ᴿ ᵀ ᵁ ⱽ ᵂ",
-            "₀ ₁ ₂ ₃ ₄ ₅ ₆ ₇ ₈ ₉ ₊ ₋ ₌ ₍ ₎ ₐ ₑ ₕ ᵢ ⱼ ₖ ₗ ₘ ₙ ₒ ₚ ᵣ ₛ ₜ ᵤ ᵥ ₓ"
-           };
+              @Override
+              public void onText(final int page, final float x, final float y, final Store.Txt hit) {
+                  final EditText et = new EditText(this);
+                  et.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+                  if (hit != null) et.setText(hit.t);
+                  AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle("লেখা").setView(et)
+                          .setPositiveButton("ঠিক আছে", new android.content.DialogInterface.OnClickListener() {
+                              public void onClick(android.content.DialogInterface d, int w) {
+                                  String t = et.getText().toString();
+                                  if (hit == null) view.addText(page, x, y, t);
+                                  else view.editText(hit, t);
+                              }
+                          }).setNegativeButton("বাতিল", null);
+                  if (hit != null) {
+                      b.setNeutralButton("মুছুন", new android.content.DialogInterface.OnClickListener() {
+                          public void onClick(android.content.DialogInterface d, int w) {
+                              view.editText(hit, "");
+                          }
+                      });
+                  }
+                  b.show();
+              }
 
-           View mathP() {
-            LinearLayout v = vl();
-            LinearLayout hd = hl();
-            hd.addView(mk("ABC", 1, 14, () -> showPanel(0)), lp(0, -1, 1));
-            String[] tn = {"Math", "x²", "x₂"};
-            for (int i = 0; i < 3; i++) {
-             final int idx = i;
-             hd.addView(mk(tn[i], mathPage == i ? 1 : 3, 15, () -> { mathPage = idx; showPanel(7); }), lp(0, -1, 1));
-            }
-            hd.addView(delKey(), lp(0, -1, 1));
-            v.addView(hd, lp(-1, dp(42), 0));
-            ScrollView sc = new ScrollView(this);
-            LinearLayout g = vl();
-            String[] E = MT[mathPage].split(" ");
-            LinearLayout row = null;
-            for (int i = 0; i < E.length; i++) {
-             if (i % 8 == 0) { row = hl(); g.addView(row, lp(-1, dp(44), 0)); }
-             final String e = E[i];
-             FrameLayout w = new FrameLayout(this);
-             w.setPadding(dp(2), dp(2), dp(2), dp(2));
-             TextView t = new TextView(this);
-             t.setText(e);
-             t.setTextSize(20);
-             t.setTextColor(c[3]);
-             t.setGravity(Gravity.CENTER);
-             GradientDrawable bg = new GradientDrawable();
-             bg.setColor(c[2]);
-             bg.setCornerRadius(dp(8));
-             t.setBackground(bg);
-             w.addView(t, new FrameLayout.LayoutParams(-1, -1));
-             w.setOnClickListener(x -> raw(e));
-             row.addView(w, lp(0, -1, 1));
-            }
-            int rem = E.length % 8;
-            if (rem != 0) for (int j = rem; j < 8; j++) row.addView(new View(this), lp(0, -1, 1));
-            sc.addView(g);
-            v.addView(sc, lp(-1, 0, 1));
-            return v;
-           }
+              @Override
+              public void onChanged() {
+                  h.removeCallbacks(saver);
+                  h.postDelayed(saver, 1500);
+              }
 
-           View themes() {
-            ScrollView sc = new ScrollView(this);
-            LinearLayout v = vl();
-            v.setPadding(dp(4), dp(4), dp(4), dp(4));
-            int n = Themes.C.length;
-            for (int i = 0; i < n; i += 5) {
-             LinearLayout row = hl();
-             v.addView(row, lp(-1, dp(64), 0));
-             for (int j = i; j < i + 5; j++) {
-              if (j >= n) { row.addView(new View(this), lp(0, -1, 1)); continue; }
-              final int idx = j;
-              FrameLayout w = new FrameLayout(this);
-              w.setPadding(dp(4), dp(4), dp(4), dp(4));
-              TextView t = new TextView(this);
-              t.setText(Themes.N[j]);
-              t.setTextSize(10);
-              t.setGravity(Gravity.CENTER);
-              int[] q = Themes.C[j];
-              t.setTextColor(q[3]);
-              GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{q[0], q[1]});
-              g.setCornerRadius(dp(12));
-              if (j == curTheme) g.setStroke(dp(3), q[5]);
-              else g.setStroke(dp(1), 0x55808080);
-              t.setBackground(g);
-              w.addView(t, new FrameLayout.LayoutParams(-1, -1));
-              w.setOnClickListener(x -> useTheme(idx));
-              row.addView(w, lp(0, -1, 1));
-             }
-            }
-            sc.addView(v);
-            return withBack(sc, false);
-           }
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  save();
+              }
 
-           View clipP() {
-            LinearLayout v = vl();
-            LinearLayout hd = hl();
-            K back = mk("ABC", 1, 14, () -> showPanel(0));
-            K rec = mk("Recent", clipPins ? 3 : 1, 13, () -> { clipPins = false; showPanel(3); });
-            K pin = mk("Pinned", clipPins ? 1 : 3, 13, () -> { clipPins = true; showPanel(3); });
-            K clr = mk("Clear", 3, 13, () -> { (clipPins ? pins : clips).clear(); saveClips(); showPanel(3); });
-            hd.addView(back, lp(0, -1, 1));
-            hd.addView(rec, lp(0, -1, 1.3f));
-            hd.addView(pin, lp(0, -1, 1.3f));
-            hd.addView(clr, lp(0, -1, 1));
-            v.addView(hd, lp(-1, dp(42), 0));
-            ScrollView sc = new ScrollView(this);
-            LinearLayout lst = vl();
-            lst.setPadding(dp(2), 0, dp(2), dp(4));
-            final ArrayList<String> src = clipPins ? pins : clips;
-            if (src.isEmpty()) {
-             TextView e = new TextView(this);
-             e.setText(clipPins ? "Long-press a clip in Recent to pin it" : "Copied text will appear here");
-             e.setTextColor(c[3]);
-             e.setGravity(Gravity.CENTER);
-             e.setPadding(0, dp(40), 0, 0);
-             lst.addView(e);
-            }
-            for (int i = 0; i < src.size(); i += 2) {
-             LinearLayout row = hl();
-             for (int j = i; j < i + 2; j++) {
-              if (j >= src.size()) { row.addView(new View(this), lp(0, 1, 1)); continue; }
-              final String t = src.get(j);
-              FrameLayout w = new FrameLayout(this);
-              w.setPadding(dp(4), dp(4), dp(4), dp(4));
-              TextView tv = new TextView(this);
-              tv.setText(t.trim());
-              tv.setMaxLines(3);
-              tv.setEllipsize(TextUtils.TruncateAt.END);
-              tv.setTextSize(13);
-              tv.setTextColor(c[3]);
-              tv.setPadding(dp(10), dp(8), dp(10), dp(8));
-              tv.setMinHeight(dp(52));
-              GradientDrawable g = new GradientDrawable();
-              g.setColor(c[2]);
-              g.setCornerRadius(dp(10));
-              tv.setBackground(g);
-              w.addView(tv, new FrameLayout.LayoutParams(-1, -2));
-              w.setOnClickListener(x -> {
-               flushBn();
-               InputConnection ic = getCurrentInputConnection();
-               if (ic != null) ic.commitText(t, 1);
-               updSug();
-              });
-              w.setOnLongClickListener(x -> {
-               if (clipPins) { pins.remove(t); clips.remove(t); clips.add(0, t); }
-               else { clips.remove(t); pins.remove(t); pins.add(0, t); }
-               saveClips();
-               showPanel(3);
-               return true;
-              });
-              row.addView(w, lp(0, -2, 1));
-             }
-             lst.addView(row, lp(-1, -2, 0));
-            }
-            sc.addView(lst);
-            v.addView(sc, lp(-1, 0, 1));
-            return v;
-           }
+              @Override
+              public void onLowMemory() {
+                  super.onLowMemory();
+                  view.trim();
+              }
 
-           void addRow(LinearLayout v, K... ks) {
-            LinearLayout row = hl();
-            for (K k : ks) row.addView(k, lp(0, -1, k.wt));
-            v.addView(row, lp(-1, 0, 1));
-           }
-
-           K arrow(String s, int code) {
-            K k = mk(s, 1, 22, () -> sendKey(code));
-            k.rp = true;
-            return k;
-           }
-
-           View edit() {
-            LinearLayout v = vl();
-            addRow(v, arrow("←", KeyEvent.KEYCODE_DPAD_LEFT), arrow("↑", KeyEvent.KEYCODE_DPAD_UP), arrow("→", KeyEvent.KEYCODE_DPAD_RIGHT), mk("SELECT ALL", 1, 12, () -> act(android.R.id.selectAll)));
-            addRow(v, mk("HOME", 1, 12, () -> sendKey(KeyEvent.KEYCODE_MOVE_HOME)), arrow("↓", KeyEvent.KEYCODE_DPAD_DOWN), mk("END", 1, 12, () -> sendKey(KeyEvent.KEYCODE_MOVE_END)), mk("COPY", 1, 12, () -> act(android.R.id.copy)));
-            selK = mk("SELECT", selMode ? 2 : 1, 12, () -> { selMode = !selMode; selK.ty = selMode ? 2 : 1; selK.invalidate(); });
-            addRow(v, selK, mk("CUT", 1, 12, () -> act(android.R.id.cut)), mk("PASTE", 1, 12, () -> act(android.R.id.paste)), delKey());
-            K ab = mk("ABC", 1, 15, () -> showPanel(0));
-            ab.wt = 1;
-            K sp2 = mk("space", 0, 14, this::space);
-            sp2.wt = 3;
-            addRow(v, ab, sp2);
-            return v;
-           }
-
-           void sendKey(int code) {
-            InputConnection ic = getCurrentInputConnection();
-            if (ic == null) return;
-            long t = SystemClock.uptimeMillis();
-            int m = selMode ? KeyEvent.META_SHIFT_ON : 0;
-            ic.sendKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_DOWN, code, 0, m));
-            ic.sendKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_UP, code, 0, m));
-           }
-
-           void act(int id) {
-            InputConnection ic = getCurrentInputConnection();
-            if (ic != null) ic.performContextMenuAction(id);
-           }
-
-           String bh(char b, boolean up) {
-            if (up) {
-             int i = UP.indexOf(Character.toUpperCase(b));
-             if (i >= 0) return UH[i];
-            }
-            int i = QW.indexOf(b);
-            return i >= 0 ? BL[i] : "";
-           }
-
-           void refreshLetters() {
-            boolean up = shift > 0;
-            for (K k : lk) {
-             k.l = String.valueOf(up ? Character.toUpperCase(k.base) : k.base);
-             k.h2 = bn ? bh(k.base, up) : "";
-             k.invalidate();
-            }
-            if (spaceK != null) { spaceK.l = bn ? "বাংলা (Avro)" : "English"; spaceK.invalidate(); }
-            if (perK != null) { perK.l = bn ? "।" : "."; perK.invalidate(); }
-            if (langK != null) { langK.l = bn ? "বা" : "EN"; langK.invalidate(); }
-            if (shiftK != null) shiftK.invalidate();
-           }
-
-           void doShift() {
-            long n = SystemClock.uptimeMillis();
-            if (shift == 0) shift = 1;
-            else if (shift == 1) shift = (n - lastShift < 400) ? 2 : 0;
-            else shift = 0;
-            lastShift = n;
-            refreshLetters();
-           }
-
-           void flushBn() {
-            if (buf.length() > 0) {
-             InputConnection ic = getCurrentInputConnection();
-             if (ic != null) ic.finishComposingText();
-             buf.setLength(0);
-            }
-           }
-
-           void onLetter(K k) {
-            InputConnection ic = getCurrentInputConnection();
-            if (ic == null) return;
-            char ch = shift > 0 ? Character.toUpperCase(k.base) : k.base;
-            if (bn) {
-             buf.append(ch);
-             ic.setComposingText(Avro.conv(buf.toString()), 1);
-            } else ic.commitText(String.valueOf(ch), 1);
-            if (shift == 1) { shift = 0; refreshLetters(); }
-            updSug();
-           }
-
-           void onSym(String s) {
-            if (bn && !plain) {
-             if (s.equals(".")) s = "।";
-             else if (s.length() == 1 && s.charAt(0) >= '0' && s.charAt(0) <= '9') s = String.valueOf((char) (0x09E6 + (s.charAt(0) - '0')));
-            }
-            raw(s);
-           }
-
-           void raw(String s) {
-            InputConnection ic = getCurrentInputConnection();
-            if (ic == null) return;
-            flushBn();
-            ic.commitText(s, 1);
-            learn();
-            updSug();
-           }
-
-           void space() {
-            InputConnection ic = getCurrentInputConnection();
-            if (ic == null) return;
-            flushBn();
-            ic.commitText(" ", 1);
-            learn();
-            updSug();
-           }
-
-           void enter() {
-            InputConnection ic = getCurrentInputConnection();
-            if (ic == null) return;
-            flushBn();
-            int a = ei != null ? ei.imeOptions : 0;
-            int act = a & EditorInfo.IME_MASK_ACTION;
-            if (ei != null && (a & EditorInfo.IME_FLAG_NO_ENTER_ACTION) == 0 && act != EditorInfo.IME_ACTION_NONE && act != EditorInfo.IME_ACTION_UNSPECIFIED)
-             ic.performEditorAction(act);
-            else sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER);
-            updSug();
-           }
-
-           void del() {
-            InputConnection ic = getCurrentInputConnection();
-            if (ic == null) return;
-            if (buf.length() > 0) {
-             buf.setLength(buf.length() - 1);
-             if (buf.length() == 0) {
-              ic.setComposingText("", 1);
-              ic.finishComposingText();
-             } else ic.setComposingText(Avro.conv(buf.toString()), 1);
-            } else {
-             CharSequence sel = ic.getSelectedText(0);
-             if (sel != null && sel.length() > 0) ic.commitText("", 1);
-             else sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL);
-            }
-            updSug();
-           }
-
-           void learn() {
-            if (plain) return;
-            InputConnection ic = getCurrentInputConnection();
-            if (ic == null) return;
-            CharSequence b = ic.getTextBeforeCursor(60, 0);
-            if (b == null) return;
-            String s = b.toString();
-            int n = s.length();
-            if (n < 2) return;
-            char sc = s.charAt(n - 1);
-            if (!(Character.isWhitespace(sc) || ".,!?;:।".indexOf(sc) >= 0) || !isW(s.charAt(n - 2))) return;
-            ArrayList<String> t = toks(s);
-            if (t.isEmpty()) return;
-            int k = t.size();
-            String w = t.get(k - 1);
-            if (w.length() < 2 && w.charAt(0) < 128) return;
-            sg.learn(k > 2 ? t.get(k - 3) : null, k > 1 ? t.get(k - 2) : null, w);
-           }
-
-           void updSug() {
-            if (sv[0] == null) return;
-            InputConnection ic = getCurrentInputConnection();
-            List<String> r = new ArrayList<>();
-            curPre = "";
-            if (ic != null && !plain) {
-             CharSequence b = ic.getTextBeforeCursor(60, 0);
-             String s = b == null ? "" : b.toString();
-             int i = s.length();
-             while (i > 0 && isW(s.charAt(i - 1))) i--;
-             String pre = s.substring(i);
-             String ctx = s.substring(0, i);
-             ArrayList<String> t = toks(ctx);
-             String p1 = t.size() > 0 ? t.get(t.size() - 1) : null;
-             String p2 = t.size() > 1 ? t.get(t.size() - 2) : null;
-             String tr = ctx.trim();
-             if (tr.isEmpty() || ".!?।".indexOf(tr.charAt(tr.length() - 1)) >= 0) { p1 = null; p2 = null; }
-             curPre = pre;
-             r = sg.suggest(pre, p1, p2);
-            }
-            for (int k = 0; k < 4; k++) sv[k].setText(k < r.size() ? r.get(k) : "");
-           }
-
-           void pick(int k) {
-            String w = sv[k].getText().toString();
-            if (w.isEmpty()) return;
-            InputConnection ic = getCurrentInputConnection();
-            if (ic == null) return;
-            ic.beginBatchEdit();
-            if (buf.length() > 0) {
-             buf.setLength(0);
-             ic.commitText(w + " ", 1);
-            } else {
-             if (!curPre.isEmpty()) ic.deleteSurroundingText(curPre.length(), 0);
-             ic.commitText(w + " ", 1);
-            }
-            ic.endBatchEdit();
-            if (shift == 1) { shift = 0; refreshLetters(); }
-            learn();
-            updSug();
-           }
-
-           @Override
-           public void onStartInputView(EditorInfo info, boolean restarting) {
-            super.onStartInputView(info, restarting);
-            ei = info;
-            buf.setLength(0);
-            shift = 0;
-            selMode = false;
-            int it = info.inputType, cls = it & InputType.TYPE_MASK_CLASS, var = it & InputType.TYPE_MASK_VARIATION;
-            plain = cls != InputType.TYPE_CLASS_TEXT || var == InputType.TYPE_TEXT_VARIATION_PASSWORD || var == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD || var == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD || var == InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS || var == InputType.TYPE_TEXT_VARIATION_URI;
-            if (root == null) return;
-            int t = sp.getInt("theme", 0);
-            if (t != curTheme && t >= 0 && t < Themes.C.length) {
-             curTheme = t;
-             c = Themes.C[t];
-             applyBg();
-             for (TextView tv : sv) tv.setTextColor(c[3]);
-             fillBar();
-            }
-            addPrimary();
-            showPanel((cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE) ? 2 : 0);
-           }
-
-           @Override
-           public void onFinishInputView(boolean finishingInput) {
-            flushBn();
-            sg.save();
-            super.onFinishInputView(finishingInput);
-           }
-
-           @Override
-           public void onUpdateSelection(int os, int oe, int ns, int ne, int cs, int ce) {
-            super.onUpdateSelection(os, oe, ns, ne, cs, ce);
-            if (buf.length() > 0 && ce != -1 && (ns != ce || ne != ce)) {
-             buf.setLength(0);
-             InputConnection ic = getCurrentInputConnection();
-             if (ic != null) ic.finishComposingText();
-            }
-            h.removeCallbacks(upd);
-            h.post(upd);
-           }
+              @Override
+              protected void onDestroy() {
+                  super.onDestroy();
+                  h.removeCallbacks(saver);
+                  view.destroy();
+              }
           }
           EOF
 
+          cat > app/src/main/java/com/awal/pdfreader/MainActivity.java << 'EOF'
+          package com.awal.pdfreader;
+
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.content.DialogInterface;
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.AdapterView;
+          import android.widget.BaseAdapter;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.ListView;
+          import android.widget.TextView;
+          import java.util.ArrayList;
+
+          public class MainActivity extends Activity {
+              ListView list;
+              BaseAdapter ad;
+              ArrayList<Store.Entry> items = new ArrayList<>();
+
+              int dp(int v) {
+                  return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
+              }
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  getWindow().setStatusBarColor(0xFF1F2A3C);
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setBackgroundColor(0xFFF4F6FA);
+
+                  LinearLayout head = new LinearLayout(this);
+                  head.setOrientation(LinearLayout.HORIZONTAL);
+                  head.setGravity(Gravity.CENTER_VERTICAL);
+                  head.setBackgroundColor(0xFF1F2A3C);
+                  head.setPadding(dp(16), dp(16), dp(16), dp(16));
+                  ImageView logo = new ImageView(this);
+                  logo.setImageResource(R.drawable.ic_launcher);
+                  head.addView(logo, new LinearLayout.LayoutParams(dp(56), dp(56)));
+                  LinearLayout names = new LinearLayout(this);
+                  names.setOrientation(LinearLayout.VERTICAL);
+                  names.setPadding(dp(14), 0, 0, 0);
+                  TextView name = new TextView(this);
+                  name.setText("Awal PDF Reader");
+                  name.setTextColor(0xFFFFFFFF);
+                  name.setTextSize(20);
+                  name.setTypeface(null, android.graphics.Typeface.BOLD);
+                  TextView sub = new TextView(this);
+                  sub.setText("অফলাইন PDF ও Word রিডার");
+                  sub.setTextColor(0xFFBBD3FA);
+                  sub.setTextSize(13);
+                  names.addView(name);
+                  names.addView(sub);
+                  head.addView(names, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+                  root.addView(head, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                  TextView open = new TextView(this);
+                  open.setText("ফাইল খুলুন");
+                  open.setTextColor(0xFFFFFFFF);
+                  open.setTextSize(16);
+                  open.setGravity(Gravity.CENTER);
+                  open.setBackgroundColor(0xFF1F6FEB);
+                  open.setOnClickListener(new View.OnClickListener() {
+                      public void onClick(View v) {
+                          pick();
+                      }
+                  });
+                  LinearLayout.LayoutParams olp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
+                  olp.setMargins(dp(16), dp(16), dp(16), dp(8));
+                  root.addView(open, olp);
+
+                  TextView rec = new TextView(this);
+                  rec.setText("সাম্প্রতিক ফাইল");
+                  rec.setTextColor(0xFF55627A);
+                  rec.setTextSize(13);
+                  rec.setPadding(dp(16), dp(8), dp(16), dp(4));
+                  root.addView(rec);
+
+                  TextView empty = new TextView(this);
+                  empty.setText("এখনো কোনো ফাইল খোলা হয়নি");
+                  empty.setTextColor(0xFF8892A6);
+                  empty.setGravity(Gravity.CENTER);
+                  list = new ListView(this);
+                  ad = new BaseAdapter() {
+                      public int getCount() {
+                          return items.size();
+                      }
+
+                      public Object getItem(int i) {
+                          return items.get(i);
+                      }
+
+                      public long getItemId(int i) {
+                          return i;
+                      }
+
+                      public View getView(int i, View v, ViewGroup p) {
+                          TextView t = v instanceof TextView ? (TextView) v : new TextView(MainActivity.this);
+                          Store.Entry e = items.get(i);
+                          t.setText(e.name + "\nপৃষ্ঠা " + (e.page + 1) + " / " + e.pages);
+                          t.setTextColor(0xFF1F2A3C);
+                          t.setTextSize(15);
+                          t.setPadding(dp(16), dp(12), dp(16), dp(12));
+                          return t;
+                      }
+                  };
+                  list.setAdapter(ad);
+                  list.setEmptyView(empty);
+                  list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                      public void onItemClick(AdapterView<?> p, View v, int i, long id) {
+                          Store.Entry e = items.get(i);
+                          Intent it = new Intent(MainActivity.this, ReaderActivity.class);
+                          it.setData(Uri.parse(e.uri == null ? "" : e.uri));
+                          it.putExtra("key", e.key);
+                          it.putExtra("name", e.name);
+                          it.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                          startActivity(it);
+                      }
+                  });
+                  list.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+                      public boolean onItemLongClick(AdapterView<?> p, View v, int i, long id) {
+                          final Store.Entry e = items.get(i);
+                          new AlertDialog.Builder(MainActivity.this).setTitle(e.name).setMessage("এই ফাইলের সংরক্ষিত ডেটা মুছবেন?")
+                                  .setPositiveButton("মুছুন", new DialogInterface.OnClickListener() {
+                                      public void onClick(DialogInterface d, int w) {
+                                          Store.delete(MainActivity.this, e.key);
+                                          refresh();
+                                      }
+                                  }).setNegativeButton("বাতিল", null).show();
+                          return true;
+                      }
+                  });
+                  root.addView(empty, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+                  root.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+
+                  TextView about = new TextView(this);
+                  about.setText("Creator: Mohammod Abdul Awal\nStudent: Department of English, National University\nMail: awal.sorkar.144@gmail.com");
+                  about.setTextColor(0xFF55627A);
+                  about.setTextSize(12);
+                  about.setGravity(Gravity.CENTER);
+                  about.setBackgroundColor(0xFFE6EBF5);
+                  about.setPadding(dp(12), dp(10), dp(12), dp(10));
+                  root.addView(about, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                  setContentView(root);
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  refresh();
+              }
+
+              void refresh() {
+                  items.clear();
+                  items.addAll(Store.list(this));
+                  ad.notifyDataSetChanged();
+              }
+
+              void pick() {
+                  Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                  i.addCategory(Intent.CATEGORY_OPENABLE);
+                  i.setType("*/*");
+                  i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
+                  i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                  startActivityForResult(i, 1);
+              }
+
+              @Override
+              protected void onActivityResult(int rc, int res, Intent d) {
+                  super.onActivityResult(rc, res, d);
+                  if (rc == 1 && res == RESULT_OK && d != null && d.getData() != null) {
+                      Uri u = d.getData();
+                      try {
+                          getContentResolver().takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                      } catch (Exception e) {
+                      }
+                      Intent it = new Intent(this, ReaderActivity.class);
+                      it.setData(u);
+                      it.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                      startActivity(it);
+                  }
+              }
+          }
+          EOF
       - name: Gradle wrapper
         run: |
-          curl -fsSL -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar
-          curl -fsSL -o gradlew https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradlew
+          if ! (curl -fsSL -o gradlew https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradlew && curl -fsSL -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar); then
+            curl -fsSL -o gradle-dist.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
+            unzip -q gradle-dist.zip
+            ./gradle-8.5/bin/gradle wrapper --gradle-version 8.5
+          fi
           chmod +x gradlew
-
-      - name: Accept Android licenses
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
-
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          name: Awal-Keyboard-APK
+          name: Awal-PDF-Reader-APK
           path: app/build/outputs/apk/debug/app-debug.apk
