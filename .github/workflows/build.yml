@@ -1,547 +1,999 @@
-name: Build APK
+name: Build PDF Reader APK
 on:
- push:
- workflow_dispatch:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
 jobs:
- build:
-  runs-on: ubuntu-latest
-  steps:
-  - uses: actions/checkout@v4
-  - uses: actions/setup-java@v5
-    with:
-     distribution: temurin
-     java-version: '17'
-  - name: Licenses
-    run: |
-     mkdir -p $ANDROID_HOME/licenses
-     echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
-     echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
-     echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
-     echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_HOME/licenses/android-googletv-license
-  - name: Project
-    run: |
-     mkdir -p gradle/wrapper app/src/main/java/com/awal/fusioncam app/src/main/res/drawable
-     cat > settings.gradle << 'EOF'
-     pluginManagement{repositories{google();mavenCentral();gradlePluginPortal()}}
-     dependencyResolutionManagement{repositories{google();mavenCentral()}}
-     rootProject.name="FusionCam"
-     include ':app'
-     EOF
-     cat > build.gradle << 'EOF'
-     plugins{id 'com.android.application' version '8.1.4' apply false}
-     EOF
-     cat > gradle.properties << 'EOF'
-     org.gradle.jvmargs=-Xmx3g
-     EOF
-     cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-     distributionBase=GRADLE_USER_HOME
-     distributionPath=wrapper/dists
-     distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
-     zipStoreBase=GRADLE_USER_HOME
-     zipStorePath=wrapper/dists
-     EOF
-     curl -fsL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" -o gradle/wrapper/gradle-wrapper.jar
-     cat > gradlew << 'EOF'
-     #!/bin/sh
-     exec java -classpath "$(dirname "$0")/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
-     EOF
-     chmod +x gradlew
-     cat > app/build.gradle << 'EOF'
-     plugins{id 'com.android.application'}
-     android{
-     namespace 'com.awal.fusioncam'
-     compileSdk 34
-     defaultConfig{applicationId "com.awal.fusioncam";minSdk 26;targetSdk 34;versionCode 1;versionName "1.0"}
-     compileOptions{sourceCompatibility JavaVersion.VERSION_17;targetCompatibility JavaVersion.VERSION_17}
-     lint{abortOnError false}
-     }
-     EOF
-     cat > app/src/main/AndroidManifest.xml << 'EOF'
-     <?xml version="1.0" encoding="utf-8"?>
-     <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-     <uses-permission android:name="android.permission.CAMERA"/>
-     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
-     <uses-feature android:name="android.hardware.camera" android:required="false"/>
-     <application android:label="FusionCam" android:icon="@drawable/ic_logo" android:largeHeap="true" android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
-     <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="portrait" android:configChanges="orientation|screenSize|keyboardHidden">
-     <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
-     </activity>
-     </application>
-     </manifest>
-     EOF
-     cat > app/src/main/res/drawable/ic_logo.xml << 'EOF'
-     <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-     <path android:fillColor="#111827" android:pathData="M0,0h108v108h-108z"/>
-     <path android:fillColor="#FFFFFF" android:pathData="M44,54m-26,0a26,26 0 1,1 52,0a26,26 0 1,1 -52,0"/>
-     <path android:fillColor="#F59E0B" android:pathData="M64,54m-26,0a26,26 0 1,1 52,0a26,26 0 1,1 -52,0"/>
-     <path android:fillColor="#111827" android:pathData="M54,54m-11,0a11,11 0 1,1 22,0a11,11 0 1,1 -22,0"/>
-     </vector>
-     EOF
-     cat > app/src/main/java/com/awal/fusioncam/Filters.java << 'EOF'
-     package com.awal.fusioncam;
-     class Filters{
-     static final String[] K="b,c,s,r,g,bl,f,v,n,m,x,l,w,wi,z,p,px,vh,fl".split(",");
-     static final String[] S={
-     "Original|","Vivid|c=1.12 s=1.4","Soft Pop|c=0.95 s=1.25 b=0.05 z=0.3","Warm|r=1.12 g=1.03 bl=0.88","Cool|r=0.9 g=1.02 bl=1.15",
-     "Golden Hour|r=1.18 g=1.05 bl=0.78 z=0.35 v=0.3 s=1.15","Sunset|r=1.25 g=0.95 bl=0.8 c=1.1 v=0.25","Cinema|c=1.2 s=0.9 r=1.05 bl=1.05 v=0.45",
-     "Moody|c=1.25 s=0.7 b=-0.05 v=0.5 bl=1.05","Matte|f=0.25 c=0.9 s=0.85","Faded|f=0.35 s=0.7 c=0.9 r=1.04","Pastel|b=0.1 c=0.8 s=0.8 z=0.2",
-     "Dreamy|z=0.7 b=0.05 s=1.1 c=0.9","Noir|m=1 c=1.45 v=0.6","B&W|m=1 c=1.1","Silver|m=1 c=0.9 b=0.08 f=0.15","Sepia|m=1 r=1.2 g=0.95 bl=0.7 v=0.3",
-     "Cyanotype|m=1 r=0.6 g=0.95 bl=1.3 c=1.1","Film 400|n=0.12 c=1.1 s=0.9 f=0.12 r=1.03 v=0.25","Kodak Gold|r=1.1 g=1.03 bl=0.85 n=0.1 f=0.1 s=1.15",
-     "Fuji Green|r=0.95 g=1.1 bl=0.95 n=0.08 c=1.08 f=0.08","Polaroid|r=1.06 bl=0.92 f=0.22 v=0.4 c=0.95 n=0.07 z=0.2",
-     "Disposable|c=1.2 s=1.1 v=0.6 n=0.15 r=1.05 fl=0.04 w=6 wi=0.5","Old Photo|m=0.8 r=1.15 bl=0.75 f=0.3 n=0.2 v=0.55 w=6 wi=0.8",
-     "Silent Movie|m=1 n=0.25 w=6 wi=1 fl=0.08 v=0.5 c=1.2","8mm Home|r=1.12 bl=0.82 n=0.22 fl=0.06 v=0.5 w=6 wi=0.6 f=0.15",
-     "Super 8 Leak|r=1.1 n=0.18 w=4 wi=0.8 fl=0.05 v=0.4 f=0.15","Retro 70s|r=1.15 bl=0.8 f=0.25 s=1.1 n=0.1 v=0.35",
-     "Retro 90s|c=1.15 s=1.2 n=0.12 v=0.3 b=0.03 r=1.04","Camcorder|vh=0.5 l=0.35 s=1.1 n=0.1 x=0.004 v=0.2",
-     "VHS Tape|vh=1 l=0.5 x=0.008 n=0.18 s=1.2 f=0.15 r=1.05","Glitch|x=0.02 vh=1.5 l=0.2 c=1.2","RGB Split|x=0.012 c=1.1 s=1.2",
-     "CRT TV|l=0.7 x=0.005 v=0.55 c=1.2 z=0.3 g=1.05","Pixel Art|px=90 p=6 s=1.3","Mosaic|px=40 s=1.1","Comic|p=4 c=1.3 s=1.5","Posterize|p=5 s=1.3 c=1.1",
-     "Neon Night|c=1.35 s=1.6 bl=1.15 r=1.05 z=0.5 b=-0.06 v=0.4","Cyberpunk|r=1.15 g=0.85 bl=1.25 c=1.3 s=1.5 x=0.006 z=0.4",
-     "Vaporwave|r=1.15 g=0.9 bl=1.25 s=1.3 f=0.15 z=0.4 x=0.004","Drama|c=1.4 s=0.8 v=0.5 b=-0.03","HDR Pop|c=1.25 s=1.35 z=0.15","Crisp Day|c=1.15 s=1.2 b=0.03",
-     "Rain|w=1 wi=0.7 c=1.05 s=0.8 r=0.95 bl=1.06 v=0.35","Heavy Rain|w=1 wi=1 s=0.65 r=0.9 bl=1.1 b=-0.05 v=0.5",
-     "Storm|w=5 wi=1 s=0.6 r=0.9 bl=1.1 c=1.2 b=-0.08 v=0.55","Snow|w=2 wi=0.8 b=0.08 bl=1.08 s=0.8 f=0.1","Blizzard|w=2 wi=1.4 b=0.12 bl=1.1 s=0.6 z=0.3",
-     "Fog|w=3 wi=0.7 s=0.7 c=0.9","Misty Morning|w=3 wi=0.5 r=1.04 bl=0.97 z=0.35 f=0.1","Overcast|s=0.65 c=0.9 b=-0.02 r=0.97 bl=1.06",
-     "Sunny Glow|w=4 wi=0.8 r=1.12 g=1.04 bl=0.9 s=1.2 z=0.4","Light Leak|w=4 wi=1.2 r=1.08 f=0.1 n=0.06","Autumn|r=1.18 g=1.02 bl=0.8 s=1.3 c=1.08 v=0.3",
-     "Winter Cold|r=0.88 g=0.98 bl=1.18 s=0.75 b=0.04 c=1.05","Spring Bloom|r=1.03 g=1.08 s=1.35 z=0.3 b=0.04","Desert Heat|r=1.2 g=1.05 bl=0.78 c=1.1 s=0.9 z=0.2",
-     "Midnight|r=0.8 g=0.9 bl=1.2 b=-0.1 c=1.2 s=0.8 v=0.5","Dusty Film|w=6 wi=1 f=0.2 r=1.05 n=0.12 s=0.9"};
-     static final String[] N=new String[S.length];
-     static final float[][] P=new float[S.length][K.length];
-     static{for(int i=0;i<S.length;i++){String[] a=S[i].split("\\|",-1);N[i]=a[0];float[] p=P[i];p[1]=1;p[2]=1;p[3]=1;p[4]=1;p[5]=1;
-     for(String kv:a[1].trim().split(" ")){if(kv.isEmpty())continue;String[] t=kv.split("=");for(int j=0;j<K.length;j++)if(K[j].equals(t[0]))p[j]=Float.parseFloat(t[1]);}}}
-     }
-     EOF
-     cat > app/src/main/java/com/awal/fusioncam/Hdr.java << 'EOF'
-     package com.awal.fusioncam;
-     import android.graphics.Bitmap;
-     class Hdr{
-     static int cl(int i,int n){return i<0?0:i>=n?n-1:i;}
-     static void box(float[] a,float[] t,int w,int h,int r){float inv=1f/(2*r+1);
-     for(int y=0;y<h;y++){int o=y*w;float s=0;for(int i=-r;i<=r;i++)s+=a[o+cl(i,w)];for(int x=0;x<w;x++){t[o+x]=s*inv;s+=a[o+cl(x+r+1,w)]-a[o+cl(x-r,w)];}}
-     for(int x=0;x<w;x++){float s=0;for(int i=-r;i<=r;i++)s+=t[cl(i,h)*w+x];for(int y=0;y<h;y++){a[y*w+x]=s*inv;s+=t[cl(y+r+1,h)*w+x]-t[cl(y-r,h)*w+x];}}}
-     static void blur(float[] a,float[] t,int w,int h,int r){box(a,t,w,h,r);box(a,t,w,h,r);}
-     static float[] lum(int[] p){float[] l=new float[p.length];for(int i=0;i<p.length;i++){int c=p[i];l[i]=((c>>16&255)*.299f+(c>>8&255)*.587f+(c&255)*.114f)/255f;}return l;}
-     static float[] wgt(int[] p,float[] L,int w,int h){float[] o=new float[p.length];
-     for(int y=0;y<h;y++)for(int x=0;x<w;x++){int i=y*w+x;float c=L[i];
-     float lp=Math.abs(L[y*w+cl(x-1,w)]+L[y*w+cl(x+1,w)]+L[cl(y-1,h)*w+x]+L[cl(y+1,h)*w+x]-4*c);
-     int q=p[i],r=q>>16&255,g=q>>8&255,b=q&255;float s=(Math.max(r,Math.max(g,b))-Math.min(r,Math.min(g,b)))/255f;float d=c-.5f;
-     o[i]=(lp+.03f)*(s+.25f)*((float)Math.exp(-d*d/.06f)+.002f);}
-     return o;}
-     static Bitmap fuse(Bitmap A,Bitmap B){int w=A.getWidth(),h=A.getHeight();
-     if(B.getWidth()!=w||B.getHeight()!=h)B=Bitmap.createScaledBitmap(B,w,h,true);
-     int n=w*h;int[] pa=new int[n],pb=new int[n];A.getPixels(pa,0,w,0,0,w,h);B.getPixels(pb,0,w,0,0,w,h);A.recycle();B.recycle();
-     float[] wa=wgt(pa,lum(pa),w,h),wb=wgt(pb,lum(pb),w,h);
-     for(int i=0;i<n;i++)wa[i]=wa[i]/(wa[i]+wb[i]);wb=null;
-     float[] t=new float[n],wd=wa.clone();int m=Math.max(w,h);
-     blur(wa,t,w,h,m/18);blur(wd,t,w,h,2);
-     int[] out=new int[n];float[] b0=new float[n],b1=new float[n];int rb=m/120+2;
-     for(int ch=0;ch<3;ch++){int sh=16-8*ch;
-     for(int i=0;i<n;i++){b0[i]=pa[i]>>sh&255;b1[i]=pb[i]>>sh&255;}
-     blur(b0,t,w,h,rb);blur(b1,t,w,h,rb);
-     for(int i=0;i<n;i++){float s=wa[i],d=wd[i];float o0=pa[i]>>sh&255,o1=pb[i]>>sh&255;
-     float v=s*b0[i]+(1-s)*b1[i]+d*(o0-b0[i])+(1-d)*(o1-b1[i]);int k=v<0?0:v>255?255:(int)(v+.5f);out[i]|=k<<sh;}}
-     for(int i=0;i<n;i++)out[i]|=0xFF000000;
-     Bitmap r=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);r.setPixels(out,0,w,0,0,w,h);return r;}
-     }
-     EOF
-     cat > app/src/main/java/com/awal/fusioncam/GLR.java << 'EOF'
-     package com.awal.fusioncam;
-     import android.graphics.Bitmap;
-     import android.graphics.SurfaceTexture;
-     import android.opengl.*;
-     import android.util.Log;
-     import android.view.Surface;
-     import java.nio.*;
-     import javax.microedition.khronos.egl.EGLConfig;
-     import javax.microedition.khronos.opengles.GL10;
-     class GLR implements GLSurfaceView.Renderer{
-     interface Cb{void on(Object o);}
-     static final int X=GLES11Ext.GL_TEXTURE_EXTERNAL_OES;
-     static final String VS="attribute vec2 aP;uniform mat4 uM;varying vec2 vT,vU,vD,vE;void main(){gl_Position=vec4(aP,0.,1.);vec2 u=aP*.5+.5;vU=u;vT=(uM*vec4(u,0.,1.)).xy;vD=(uM*vec4(1.,0.,0.,0.)).xy;vE=(uM*vec4(0.,1.,0.,0.)).xy;}";
-     static final String FS="""
-     @X
-     #ifdef GL_FRAGMENT_PRECISION_HIGH
-     precision highp float;
-     #else
-     precision mediump float;
-     #endif
-     varying vec2 vT,vU,vD,vE;
-     uniform @S uS;
-     uniform float uP[19];
-     uniform float uTm,uDro,uWb,uAs;
-     float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
-     float nz(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1.,0.)),f.x),mix(h(i+vec2(0.,1.)),h(i+vec2(1.,1.)),f.x),f.y);}
-     vec3 tx(vec2 d){return texture2D(uS,vT+vD*d.x+vE*d.y).rgb;}
-     void main(){
-     vec2 u=vU,d=vec2(0.);
-     if(uP[16]>0.){vec2 n=vec2(uP[16],uP[16]/uAs);d=(floor(u*n)+.5)/n-u;}
-     if(uP[17]>0.){float bd=step(.96,h(vec2(floor(u.y*30.),floor(uTm*8.))));d.x+=uP[17]*(bd*.03*(h(vec2(u.y,uTm))-.5)*2.+sin(u.y*40.+uTm*5.)*.0015);}
-     float sh=uP[10];
-     vec3 c=vec3(tx(d+vec2(sh,0.)).r,tx(d).g,tx(d-vec2(sh,0.)).b);
-     float z=uP[14];
-     if(z>0.){vec3 a=(tx(d+vec2(.012,.012))+tx(d+vec2(-.012,.012))+tx(d+vec2(.012,-.012))+tx(d+vec2(-.012,-.012)))*.25;c=mix(c,a,z*.5)+max(a-.55,0.)*z;}
-     if(uDro>0.){c=pow(max(c,vec3(0.)),vec3(1.-.35*uDro));c=c/(1.+.25*uDro*c)*(1.+.25*uDro);}
-     vec3 tn=vec3(uP[3],uP[4],uP[5]);
-     c*=vec3(1.+uWb*.3,1.,1.-uWb*.3)*tn;
-     c=(c-.5)*uP[1]+.5+uP[0];
-     float l=dot(c,vec3(.299,.587,.114));
-     c=mix(vec3(l),c,uP[2]);
-     c=mix(c,vec3(l)*tn,uP[9]);
-     c=c*(1.-uP[6])+uP[6]*.2;
-     if(uP[15]>0.)c=floor(c*uP[15]+.5)/uP[15];
-     float w=uP[12],wi=uP[13];vec2 q=vec2(u.x*uAs,u.y);
-     if(abs(w-1.)<.5||abs(w-5.)<.5){float r=0.;
-     for(int i=0;i<2;i++){float fi=float(i);float sc=70.+fi*45.;vec2 g=vec2(q.x*sc+q.y*sc*.12,q.y*sc*.22+uTm*(14.+fi*5.));vec2 id=floor(g),f=fract(g);float x=abs(f.x-.5);
-     r+=(1.-smoothstep(0.,.12,x))*smoothstep(0.,.25,f.y)*(1.-smoothstep(.3,1.,f.y))*step(.6,h(id+fi*7.));}
-     c=mix(c,vec3(.85,.9,1.),min(r,1.)*.4*min(wi,1.));c*=1.-.12*min(wi,1.);
-     if(w>4.5)c+=step(.97,h(vec2(floor(uTm*2.5),3.)))*(.4+.3*sin(uTm*50.));}
-     if(abs(w-2.)<.5){float s=0.;
-     for(int i=0;i<3;i++){float fi=float(i);float sc=9.+fi*8.;vec2 g=vec2(q.x*sc+sin(uTm*.6+fi*2.)*.6,q.y*sc+uTm*(.5+fi*.3));vec2 id=floor(g),f=fract(g)-.5;vec2 o=vec2(h(id+3.)-.5,h(id+9.)-.5)*.5;
-     s+=(1.-smoothstep(0.,.15-fi*.03,length(f-o)))*step(.45,h(id+fi*13.));}
-     c=mix(c,vec3(1.),min(s,1.)*.9*min(wi,1.));}
-     if(abs(w-3.)<.5){float fg=nz(q*3.+vec2(uTm*.1,0.))*.6+nz(q*7.-vec2(uTm*.07,0.))*.4;c=mix(c,vec3(.82,.85,.88),clamp(wi*(.3+.5*fg),0.,.9));}
-     if(abs(w-4.)<.5){float g=(1.-smoothstep(0.,.9,distance(u,vec2(.1+.1*sin(uTm*.4),.9))))*(.7+.3*sin(uTm*.9));c+=vec3(1.,.5,.15)*g*.5*wi;c+=vec3(1.,.6,.2)*(1.-smoothstep(0.,.8,distance(u,vec2(.95,.05))))*.2*wi;}
-     if(abs(w-6.)<.5){float sc=step(.9965,h(vec2(floor(u.x*250.),floor(uTm*12.))))*step(.3,h(vec2(floor(uTm*12.),1.)));float ds=step(.9985,h(floor(q*200.)+floor(uTm*10.)));c=mix(c,vec3(.95),clamp(sc*.5+ds*.7,0.,1.)*wi);}
-     c*=1.+uP[18]*(h(vec2(floor(uTm*14.),0.))-.5)*2.;
-     c*=1.-uP[11]*.35*(.5+.5*sin(u.y*1000.));
-     c+=(h(floor(u*vec2(360.,360./uAs))+fract(uTm)*10.)-.5)*uP[8];
-     c*=1.-uP[7]*smoothstep(.3,.95,distance(u,vec2(.5))*1.35);
-     gl_FragColor=vec4(clamp(c,0.,1.),1.);}
-     """;
-     final Cb rdy;GLR(Cb c){rdy=c;}
-     int oes,pO,p2,W,H;SurfaceTexture st;final float[] stm=new float[16],m=new float[16];
-     volatile int fi,bw=1440,bh=1080,rot=90,ri,sy,ts,pad,gap;
-     volatile float wb,scroll;
-     volatile boolean front,mir=true,dro,strip,paused,nf;
-     volatile EGLSurface rs;EGLDisplay ed;EGLContext ec;int rw,rh;
-     final FloatBuffer q=ByteBuffer.allocateDirect(32).order(ByteOrder.nativeOrder()).asFloatBuffer();
-     static int sh(int t,String s){int i=GLES20.glCreateShader(t);GLES20.glShaderSource(i,s);GLES20.glCompileShader(i);Log.i("GLR",GLES20.glGetShaderInfoLog(i));return i;}
-     static int prog(String f){int p=GLES20.glCreateProgram();GLES20.glAttachShader(p,sh(GLES20.GL_VERTEX_SHADER,VS));GLES20.glAttachShader(p,sh(GLES20.GL_FRAGMENT_SHADER,f));GLES20.glLinkProgram(p);return p;}
-     static int L(int p,String n){return GLES20.glGetUniformLocation(p,n);}
-     static void par(int t){GLES20.glTexParameteri(t,GLES20.GL_TEXTURE_MIN_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(t,GLES20.GL_TEXTURE_MAG_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(t,GLES20.GL_TEXTURE_WRAP_S,GLES20.GL_CLAMP_TO_EDGE);GLES20.glTexParameteri(t,GLES20.GL_TEXTURE_WRAP_T,GLES20.GL_CLAMP_TO_EDGE);}
-     public void onSurfaceCreated(GL10 g,EGLConfig c){
-     q.put(new float[]{-1,-1,1,-1,-1,1,1,1}).position(0);rs=null;Matrix.setIdentityM(stm,0);
-     pO=prog(FS.replace("@X","#extension GL_OES_EGL_image_external : require").replace("@S","samplerExternalOES"));
-     p2=prog(FS.replace("@X","").replace("@S","sampler2D"));
-     int[] t=new int[1];GLES20.glGenTextures(1,t,0);oes=t[0];GLES20.glBindTexture(X,oes);par(X);
-     st=new SurfaceTexture(oes);st.setOnFrameAvailableListener(s->nf=true);rdy.on(st);}
-     public void onSurfaceChanged(GL10 g,int w,int h){W=w;H=h;}
-     void mat(float a){boolean r90=rot%180!=0;float uw=r90?bh:bw,uh=r90?bw:bh,ua=uw/uh,fx=1,fy=1;if(a>ua)fy=ua/a;else fx=a/ua;
-     boolean stR=Math.abs(stm[0])<.5f&&Math.abs(stm[5])<.5f;System.arraycopy(stm,0,m,0,16);Matrix.translateM(m,0,.5f,.5f,0);if(r90&&!stR)Matrix.rotateM(m,0,rot,0,0,1);Matrix.scaleM(m,0,front&&mir?-fx:fx,fy,1);Matrix.translateM(m,0,-.5f,-.5f,0);}
-     void draw(int p,int tg,int tx,int x,int y,int w,int h,float a,float[] f,float dr,float wv){
-     GLES20.glViewport(x,y,w,h);GLES20.glUseProgram(p);
-     if(p==pO)mat(a);else Matrix.setIdentityM(m,0);
-     GLES20.glUniformMatrix4fv(L(p,"uM"),1,false,m,0);GLES20.glUniform1fv(L(p,"uP"),19,f,0);
-     GLES20.glUniform1f(L(p,"uTm"),(float)((System.nanoTime()/1e9)%1000));GLES20.glUniform1f(L(p,"uDro"),dr);GLES20.glUniform1f(L(p,"uWb"),wv);GLES20.glUniform1f(L(p,"uAs"),a);
-     int l=GLES20.glGetAttribLocation(p,"aP");GLES20.glEnableVertexAttribArray(l);GLES20.glVertexAttribPointer(l,2,GLES20.GL_FLOAT,false,8,q);
-     GLES20.glActiveTexture(GLES20.GL_TEXTURE0);GLES20.glBindTexture(tg,tx);GLES20.glUniform1i(L(p,"uS"),0);
-     GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP,0,4);}
-     public void onDrawFrame(GL10 g){
-     boolean fr=nf;if(fr){nf=false;try{st.updateTexImage();st.getTransformMatrix(stm);}catch(Exception e){}}
-     GLES20.glViewport(0,0,W,H);GLES20.glClearColor(0,0,0,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-     float a=MainActivity.aspOf(ri,W,H);int[] r=MainActivity.rect(W,H,a);
-     draw(pO,X,oes,r[0],r[1],r[2],r[3],a,Filters.P[fi],dro?1:0,wb);
-     if(strip)tiles();
-     if(fr&&rs!=null&&!paused)rec();}
-     void tiles(){int n=Filters.N.length,s=(int)scroll;GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
-     for(int i=0;i<n;i++){int x=pad+i*(ts+gap)-s;if(x+ts<0||x>W)continue;int b=i==fi?5:2;float k=i==fi?1:0;
-     GLES20.glScissor(x-b,sy-b,ts+2*b,ts+2*b);GLES20.glClearColor(k,k,k,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);}
-     GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
-     for(int i=0;i<n;i++){int x=pad+i*(ts+gap)-s;if(x+ts<0||x>W)continue;draw(pO,X,oes,x,sy,ts,ts,1f,Filters.P[i],dro?1:0,wb);}}
-     void startRec(Surface s,int w,int h){ed=EGL14.eglGetCurrentDisplay();ec=EGL14.eglGetCurrentContext();
-     int[] a={EGL14.EGL_RED_SIZE,8,EGL14.EGL_GREEN_SIZE,8,EGL14.EGL_BLUE_SIZE,8,EGL14.EGL_ALPHA_SIZE,8,EGL14.EGL_RENDERABLE_TYPE,EGL14.EGL_OPENGL_ES2_BIT,0x3142,1,EGL14.EGL_NONE};
-     android.opengl.EGLConfig[] c=new android.opengl.EGLConfig[1];int[] n=new int[1];EGL14.eglChooseConfig(ed,a,0,c,0,1,n,0);
-     EGLSurface e=EGL14.eglCreateWindowSurface(ed,c[0],s,new int[]{EGL14.EGL_NONE},0);rw=w;rh=h;paused=false;rs=e;}
-     void rec(){EGLSurface e=rs;if(e==null)return;EGLSurface o=EGL14.eglGetCurrentSurface(EGL14.EGL_DRAW);
-     EGL14.eglMakeCurrent(ed,e,e,ec);
-     draw(pO,X,oes,0,0,rw,rh,(float)rw/rh,Filters.P[fi],dro?1:0,wb);
-     EGLExt.eglPresentationTimeANDROID(ed,e,System.nanoTime());EGL14.eglSwapBuffers(ed,e);
-     EGL14.eglMakeCurrent(ed,o,o,ec);}
-     void stopRec(){EGLSurface e=rs;rs=null;if(e!=null)EGL14.eglDestroySurface(ed,e);}
-     void filt(Bitmap b,int f,float dr,float wv,Cb cb){Bitmap o=b;
-     try{int[] mx=new int[1];GLES20.glGetIntegerv(GLES20.GL_MAX_TEXTURE_SIZE,mx,0);int big=Math.max(b.getWidth(),b.getHeight());
-     if(big>mx[0]){float s=(float)mx[0]/big;b=Bitmap.createScaledBitmap(b,Math.round(b.getWidth()*s),Math.round(b.getHeight()*s),true);}
-     int w=b.getWidth(),h=b.getHeight();int[] t=new int[2],fb=new int[1];GLES20.glGenTextures(2,t,0);
-     GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,t[0]);par(GLES20.GL_TEXTURE_2D);GLUtils.texImage2D(GLES20.GL_TEXTURE_2D,0,b,0);
-     GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,t[1]);par(GLES20.GL_TEXTURE_2D);GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D,0,GLES20.GL_RGBA,w,h,0,GLES20.GL_RGBA,GLES20.GL_UNSIGNED_BYTE,null);
-     GLES20.glGenFramebuffers(1,fb,0);GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,fb[0]);GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER,GLES20.GL_COLOR_ATTACHMENT0,GLES20.GL_TEXTURE_2D,t[1],0);
-     draw(p2,GLES20.GL_TEXTURE_2D,t[0],0,0,w,h,(float)w/h,Filters.P[f],dr,wv);
-     ByteBuffer bb=ByteBuffer.allocateDirect(w*h*4);GLES20.glReadPixels(0,0,w,h,GLES20.GL_RGBA,GLES20.GL_UNSIGNED_BYTE,bb);
-     Bitmap r=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);r.copyPixelsFromBuffer(bb);
-     GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,0);GLES20.glDeleteFramebuffers(1,fb,0);GLES20.glDeleteTextures(2,t,0);o=r;}
-     catch(Throwable e){Log.e("GLR","filt",e);}
-     cb.on(o);}
-     }
-     EOF
-     cat > app/src/main/java/com/awal/fusioncam/MainActivity.java << 'EOF'
-     package com.awal.fusioncam;
-     import android.Manifest;
-     import android.app.Activity;
-     import android.app.AlertDialog;
-     import android.content.ContentValues;
-     import android.content.pm.PackageManager;
-     import android.graphics.*;
-     import android.graphics.drawable.GradientDrawable;
-     import android.hardware.camera2.*;
-     import android.hardware.camera2.params.MeteringRectangle;
-     import android.hardware.camera2.params.StreamConfigurationMap;
-     import android.media.*;
-     import android.net.Uri;
-     import android.opengl.GLSurfaceView;
-     import android.os.*;
-     import android.provider.MediaStore;
-     import android.util.Range;
-     import android.util.Size;
-     import android.view.*;
-     import android.widget.*;
-     import java.io.File;
-     import java.io.OutputStream;
-     import java.nio.ByteBuffer;
-     import java.util.*;
-     public class MainActivity extends Activity{
-     static final String[] RN={"3:4","9:16","1:1","FULL"};
-     static float aspOf(int r,int w,int h){return r==0?.75f:r==1?.5625f:r==2?1f:(float)w/h;}
-     static int[] rect(int W,int H,float a){int w=W,h=Math.round(W/a);if(h>H){h=H;w=Math.round(H*a);}return new int[]{(W-w)/2,(H-h)/2,w,h};}
-     static boolean has(int[] a,int v){if(a!=null)for(int x:a)if(x==v)return true;return false;}
-     GLSurfaceView gl;GLR rnd;FrameLayout root;View grid;LinearLayout pan;
-     TextView lab,tmr,ratB,gridB,hdrB,droB,mirB,swB,infB,fltB,proB,pauseB,shut,phB,vdB;
-     SeekBar[] sb=new SeekBar[5];TextView[] tv=new TextView[5];
-     HandlerThread ht;Handler bg;final Handler ui=new Handler(Looper.getMainLooper());
-     CameraManager mgr;final List<String> ids=new ArrayList<>();int ci;
-     CameraDevice cam;CameraCaptureSession ses;ImageReader rdr;SurfaceTexture st;Surface psf;CameraCharacteristics cc;
-     int srot,evMin,evMax,isoMin=100,isoMax=800;float evStep=1,minFocus;long expMin=1000000L,expMax=100000000L;boolean isFront,manOK,afOK;
-     volatile int lastIso=100,pEv,pIso,pSh,pFo,pWb,need;volatile long lastExp=10000000L;
-     int fi,ri,mode;boolean gridOn=true,hdr,dro,mir=true,proOn,stripOn,rec,paused;volatile boolean busy;
-     int pRot;boolean pMir;float pAsp;
-     final ArrayList<byte[]> shots=new ArrayList<>();
-     MediaRecorder mr;ParcelFileDescriptor vpfd;long t0,acc;
-     float dx0,sc0,dy0,zoom=1,maxZ=1;int evBase,maxAE,maxAF;boolean inBand,moved,multi;Rect arr;volatile MeteringRectangle[] reg;View ring;TextView evT,zt;ScaleGestureDetector sg;
-     final Runnable hp=()->pan.setVisibility(View.GONE),hz=()->zt.setVisibility(View.GONE),hRg=()->{ring.setVisibility(View.GONE);evT.setVisibility(View.GONE);};
-     int dp(float v){return Math.round(v*getResources().getDisplayMetrics().density);}
-     void toast(String t){ui.post(()->Toast.makeText(this,t,Toast.LENGTH_SHORT).show());}
-     void on(TextView v,boolean s){GradientDrawable g=new GradientDrawable();g.setColor(s?0xFFF59E0B:0x88000000);g.setCornerRadius(dp(14));v.setBackground(g);v.setTextColor(s?0xFF000000:-1);}
-     TextView b(String t,View.OnClickListener l){TextView v=new TextView(this);v.setText(t);v.setTextSize(12);v.setGravity(Gravity.CENTER);v.setPadding(dp(4),dp(8),dp(4),dp(8));v.setOnClickListener(l);on(v,false);return v;}
-     LinearLayout.LayoutParams lp(){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);p.setMargins(dp(3),0,dp(3),0);return p;}
-     GradientDrawable shutBg(boolean vid,boolean r){GradientDrawable g=new GradientDrawable();g.setColor(vid?0xFFEF4444:0xFFFFFFFF);g.setStroke(dp(4),0xFFCCCCCC);if(r)g.setCornerRadius(dp(16));else g.setShape(GradientDrawable.OVAL);return g;}
-     class Sk implements SeekBar.OnSeekBarChangeListener{
-     public void onProgressChanged(SeekBar s,int p,boolean u){if(u){sync();ui.removeCallbacks(hp);ui.postDelayed(hp,4000);}}
-     public void onStartTrackingTouch(SeekBar s){}
-     public void onStopTrackingTouch(SeekBar s){}}
-     protected void onCreate(Bundle s){super.onCreate(s);
-     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-     ht=new HandlerThread("cam");ht.start();bg=new Handler(ht.getLooper());mgr=(CameraManager)getSystemService(CAMERA_SERVICE);
-     root=new FrameLayout(this);root.setBackgroundColor(0xFF000000);
-     gl=new GLSurfaceView(this);gl.setEGLContextClientVersion(2);gl.setEGLConfigChooser(8,8,8,8,0,0);
-     rnd=new GLR(o->{st=(SurfaceTexture)o;ui.post(this::openCam);});
-     rnd.sy=dp(158);rnd.ts=dp(74);rnd.pad=dp(8);rnd.gap=dp(6);
-     gl.setRenderer(rnd);gl.setOnTouchListener(this::touch);root.addView(gl,new FrameLayout.LayoutParams(-1,-1));
-     grid=new View(this){protected void onDraw(Canvas c){if(!gridOn)return;int W=getWidth(),H=getHeight();int[] r=rect(W,H,aspOf(ri,W,H));
-     Paint p=new Paint();p.setColor(0x99FFFFFF);p.setStrokeWidth(dp(1));int x=r[0],y=H-r[1]-r[3],w=r[2],h=r[3];
-     for(int i=1;i<3;i++){c.drawLine(x+w*i/3f,y,x+w*i/3f,y+h,p);c.drawLine(x,y+h*i/3f,x+w,y+h*i/3f,p);}
-     p.setStyle(Paint.Style.STROKE);c.drawRect(x,y,x+w,y+h,p);}};
-     root.addView(grid,new FrameLayout.LayoutParams(-1,-1));
-     ring=new View(this);GradientDrawable rgd=new GradientDrawable();rgd.setShape(GradientDrawable.OVAL);rgd.setColor(0);rgd.setStroke(dp(2),0xFFF59E0B);ring.setBackground(rgd);ring.setVisibility(View.GONE);root.addView(ring,new FrameLayout.LayoutParams(dp(70),dp(70)));
-     evT=new TextView(this);evT.setTextColor(0xFFF59E0B);evT.setTextSize(13);evT.setVisibility(View.GONE);root.addView(evT,new FrameLayout.LayoutParams(-2,-2));
-     zt=new TextView(this);zt.setTextColor(-1);zt.setTextSize(18);zt.setBackgroundColor(0x88000000);zt.setPadding(dp(10),dp(4),dp(10),dp(4));zt.setVisibility(View.GONE);
-     FrameLayout.LayoutParams zl=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);zl.topMargin=dp(120);root.addView(zt,zl);
-     sg=new ScaleGestureDetector(this,new ScaleGestureDetector.SimpleOnScaleGestureListener(){public boolean onScale(ScaleGestureDetector d){setZoom(zoom*d.getScaleFactor());return true;}});
-     LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER);top.setPadding(dp(4),dp(34),dp(4),0);
-     ratB=b("3:4",x->{if(rec)return;ri=(ri+1)%4;rnd.ri=ri;ratB.setText(RN[ri]);grid.invalidate();});
-     gridB=b("GRID",x->{gridOn=!gridOn;on(gridB,gridOn);grid.invalidate();});on(gridB,true);
-     hdrB=b("HDR",x->{hdr=!hdr;on(hdrB,hdr);});
-     droB=b("DRO",x->{dro=!dro;rnd.dro=dro;on(droB,dro);});
-     mirB=b("MIRROR",x->{mir=!mir;rnd.mir=mir;on(mirB,mir);});on(mirB,true);mirB.setVisibility(View.GONE);
-     swB=b("CAM",x->{if(rec||ids.size()<2)return;ci=(ci+1)%ids.size();closeCam();openCam();});
-     infB=b("i",x->about());
-     for(TextView t:new TextView[]{ratB,gridB,hdrB,droB,mirB,swB,infB})top.addView(t,lp());
-     root.addView(top,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP));
-     tmr=new TextView(this);tmr.setTextColor(0xFFFF4444);tmr.setTextSize(16);tmr.setVisibility(View.GONE);
-     FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL);tp.topMargin=dp(84);root.addView(tmr,tp);
-     lab=new TextView(this);lab.setTextColor(-1);lab.setTextSize(14);lab.setPadding(dp(12),dp(4),dp(12),dp(4));lab.setBackgroundColor(0x88000000);lab.setVisibility(View.GONE);
-     FrameLayout.LayoutParams ll=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);ll.bottomMargin=dp(240);root.addView(lab,ll);
-     pan=new LinearLayout(this);pan.setOrientation(LinearLayout.VERTICAL);pan.setBackgroundColor(0xAA000000);pan.setPadding(dp(10),dp(4),dp(10),dp(4));pan.setVisibility(View.GONE);
-     LinearLayout hdrRow=new LinearLayout(this);
-     TextView rsB=b("RESET",x->{for(int i=0;i<5;i++)sb[i].setProgress(0);sb[0].setProgress(-evMin);proOn=false;on(proB,false);pan.setVisibility(View.GONE);sync();});
-     TextView hdB=b("HIDE",x->pan.setVisibility(View.GONE));hdrRow.addView(rsB,lp());hdrRow.addView(hdB,lp());pan.addView(hdrRow);
-     String[] RL={"EV","ISO","SHUTTER","FOCUS","WB"};
-     for(int i=0;i<5;i++){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);
-     TextView n=new TextView(this);n.setText(RL[i]);n.setTextColor(-1);n.setTextSize(12);row.addView(n,new LinearLayout.LayoutParams(dp(62),-2));
-     sb[i]=new SeekBar(this);sb[i].setMax(100);sb[i].setOnSeekBarChangeListener(new Sk());row.addView(sb[i],new LinearLayout.LayoutParams(0,dp(36),1));
-     tv[i]=new TextView(this);tv[i].setTextColor(0xFFF59E0B);tv[i].setTextSize(12);tv[i].setGravity(Gravity.END);row.addView(tv[i],new LinearLayout.LayoutParams(dp(64),-2));pan.addView(row);}
-     FrameLayout.LayoutParams pl=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);pl.bottomMargin=dp(140);root.addView(pan,pl);
-     LinearLayout bot=new LinearLayout(this);bot.setOrientation(LinearLayout.VERTICAL);bot.setPadding(dp(16),0,dp(16),dp(14));
-     LinearLayout tabs=new LinearLayout(this);tabs.setGravity(Gravity.CENTER);
-     phB=b("PHOTO",x->setMode(0));vdB=b("VIDEO",x->setMode(1));
-     tabs.addView(phB,new LinearLayout.LayoutParams(dp(90),-2));tabs.addView(vdB,new LinearLayout.LayoutParams(dp(90),-2));bot.addView(tabs);
-     LinearLayout ctl=new LinearLayout(this);ctl.setGravity(Gravity.CENTER_VERTICAL);ctl.setPadding(0,dp(10),0,0);
-     fltB=b("FILTER",x->{stripOn=!stripOn;rnd.strip=stripOn;on(fltB,stripOn);lab.setVisibility(stripOn?View.VISIBLE:View.GONE);
-     if(stripOn)pan.setVisibility(View.GONE);});
-     proB=b("PRO",x->{if(pan.getVisibility()==View.VISIBLE){pan.setVisibility(View.GONE);return;}proOn=true;on(proB,true);showPan();sync();});
-     pauseB=b("PAUSE",x->pauseRec());pauseB.setVisibility(View.GONE);
-     shut=new TextView(this);shut.setOnClickListener(x->{if(mode==0)shoot();else toggleRec();});
-     FrameLayout cell=new FrameLayout(this);cell.addView(proB,new FrameLayout.LayoutParams(-1,dp(40)));cell.addView(pauseB,new FrameLayout.LayoutParams(-1,dp(40)));
-     LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(dp(72),dp(72));sp.setMargins(dp(20),0,dp(20),0);
-     ctl.addView(fltB,new LinearLayout.LayoutParams(0,dp(40),1));ctl.addView(shut,sp);ctl.addView(cell,new LinearLayout.LayoutParams(0,dp(40),1));
-     bot.addView(ctl);root.addView(bot,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));
-     setContentView(root);setMode(0);setFilter(0);sync();
-     String[] pm=Build.VERSION.SDK_INT<29?new String[]{Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO,Manifest.permission.WRITE_EXTERNAL_STORAGE}:new String[]{Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO};
-     if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)requestPermissions(pm,1);}
-     public void onRequestPermissionsResult(int c,String[] p,int[] r){openCam();}
-     protected void onResume(){super.onResume();gl.onResume();}
-     protected void onPause(){if(rec)stopNow();closeCam();st=null;gl.onPause();super.onPause();}
-     void about(){new AlertDialog.Builder(this).setTitle("FusionCam").setMessage("Creator: Mohammod Abdul Awal\nStudent: Department of English, National University\nMail: awal.sorkar.144@gmail.com").setPositiveButton("OK",null).show();}
-     void setMode(int m){if(rec)return;mode=m;on(phB,m==0);on(vdB,m==1);hdrB.setAlpha(m==0?1f:.4f);shut.setBackground(shutBg(m==1,false));}
-     void setFilter(int i){fi=i;rnd.fi=i;lab.setText((i+1)+"/"+Filters.N.length+"  "+Filters.N[i]);}
-     boolean touch(View v,MotionEvent e){sg.onTouchEvent(e);int a=e.getActionMasked();
-     if(e.getPointerCount()>1||sg.isInProgress()){multi=true;return true;}
-     if(multi){if(a==MotionEvent.ACTION_UP||a==MotionEvent.ACTION_CANCEL)multi=false;return true;}
-     float x=e.getX(),y=gl.getHeight()-e.getY();
-     if(a==MotionEvent.ACTION_DOWN){moved=false;dx0=x;dy0=e.getY();sc0=rnd.scroll;evBase=pEv;inBand=stripOn&&y>=rnd.sy-dp(8)&&y<=rnd.sy+rnd.ts+dp(8);return true;}
-     if(inBand){float mx=Math.max(0,Filters.N.length*(rnd.ts+rnd.gap)+2*rnd.pad-gl.getWidth());
-     if(a==MotionEvent.ACTION_MOVE){if(Math.abs(x-dx0)>dp(8))moved=true;if(moved)rnd.scroll=Math.max(0,Math.min(mx,sc0-(x-dx0)));}
-     else if(a==MotionEvent.ACTION_UP&&!moved){float p=x+rnd.scroll-rnd.pad;int step=rnd.ts+rnd.gap;int i=(int)(p/step);if(p>=0&&i<Filters.N.length&&p%step<=rnd.ts)setFilter(i);}
-     return true;}
-     if(a==MotionEvent.ACTION_MOVE){float dy=dy0-e.getY();if(Math.abs(x-dx0)>dp(10)||Math.abs(dy)>dp(10))moved=true;
-     if(moved&&Math.abs(dy)>Math.abs(x-dx0)){int np=Math.max(0,Math.min(sb[0].getMax(),evBase+Math.round(dy/dp(14))));if(np!=pEv){sb[0].setProgress(np);sync();}
-     evT.setText(String.format(Locale.US,"EV %+.1f",(np+evMin)*evStep));evT.setX(dx0+dp(44));evT.setY(dy0-dp(30));evT.setVisibility(View.VISIBLE);ui.removeCallbacks(hRg);ui.postDelayed(hRg,1400);}
-     return true;}
-     if(a==MotionEvent.ACTION_UP&&!moved){int W=gl.getWidth(),H=gl.getHeight();int[] r=rect(W,H,aspOf(ri,W,H));float top=H-r[1]-r[3];
-     if(x>=r[0]&&x<=r[0]+r[2]&&e.getY()>=top&&e.getY()<=top+r[3])focusAt((x-r[0])/r[2],(e.getY()-top)/r[3],x,e.getY());}
-     return true;}
-     void showPan(){pan.setVisibility(View.VISIBLE);stripOn=false;rnd.strip=false;on(fltB,false);lab.setVisibility(View.GONE);ui.removeCallbacks(hp);ui.postDelayed(hp,4000);}
-     Rect cropR(){Rect a=arr;if(a==null)return null;if(zoom<=1.001f)return a;int w=Math.round(a.width()/zoom),h=Math.round(a.height()/zoom);int x=a.centerX()-w/2,y=a.centerY()-h/2;return new Rect(x,y,x+w,y+h);}
-     void setZoom(float z){zoom=Math.max(1f,Math.min(maxZ,z));zt.setText(String.format(Locale.US,"%.1fx",zoom));zt.setVisibility(View.VISIBLE);ui.removeCallbacks(hz);ui.postDelayed(hz,1200);upd();}
-     void showRing(float x,float y){ring.setX(x-dp(35));ring.setY(y-dp(35));ring.setVisibility(View.VISIBLE);ring.setScaleX(1.4f);ring.setScaleY(1.4f);ring.animate().scaleX(1f).scaleY(1f).setDuration(180);ui.removeCallbacks(hRg);ui.postDelayed(hRg,1400);}
-     void focusAt(float px,float py,float sx,float sy){showRing(sx,sy);Rect c=cropR();if(cam==null||ses==null||c==null)return;
-     float a=aspOf(ri,gl.getWidth(),gl.getHeight());boolean r90=srot%180!=0;float uw=r90?rnd.bh:rnd.bw,uh=r90?rnd.bw:rnd.bh,ua=uw/uh,fx=1,fy=1;if(a>ua)fy=ua/a;else fx=a/ua;
-     if(isFront&&mir)px=1-px;
-     float ux=.5f+(px-.5f)*fx,uy=.5f+(py-.5f)*fy,xs,ys;
-     if(srot==90){xs=uy;ys=1-ux;}else if(srot==180){xs=1-ux;ys=1-uy;}else if(srot==270){xs=1-uy;ys=ux;}else{xs=ux;ys=uy;}
-     int w=c.width()/6,h=c.height()/6;int x=c.left+Math.round(xs*c.width())-w/2,y=c.top+Math.round(ys*c.height())-h/2;
-     x=Math.max(c.left,Math.min(c.right-w,x));y=Math.max(c.top,Math.min(c.bottom-h,y));
-     reg=new MeteringRectangle[]{new MeteringRectangle(x,y,w,h,MeteringRectangle.METERING_WEIGHT_MAX)};
-     try{CaptureRequest.Builder b=cam.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);b.addTarget(psf);apply(b);b.set(CaptureRequest.CONTROL_AF_TRIGGER,CameraMetadata.CONTROL_AF_TRIGGER_START);ses.capture(b.build(),ccb,bg);}catch(Exception e){}
-     upd();
-     ui.postDelayed(()->{try{if(cam==null||ses==null)return;CaptureRequest.Builder b=cam.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);b.addTarget(psf);apply(b);b.set(CaptureRequest.CONTROL_AF_TRIGGER,CameraMetadata.CONTROL_AF_TRIGGER_CANCEL);ses.capture(b.build(),ccb,bg);}catch(Exception e){}},2500);}
-     void sync(){pEv=sb[0].getProgress();pIso=sb[1].getProgress();pSh=sb[2].getProgress();pFo=sb[3].getProgress();pWb=sb[4].getProgress();
-     rnd.wb=proOn?wbV():0;
-     tv[0].setText(String.format(Locale.US,"%+.1f",(pEv+evMin)*evStep));
-     tv[1].setText(!manOK?"N/A":pIso==0?"AUTO":""+isoV());
-     tv[2].setText(!manOK?"N/A":pSh==0?"AUTO":shs(expV()));
-     tv[3].setText(minFocus<=0?"N/A":pFo==0?"AUTO":String.format(Locale.US,"%.0f%%",(pFo-1)*100/99f));
-     tv[4].setText(pWb==0?"AUTO":String.format(Locale.US,"%+.0f",wbV()*100));
-     upd();}
-     String shs(long e){return e<250000000L?"1/"+Math.round(1e9/e):String.format(Locale.US,"%.1fs",e/1e9);}
-     float wbV(){return pWb==0?0:(pWb-50.5f)/49.5f;}
-     int isoV(){return pIso==0?lastIso:Math.max(isoMin,Math.min(isoMax,(int)(isoMin*Math.pow((double)isoMax/isoMin,(pIso-1)/99.0))));}
-     long expV(){return pSh==0?lastExp:Math.max(expMin,Math.min(expMax,(long)(expMin*Math.pow((double)Math.min(expMax,1000000000L)/expMin,(pSh-1)/99.0))));}
-     float focV(){return pFo<=1?0:minFocus*(pFo-1)/99f;}
-     boolean manAE(){return proOn&&manOK&&(pIso>0||pSh>0);}
-     void listCams(){ids.clear();try{List<String> bk=new ArrayList<>(),fr=new ArrayList<>();
-     for(String id:mgr.getCameraIdList()){CameraCharacteristics c=mgr.getCameraCharacteristics(id);int[] cp=c.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES);
-     StreamConfigurationMap m=c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);Integer f=c.get(CameraCharacteristics.LENS_FACING);
-     if(m==null||!has(cp,0)||m.getOutputSizes(ImageFormat.JPEG)==null||m.getOutputSizes(SurfaceTexture.class)==null)continue;
-     if(f!=null&&f==CameraCharacteristics.LENS_FACING_FRONT)fr.add(id);else bk.add(id);}
-     ids.addAll(bk);ids.addAll(fr);}catch(Exception e){}}
-     Size pick(Size[] z,float a,long maxA,int maxW){Size r=null;for(Size s:z){long ar=(long)s.getWidth()*s.getHeight();if(s.getWidth()>maxW||ar>maxA)continue;
-     if(a>0&&Math.abs((float)s.getWidth()/s.getHeight()-a)>.02f)continue;if(r==null||ar>(long)r.getWidth()*r.getHeight())r=s;}return r;}
-     void readCh(){Integer r=cc.get(CameraCharacteristics.SENSOR_ORIENTATION);srot=r==null?90:r;
-     Integer f=cc.get(CameraCharacteristics.LENS_FACING);isFront=f!=null&&f==CameraCharacteristics.LENS_FACING_FRONT;
-     Range<Integer> er=cc.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE);evMin=er==null?0:er.getLower();evMax=er==null?0:er.getUpper();
-     android.util.Rational sr=cc.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP);evStep=sr==null?1f:sr.floatValue();
-     Range<Integer> ir=cc.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE);Range<Long> xr=cc.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE);
-     manOK=ir!=null&&xr!=null&&has(cc.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES),1);
-     if(manOK){isoMin=ir.getLower();isoMax=ir.getUpper();expMin=xr.getLower();expMax=xr.getUpper();}
-     Float mf=cc.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE);minFocus=mf==null?0f:mf;
-     afOK=has(cc.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES),CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-     sb[0].setMax(Math.max(1,evMax-evMin));sb[0].setProgress(-evMin);for(int i=1;i<5;i++)sb[i].setProgress(0);
-     arr=cc.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);Float mz=cc.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM);maxZ=Math.max(1f,Math.min(8f,mz==null?1f:mz));zoom=1;reg=null;
-     Integer ae=cc.get(CameraCharacteristics.CONTROL_MAX_REGIONS_AE),af=cc.get(CameraCharacteristics.CONTROL_MAX_REGIONS_AF);maxAE=ae==null?0:ae;maxAF=af==null?0:af;
-     mirB.setVisibility(isFront?View.VISIBLE:View.GONE);swB.setText("CAM "+(ci+1)+"/"+ids.size());sync();}
-     void openCam(){if(st==null||cam!=null||checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)return;
-     try{if(ids.isEmpty())listCams();if(ids.isEmpty())return;if(ci>=ids.size())ci=0;String id=ids.get(ci);cc=mgr.getCameraCharacteristics(id);readCh();
-     StreamConfigurationMap m=cc.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);Size[] pz=m.getOutputSizes(SurfaceTexture.class),jz=m.getOutputSizes(ImageFormat.JPEG);
-     Size p=pick(pz,4f/3,3000000L,1920);if(p==null)p=pick(pz,0,3000000L,1920);if(p==null)p=pz[0];
-     Size j=pick(jz,(float)p.getWidth()/p.getHeight(),13000000L,99999);if(j==null)j=pick(jz,0,13000000L,99999);if(j==null)j=jz[0];
-     st.setDefaultBufferSize(p.getWidth(),p.getHeight());rnd.bw=p.getWidth();rnd.bh=p.getHeight();rnd.rot=srot;rnd.front=isFront;
-     rdr=ImageReader.newInstance(j.getWidth(),j.getHeight(),ImageFormat.JPEG,3);rdr.setOnImageAvailableListener(this::img,bg);psf=new Surface(st);
-     mgr.openCamera(id,new CameraDevice.StateCallback(){
-     public void onOpened(CameraDevice c){if(st==null){c.close();return;}cam=c;mkSes();}
-     public void onDisconnected(CameraDevice c){c.close();cam=null;}
-     public void onError(CameraDevice c,int e){c.close();cam=null;}},bg);
-     }catch(Exception e){toast("Camera error: "+e);}}
-     void mkSes(){try{cam.createCaptureSession(Arrays.asList(psf,rdr.getSurface()),new CameraCaptureSession.StateCallback(){
-     public void onConfigured(CameraCaptureSession s){if(cam==null){s.close();return;}ses=s;upd();}
-     public void onConfigureFailed(CameraCaptureSession s){}},bg);}catch(Exception e){}}
-     void closeCam(){try{if(ses!=null)ses.close();}catch(Exception e){}ses=null;try{if(cam!=null)cam.close();}catch(Exception e){}cam=null;
-     if(rdr!=null)rdr.close();rdr=null;if(psf!=null)psf.release();psf=null;}
-     void apply(CaptureRequest.Builder b){b.set(CaptureRequest.CONTROL_MODE,CameraMetadata.CONTROL_MODE_AUTO);
-     if(manAE()){b.set(CaptureRequest.CONTROL_AE_MODE,CameraMetadata.CONTROL_AE_MODE_OFF);b.set(CaptureRequest.SENSOR_SENSITIVITY,isoV());b.set(CaptureRequest.SENSOR_EXPOSURE_TIME,expV());}
-     else{b.set(CaptureRequest.CONTROL_AE_MODE,CameraMetadata.CONTROL_AE_MODE_ON);b.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,pEv+evMin);}
-     if(proOn&&minFocus>0&&pFo>0){b.set(CaptureRequest.CONTROL_AF_MODE,CameraMetadata.CONTROL_AF_MODE_OFF);b.set(CaptureRequest.LENS_FOCUS_DISTANCE,focV());}
-     else if(afOK)b.set(CaptureRequest.CONTROL_AF_MODE,CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-     MeteringRectangle[] rg=reg;if(rg!=null){if(maxAE>0)b.set(CaptureRequest.CONTROL_AE_REGIONS,rg);if(maxAF>0)b.set(CaptureRequest.CONTROL_AF_REGIONS,rg);}
-     Rect cr=cropR();if(cr!=null)b.set(CaptureRequest.SCALER_CROP_REGION,cr);}
-     final CameraCaptureSession.CaptureCallback ccb=new CameraCaptureSession.CaptureCallback(){
-     public void onCaptureCompleted(CameraCaptureSession s,CaptureRequest r,TotalCaptureResult t){Integer i=t.get(CaptureResult.SENSOR_SENSITIVITY);Long x=t.get(CaptureResult.SENSOR_EXPOSURE_TIME);if(i!=null)lastIso=i;if(x!=null)lastExp=x;}};
-     void upd(){CameraCaptureSession s=ses;CameraDevice c=cam;if(s==null||c==null)return;
-     try{CaptureRequest.Builder b=c.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);b.addTarget(psf);apply(b);s.setRepeatingRequest(b.build(),ccb,bg);}catch(Exception e){}}
-     CaptureRequest still(float f)throws CameraAccessException{CaptureRequest.Builder b=cam.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);b.addTarget(rdr.getSurface());apply(b);
-     b.set(CaptureRequest.JPEG_ORIENTATION,0);b.set(CaptureRequest.JPEG_QUALITY,(byte)95);
-     if(f>0){if(manOK){long e0=lastExp;int i0=lastIso;double tot=(double)e0*i0*f;
-     long e=f>1?Math.min((long)(e0*f),Math.max(e0,50000000L)):(long)(e0*f);e=Math.max(expMin,Math.min(expMax,e));
-     int iso=(int)Math.max(isoMin,Math.min(isoMax,Math.round(tot/e)));
-     b.set(CaptureRequest.CONTROL_AE_MODE,CameraMetadata.CONTROL_AE_MODE_OFF);b.set(CaptureRequest.SENSOR_EXPOSURE_TIME,e);b.set(CaptureRequest.SENSOR_SENSITIVITY,iso);}
-     else{int k=Math.max(evMin,Math.min(evMax,Math.round((float)(Math.log(f)/Math.log(2)/evStep))));b.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,k);}}
-     return b.build();}
-     void shoot(){if(cam==null||ses==null||rdr==null||busy)return;busy=true;
-     try{pRot=srot;pMir=isFront&&mir;pAsp=aspOf(ri,gl.getWidth(),gl.getHeight());
-     List<CaptureRequest> l=new ArrayList<>();
-     if(hdr&&!manAE()){l.add(still(.28f));l.add(still(3.2f));toast("HDR: hold steady...");}else l.add(still(0));
-     synchronized(shots){shots.clear();}need=l.size();
-     if(l.size()>1)ses.captureBurst(l,null,bg);else ses.capture(l.get(0),null,bg);
-     }catch(Exception e){busy=false;toast("Capture failed: "+e);}}
-     void img(ImageReader r){byte[] d=null;Image i=null;
-     try{i=r.acquireNextImage();if(i==null)return;ByteBuffer bf=i.getPlanes()[0].getBuffer();d=new byte[bf.remaining()];bf.get(d);}catch(Exception e){}finally{if(i!=null)i.close();}
-     if(d==null)return;final ArrayList<byte[]> c;
-     synchronized(shots){shots.add(d);if(shots.size()<need)return;c=new ArrayList<>(shots);shots.clear();}
-     new Thread(()->proc(c)).start();}
-     Bitmap dec(byte[] d,int max){BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;BitmapFactory.decodeByteArray(d,0,d.length,o);
-     int s=1;while(max>0&&Math.max(o.outWidth,o.outHeight)/s>max)s*=2;o=new BitmapFactory.Options();o.inSampleSize=s;return BitmapFactory.decodeByteArray(d,0,d.length,o);}
-     void proc(ArrayList<byte[]> l){try{Bitmap b=l.size()>1?Hdr.fuse(dec(l.get(0),2400),dec(l.get(1),2400)):dec(l.get(0),0);
-     Matrix m=new Matrix();m.postRotate(pRot);if(pMir)m.postScale(-1,1);b=Bitmap.createBitmap(b,0,0,b.getWidth(),b.getHeight(),m,true);
-     int w=b.getWidth(),h=b.getHeight(),cw=w,ch=h;if((float)w/h>pAsp)cw=Math.round(h*pAsp);else ch=Math.round(w/pAsp);
-     final Bitmap fb=Bitmap.createBitmap(b,(w-cw)/2,(h-ch)/2,cw,ch);final int f=fi;final float d=dro?1:0,wv=rnd.wb;
-     gl.queueEvent(()->rnd.filt(fb,f,d,wv,o->new Thread(()->save((Bitmap)o)).start()));
-     }catch(Throwable e){busy=false;toast("Failed: "+e);}}
-     Uri mk(boolean vid,String name){ContentValues v=new ContentValues();v.put(MediaStore.MediaColumns.DISPLAY_NAME,name);v.put(MediaStore.MediaColumns.MIME_TYPE,vid?"video/mp4":"image/jpeg");
-     if(Build.VERSION.SDK_INT>=29)v.put(MediaStore.MediaColumns.RELATIVE_PATH,"DCIM/FusionCam");
-     else{File d=new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM),"FusionCam");d.mkdirs();v.put(MediaStore.MediaColumns.DATA,new File(d,name).getAbsolutePath());}
-     return getContentResolver().insert(vid?MediaStore.Video.Media.EXTERNAL_CONTENT_URI:MediaStore.Images.Media.EXTERNAL_CONTENT_URI,v);}
-     void save(Bitmap b){try{Uri u=mk(false,"FUS_"+System.currentTimeMillis()+".jpg");OutputStream o=getContentResolver().openOutputStream(u);b.compress(Bitmap.CompressFormat.JPEG,95,o);o.close();toast("Saved to DCIM/FusionCam");}
-     catch(Exception e){toast("Save failed: "+e);}busy=false;}
-     final Runnable tk=new Runnable(){public void run(){if(!rec)return;long e=acc+(paused?0:SystemClock.elapsedRealtime()-t0);tmr.setText(String.format(Locale.US,"%02d:%02d",e/60000,e/1000%60));ui.postDelayed(this,300);}};
-     void recUi(boolean r){pauseB.setVisibility(r?View.VISIBLE:View.GONE);proB.setVisibility(r?View.GONE:View.VISIBLE);tmr.setVisibility(r?View.VISIBLE:View.GONE);pauseB.setText("PAUSE");shut.setBackground(shutBg(true,r));}
-     void toggleRec(){if(rec){stopRec();return;}
-     try{Uri u=mk(true,"FUS_"+System.currentTimeMillis()+".mp4");vpfd=getContentResolver().openFileDescriptor(u,"rw");
-     float a=aspOf(ri,gl.getWidth(),gl.getHeight());final int w=720,h=Math.round(720/a/16f)*16;
-     boolean au=checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED;
-     mr=new MediaRecorder();if(au)mr.setAudioSource(MediaRecorder.AudioSource.MIC);mr.setVideoSource(MediaRecorder.VideoSource.SURFACE);
-     mr.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);mr.setOutputFile(vpfd.getFileDescriptor());mr.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-     if(au){mr.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);mr.setAudioEncodingBitRate(128000);mr.setAudioSamplingRate(44100);}
-     mr.setVideoSize(w,h);mr.setVideoFrameRate(30);mr.setVideoEncodingBitRate(8000000);mr.prepare();
-     final Surface sf=mr.getSurface();mr.start();gl.queueEvent(()->rnd.startRec(sf,w,h));
-     rec=true;paused=false;acc=0;t0=SystemClock.elapsedRealtime();recUi(true);ui.post(tk);
-     }catch(Exception e){rec=false;toast("Video failed: "+e.getMessage());try{mr.release();}catch(Exception x){}mr=null;}}
-     void stopRec(){rec=false;final MediaRecorder m=mr;mr=null;recUi(false);
-     gl.queueEvent(()->{rnd.stopRec();ui.post(()->{try{m.stop();}catch(Exception e){}m.release();try{vpfd.close();}catch(Exception e){}toast("Video saved to DCIM/FusionCam");});});}
-     void stopNow(){rec=false;rnd.rs=null;try{mr.stop();}catch(Exception e){}try{mr.release();}catch(Exception e){}try{vpfd.close();}catch(Exception e){}mr=null;recUi(false);}
-     void pauseRec(){if(!rec||mr==null)return;
-     if(!paused){rnd.paused=true;try{mr.pause();}catch(Exception e){}acc+=SystemClock.elapsedRealtime()-t0;paused=true;pauseB.setText("RESUME");}
-     else{try{mr.resume();}catch(Exception e){}t0=SystemClock.elapsedRealtime();rnd.paused=false;paused=false;pauseB.setText("PAUSE");}}
-     }
-     EOF
-  - name: Build
-    run: ./gradlew assembleDebug --stacktrace
-  - uses: actions/upload-artifact@v4
-    with:
-     name: FusionCam-debug
-     path: app/build/outputs/apk/debug/*.apk
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Accept SDK Licenses
+        run: |
+          mkdir -p $ANDROID_HOME/licenses
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
+          echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > $ANDROID_HOME/licenses/android-googletv-license
+
+      - name: Create Project Structure
+        run: |
+          mkdir -p app/src/main/java/com/awal/pdfreader
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/menu
+          mkdir -p gradle/wrapper
+
+      - name: Create settings.gradle
+        run: |
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "PDFReader"
+          include ':app'
+          EOF
+
+      - name: Create root build.gradle
+        run: |
+          cat > build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.1.4' apply false
+          }
+          EOF
+
+      - name: Create app build.gradle
+        run: |
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.awal.pdfreader'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.awal.pdfreader"
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  debug {
+                      minifyEnabled false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+              implementation 'com.github.barteksc:android-pdf-viewer:3.2.0-beta.1'
+              implementation 'androidx.recyclerview:recyclerview:1.3.2'
+          }
+          EOF
+
+      - name: Fix settings.gradle whitespace
+        run: sed -i 's/^          //' settings.gradle
+
+      - name: Create gradle wrapper properties
+        run: |
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+
+      - name: Download gradle wrapper jar
+        run: |
+          curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar" \
+            -o gradle/wrapper/gradle-wrapper.jar
+
+      - name: Create gradlew
+        run: |
+          cat > gradlew << 'GRADLEW'
+          #!/bin/sh
+          APP_NAME="Gradle"
+          APP_BASE_NAME=`basename "$0"`
+          APP_HOME=`dirname "$0"`
+          APP_HOME=`cd "$APP_HOME" && pwd`
+          CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+          JAVA_EXE=java
+          exec "$JAVA_EXE" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+          GRADLEW
+          chmod +x gradlew
+
+      - name: Create AndroidManifest.xml
+        run: |
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+              <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/ic_launcher"
+                  android:label="@string/app_name"
+                  android:roundIcon="@drawable/ic_launcher_round"
+                  android:supportsRtl="true"
+                  android:theme="@style/AppTheme">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.intent.action.VIEW"/>
+                          <category android:name="android.intent.category.DEFAULT"/>
+                          <category android:name="android.intent.category.BROWSABLE"/>
+                          <data android:mimeType="application/pdf"/>
+                      </intent-filter>
+                  </activity>
+                  <activity
+                      android:name=".PdfViewerActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.VIEW"/>
+                          <category android:name="android.intent.category.DEFAULT"/>
+                          <data android:mimeType="application/pdf"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+      - name: Create strings.xml
+        run: |
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">PDF Reader</string>
+              <string name="creator">Creator: Mohammod Abdul Awal</string>
+              <string name="department">Dept. of English, National University</string>
+              <string name="email">awal.sorkar.144@gmail.com</string>
+              <string name="open_pdf">Open PDF</string>
+              <string name="no_files">No recent files</string>
+              <string name="page_of">%1$d / %2$d</string>
+              <string name="bookmark">Bookmark</string>
+              <string name="rotate">Rotate</string>
+              <string name="draw">Draw</string>
+              <string name="text_add">Add Text</string>
+              <string name="mode_day">Day</string>
+              <string name="mode_dark">Dark</string>
+              <string name="mode_sepia">Sepia</string>
+              <string name="mode_night_blue">Night Blue</string>
+              <string name="mode_green">Green</string>
+          </resources>
+          EOF
+
+      - name: Create colors.xml
+        run: |
+          cat > app/src/main/res/values/colors.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="primary">#1565C0</color>
+              <color name="primary_dark">#0D47A1</color>
+              <color name="accent">#FF6F00</color>
+              <color name="white">#FFFFFF</color>
+              <color name="black">#000000</color>
+              <color name="sepia_bg">#F5E6C8</color>
+              <color name="dark_bg">#121212</color>
+              <color name="night_blue_bg">#0A1628</color>
+              <color name="green_bg">#0D2B0D</color>
+              <color name="toolbar_bg">#1565C0</color>
+              <color name="toolbar_dark">#1A1A2E</color>
+              <color name="gray_light">#EEEEEE</color>
+              <color name="gray">#9E9E9E</color>
+          </resources>
+          EOF
+
+      - name: Create styles.xml
+        run: |
+          cat > app/src/main/res/values/styles.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+                  <item name="colorPrimary">@color/primary</item>
+                  <item name="colorPrimaryDark">@color/primary_dark</item>
+                  <item name="colorAccent">@color/accent</item>
+                  <item name="windowNoTitle">true</item>
+              </style>
+              <style name="FullscreenTheme" parent="Theme.MaterialComponents.NoActionBar">
+                  <item name="android:windowFullscreen">false</item>
+              </style>
+          </resources>
+          EOF
+
+      - name: Create activity_main.xml
+        run: |
+          cat > app/src/main/res/layout/activity_main.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <androidx.coordinatorlayout.widget.CoordinatorLayout
+              xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:app="http://schemas.android.com/apk/res-auto"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@color/gray_light">
+              <com.google.android.material.appbar.AppBarLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content">
+                  <androidx.appcompat.widget.Toolbar
+                      android:id="@+id/toolbar"
+                      android:layout_width="match_parent"
+                      android:layout_height="?attr/actionBarSize"
+                      android:background="@color/primary"
+                      android:title="@string/app_name"
+                      android:titleTextColor="@color/white"/>
+              </com.google.android.material.appbar.AppBarLayout>
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"
+                  android:orientation="vertical"
+                  app:layout_behavior="@string/appbar_scrolling_view_behavior">
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:orientation="vertical"
+                      android:padding="16dp"
+                      android:background="@color/primary">
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="@string/creator"
+                          android:textColor="@color/white"
+                          android:textSize="13sp"/>
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="@string/department"
+                          android:textColor="#BBDEFB"
+                          android:textSize="12sp"/>
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="@string/email"
+                          android:textColor="#BBDEFB"
+                          android:textSize="12sp"/>
+                  </LinearLayout>
+                  <com.google.android.material.floatingactionbutton.FloatingActionButton
+                      android:id="@+id/fab_open"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:layout_gravity="end"
+                      android:layout_margin="16dp"
+                      android:contentDescription="@string/open_pdf"
+                      app:srcCompat="@android:drawable/ic_input_add"/>
+                  <TextView
+                      android:id="@+id/tv_recent_label"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:padding="16dp"
+                      android:text="Recent Files"
+                      android:textSize="16sp"
+                      android:textStyle="bold"
+                      android:textColor="@color/black"/>
+                  <androidx.recyclerview.widget.RecyclerView
+                      android:id="@+id/rv_recent"
+                      android:layout_width="match_parent"
+                      android:layout_height="match_parent"
+                      android:padding="8dp"/>
+              </LinearLayout>
+          </androidx.coordinatorlayout.widget.CoordinatorLayout>
+          EOF
+
+      - name: Create activity_pdf_viewer.xml
+        run: |
+          cat > app/src/main/res/layout/activity_pdf_viewer.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <FrameLayout
+              xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@color/black">
+              <com.github.barteksc.pdfviewer.PDFView
+                  android:id="@+id/pdfView"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"/>
+              <com.awal.pdfreader.DrawingView
+                  android:id="@+id/drawing_view"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"
+                  android:visibility="gone"/>
+              <LinearLayout
+                  android:id="@+id/toolbar_layout"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="horizontal"
+                  android:background="#CC1565C0"
+                  android:padding="4dp">
+                  <ImageButton
+                      android:id="@+id/btn_back"
+                      android:layout_width="40dp"
+                      android:layout_height="40dp"
+                      android:src="@android:drawable/ic_media_previous"
+                      android:background="?attr/selectableItemBackgroundBorderless"
+                      android:tint="@color/white"
+                      android:contentDescription="Back"/>
+                  <TextView
+                      android:id="@+id/tv_title"
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_weight="1"
+                      android:gravity="center"
+                      android:textColor="@color/white"
+                      android:textSize="14sp"
+                      android:maxLines="1"
+                      android:ellipsize="end"/>
+                  <ImageButton
+                      android:id="@+id/btn_rotate"
+                      android:layout_width="40dp"
+                      android:layout_height="40dp"
+                      android:src="@android:drawable/ic_menu_rotate"
+                      android:background="?attr/selectableItemBackgroundBorderless"
+                      android:tint="@color/white"
+                      android:contentDescription="Rotate"/>
+                  <ImageButton
+                      android:id="@+id/btn_bookmark"
+                      android:layout_width="40dp"
+                      android:layout_height="40dp"
+                      android:src="@android:drawable/btn_star_big_off"
+                      android:background="?attr/selectableItemBackgroundBorderless"
+                      android:tint="@color/white"
+                      android:contentDescription="Bookmark"/>
+                  <ImageButton
+                      android:id="@+id/btn_draw"
+                      android:layout_width="40dp"
+                      android:layout_height="40dp"
+                      android:src="@android:drawable/ic_menu_edit"
+                      android:background="?attr/selectableItemBackgroundBorderless"
+                      android:tint="@color/white"
+                      android:contentDescription="Draw"/>
+                  <ImageButton
+                      android:id="@+id/btn_mode"
+                      android:layout_width="40dp"
+                      android:layout_height="40dp"
+                      android:src="@android:drawable/ic_menu_gallery"
+                      android:background="?attr/selectableItemBackgroundBorderless"
+                      android:tint="@color/white"
+                      android:contentDescription="Mode"/>
+              </LinearLayout>
+              <LinearLayout
+                  android:id="@+id/bottom_bar"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:layout_gravity="bottom"
+                  android:orientation="horizontal"
+                  android:background="#CC000000"
+                  android:padding="8dp"
+                  android:gravity="center_vertical">
+                  <ImageButton
+                      android:id="@+id/btn_prev"
+                      android:layout_width="40dp"
+                      android:layout_height="40dp"
+                      android:src="@android:drawable/ic_media_rew"
+                      android:background="?attr/selectableItemBackgroundBorderless"
+                      android:tint="@color/white"
+                      android:contentDescription="Prev"/>
+                  <SeekBar
+                      android:id="@+id/seekbar_page"
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_weight="1"
+                      android:layout_marginHorizontal="8dp"/>
+                  <ImageButton
+                      android:id="@+id/btn_next"
+                      android:layout_width="40dp"
+                      android:layout_height="40dp"
+                      android:src="@android:drawable/ic_media_ff"
+                      android:background="?attr/selectableItemBackgroundBorderless"
+                      android:tint="@color/white"
+                      android:contentDescription="Next"/>
+                  <TextView
+                      android:id="@+id/tv_page"
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:textColor="@color/white"
+                      android:textSize="12sp"
+                      android:layout_marginStart="8dp"/>
+              </LinearLayout>
+              <LinearLayout
+                  android:id="@+id/side_toggle"
+                  android:layout_width="32dp"
+                  android:layout_height="wrap_content"
+                  android:layout_gravity="end|center_vertical"
+                  android:orientation="vertical"
+                  android:background="#CC000000"
+                  android:paddingVertical="8dp"
+                  android:gravity="center">
+                  <ImageButton
+                      android:id="@+id/btn_fast_up"
+                      android:layout_width="30dp"
+                      android:layout_height="40dp"
+                      android:src="@android:drawable/arrow_up_float"
+                      android:background="?attr/selectableItemBackgroundBorderless"
+                      android:tint="@color/white"
+                      android:contentDescription="Fast Up"/>
+                  <ImageButton
+                      android:id="@+id/btn_fast_down"
+                      android:layout_width="30dp"
+                      android:layout_height="40dp"
+                      android:src="@android:drawable/arrow_down_float"
+                      android:background="?attr/selectableItemBackgroundBorderless"
+                      android:tint="@color/white"
+                      android:contentDescription="Fast Down"/>
+              </LinearLayout>
+              <ProgressBar
+                  android:id="@+id/progress_bar"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:layout_gravity="center"
+                  android:visibility="gone"/>
+          </FrameLayout>
+          EOF
+
+      - name: Create item_recent.xml
+        run: |
+          cat > app/src/main/res/layout/item_recent.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout
+              xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="horizontal"
+              android:padding="12dp"
+              android:gravity="center_vertical"
+              android:background="@color/white"
+              android:layout_marginBottom="2dp">
+              <ImageView
+                  android:layout_width="40dp"
+                  android:layout_height="48dp"
+                  android:src="@android:drawable/ic_menu_agenda"
+                  android:layout_marginEnd="12dp"/>
+              <LinearLayout
+                  android:layout_width="0dp"
+                  android:layout_height="wrap_content"
+                  android:layout_weight="1"
+                  android:orientation="vertical">
+                  <TextView
+                      android:id="@+id/tv_name"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:textSize="14sp"
+                      android:textStyle="bold"
+                      android:maxLines="1"
+                      android:ellipsize="end"/>
+                  <TextView
+                      android:id="@+id/tv_path"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:textSize="11sp"
+                      android:textColor="@color/gray"
+                      android:maxLines="1"
+                      android:ellipsize="start"/>
+                  <TextView
+                      android:id="@+id/tv_page_info"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:textSize="11sp"
+                      android:textColor="@color/gray"/>
+              </LinearLayout>
+              <ImageButton
+                  android:id="@+id/btn_delete"
+                  android:layout_width="32dp"
+                  android:layout_height="32dp"
+                  android:src="@android:drawable/ic_menu_delete"
+                  android:background="?attr/selectableItemBackgroundBorderless"/>
+          </LinearLayout>
+          EOF
+
+      - name: Create ic_launcher drawable
+        run: |
+          cat > app/src/main/res/drawable/ic_launcher.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android"
+              android:shape="rectangle">
+              <solid android:color="#1565C0"/>
+              <corners android:radius="8dp"/>
+          </shape>
+          EOF
+          cat > app/src/main/res/drawable/ic_launcher_round.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android"
+              android:shape="oval">
+              <solid android:color="#1565C0"/>
+          </shape>
+          EOF
+
+      - name: Create RecentFile model
+        run: |
+          cat > app/src/main/java/com/awal/pdfreader/RecentFile.java << 'EOF'
+          package com.awal.pdfreader;
+          public class RecentFile {
+              public String path, name;
+              public int lastPage;
+              public long lastOpened;
+              public RecentFile(String path, String name, int lastPage, long lastOpened) {
+                  this.path = path; this.name = name;
+                  this.lastPage = lastPage; this.lastOpened = lastOpened;
+              }
+          }
+          EOF
+
+      - name: Create RecentFilesManager
+        run: |
+          cat > app/src/main/java/com/awal/pdfreader/RecentFilesManager.java << 'EOF'
+          package com.awal.pdfreader;
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+          import java.util.ArrayList;
+          import java.util.List;
+          public class RecentFilesManager {
+              private static final String PREF = "recent_files";
+              private static final String KEY = "files";
+              private static final int MAX = 100;
+              private SharedPreferences prefs;
+              public RecentFilesManager(Context ctx) {
+                  prefs = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE);
+              }
+              public List<RecentFile> getAll() {
+                  List<RecentFile> list = new ArrayList<>();
+                  try {
+                      String json = prefs.getString(KEY, "[]");
+                      JSONArray arr = new JSONArray(json);
+                      for (int i = 0; i < arr.length(); i++) {
+                          JSONObject o = arr.getJSONObject(i);
+                          list.add(new RecentFile(o.getString("path"), o.getString("name"),
+                              o.getInt("lastPage"), o.getLong("lastOpened")));
+                      }
+                  } catch (Exception ignored) {}
+                  return list;
+              }
+              public void addOrUpdate(String path, String name, int lastPage) {
+                  List<RecentFile> list = getAll();
+                  list.removeIf(f -> f.path.equals(path));
+                  list.add(0, new RecentFile(path, name, lastPage, System.currentTimeMillis()));
+                  if (list.size() > MAX) list = list.subList(0, MAX);
+                  save(list);
+              }
+              public void remove(String path) {
+                  List<RecentFile> list = getAll();
+                  list.removeIf(f -> f.path.equals(path));
+                  save(list);
+              }
+              private void save(List<RecentFile> list) {
+                  try {
+                      JSONArray arr = new JSONArray();
+                      for (RecentFile f : list) {
+                          JSONObject o = new JSONObject();
+                          o.put("path", f.path); o.put("name", f.name);
+                          o.put("lastPage", f.lastPage); o.put("lastOpened", f.lastOpened);
+                          arr.put(o);
+                      }
+                      prefs.edit().putString(KEY, arr.toString()).apply();
+                  } catch (Exception ignored) {}
+              }
+              public int getLastPage(String path) {
+                  for (RecentFile f : getAll()) if (f.path.equals(path)) return f.lastPage;
+                  return 0;
+              }
+          }
+          EOF
+
+      - name: Create DrawingView
+        run: |
+          cat > app/src/main/java/com/awal/pdfreader/DrawingView.java << 'EOF'
+          package com.awal.pdfreader;
+          import android.content.Context;
+          import android.graphics.*;
+          import android.util.AttributeSet;
+          import android.view.MotionEvent;
+          import android.view.View;
+          import java.util.ArrayList;
+          import java.util.List;
+          public class DrawingView extends View {
+              private Paint paint = new Paint();
+              private Path currentPath = new Path();
+              private List<Path> paths = new ArrayList<>();
+              private List<Paint> paints = new ArrayList<>();
+              private float startX, startY;
+              private boolean drawing = false;
+              public DrawingView(Context ctx, AttributeSet attrs) {
+                  super(ctx, attrs);
+                  paint.setColor(Color.RED);
+                  paint.setStrokeWidth(5f);
+                  paint.setStyle(Paint.Style.STROKE);
+                  paint.setAntiAlias(true);
+                  setBackgroundColor(Color.TRANSPARENT);
+              }
+              @Override
+              protected void onDraw(Canvas canvas) {
+                  for (int i = 0; i < paths.size(); i++) canvas.drawPath(paths.get(i), paints.get(i));
+                  canvas.drawPath(currentPath, paint);
+              }
+              @Override
+              public boolean onTouchEvent(MotionEvent e) {
+                  if (e.getPointerCount() > 1) return false;
+                  switch (e.getAction()) {
+                      case MotionEvent.ACTION_DOWN:
+                          currentPath = new Path();
+                          currentPath.moveTo(e.getX(), e.getY());
+                          drawing = true;
+                          break;
+                      case MotionEvent.ACTION_MOVE:
+                          if (drawing) currentPath.lineTo(e.getX(), e.getY());
+                          break;
+                      case MotionEvent.ACTION_UP:
+                          if (drawing) {
+                              paths.add(currentPath);
+                              Paint p = new Paint(paint);
+                              paints.add(p);
+                              drawing = false;
+                          }
+                          break;
+                  }
+                  invalidate();
+                  return true;
+              }
+              public void setPaintColor(int color) { paint.setColor(color); }
+              public void clear() { paths.clear(); paints.clear(); currentPath = new Path(); invalidate(); }
+          }
+          EOF
+
+      - name: Create RecentAdapter
+        run: |
+          cat > app/src/main/java/com/awal/pdfreader/RecentAdapter.java << 'EOF'
+          package com.awal.pdfreader;
+          import android.view.*;
+          import android.widget.*;
+          import androidx.annotation.NonNull;
+          import androidx.recyclerview.widget.RecyclerView;
+          import java.text.SimpleDateFormat;
+          import java.util.*;
+          public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.VH> {
+              private List<RecentFile> items;
+              private OnItemClick listener;
+              interface OnItemClick {
+                  void onOpen(RecentFile f);
+                  void onDelete(RecentFile f, int pos);
+              }
+              public RecentAdapter(List<RecentFile> items, OnItemClick listener) {
+                  this.items = items; this.listener = listener;
+              }
+              @NonNull @Override
+              public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+                  View v = LayoutInflater.from(parent.getContext())
+                      .inflate(R.layout.item_recent, parent, false);
+                  return new VH(v);
+              }
+              @Override
+              public void onBindViewHolder(@NonNull VH h, int pos) {
+                  RecentFile f = items.get(pos);
+                  h.name.setText(f.name);
+                  h.path.setText(f.path);
+                  h.pageInfo.setText("Page: " + (f.lastPage + 1) + " | " +
+                      new SimpleDateFormat("dd/MM/yy HH:mm", Locale.getDefault()).format(new Date(f.lastOpened)));
+                  h.itemView.setOnClickListener(v -> listener.onOpen(f));
+                  h.delete.setOnClickListener(v -> listener.onDelete(f, h.getAdapterPosition()));
+              }
+              @Override public int getItemCount() { return items.size(); }
+              public void remove(int pos) { items.remove(pos); notifyItemRemoved(pos); }
+              static class VH extends RecyclerView.ViewHolder {
+                  TextView name, path, pageInfo;
+                  ImageButton delete;
+                  VH(View v) {
+                      super(v);
+                      name = v.findViewById(R.id.tv_name);
+                      path = v.findViewById(R.id.tv_path);
+                      pageInfo = v.findViewById(R.id.tv_page_info);
+                      delete = v.findViewById(R.id.btn_delete);
+                  }
+              }
+          }
+          EOF
+
+      - name: Create MainActivity
+        run: |
+          cat > app/src/main/java/com/awal/pdfreader/MainActivity.java << 'EOF'
+          package com.awal.pdfreader;
+          import android.Manifest;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.provider.OpenableColumns;
+          import android.database.Cursor;
+          import androidx.appcompat.app.AppCompatActivity;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+          import androidx.recyclerview.widget.LinearLayoutManager;
+          import androidx.recyclerview.widget.RecyclerView;
+          import com.google.android.material.floatingactionbutton.FloatingActionButton;
+          import java.util.List;
+          public class MainActivity extends AppCompatActivity {
+              private static final int REQ_PICK = 1001;
+              private static final int REQ_PERM = 1002;
+              private RecentFilesManager manager;
+              private RecentAdapter adapter;
+              private List<RecentFile> files;
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+                  manager = new RecentFilesManager(this);
+                  files = manager.getAll();
+                  RecyclerView rv = findViewById(R.id.rv_recent);
+                  rv.setLayoutManager(new LinearLayoutManager(this));
+                  adapter = new RecentAdapter(files, new RecentAdapter.OnItemClick() {
+                      @Override public void onOpen(RecentFile f) { openPdf(Uri.parse(f.path), f.name); }
+                      @Override public void onDelete(RecentFile f, int pos) {
+                          manager.remove(f.path); adapter.remove(pos);
+                      }
+                  });
+                  rv.setAdapter(adapter);
+                  FloatingActionButton fab = findViewById(R.id.fab_open);
+                  fab.setOnClickListener(v -> checkPermAndPick());
+                  Intent intent = getIntent();
+                  if (Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null) {
+                      openPdf(intent.getData(), getFileName(intent.getData()));
+                  }
+              }
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  files.clear();
+                  files.addAll(manager.getAll());
+                  adapter.notifyDataSetChanged();
+              }
+              private void checkPermAndPick() {
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                      pickPdf();
+                  } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+                      == PackageManager.PERMISSION_GRANTED) {
+                      pickPdf();
+                  } else {
+                      ActivityCompat.requestPermissions(this,
+                          new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_PERM);
+                  }
+              }
+              private void pickPdf() {
+                  Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                  intent.setType("application/pdf");
+                  intent.addCategory(Intent.CATEGORY_OPENABLE);
+                  startActivityForResult(Intent.createChooser(intent, "Select PDF"), REQ_PICK);
+              }
+              @Override
+              protected void onActivityResult(int req, int res, Intent data) {
+                  super.onActivityResult(req, res, data);
+                  if (req == REQ_PICK && res == RESULT_OK && data != null && data.getData() != null) {
+                      Uri uri = data.getData();
+                      openPdf(uri, getFileName(uri));
+                  }
+              }
+              private void openPdf(Uri uri, String name) {
+                  Intent i = new Intent(this, PdfViewerActivity.class);
+                  i.putExtra("uri", uri.toString());
+                  i.putExtra("name", name);
+                  startActivity(i);
+              }
+              private String getFileName(Uri uri) {
+                  String name = "document.pdf";
+                  try (Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+                      if (c != null && c.moveToFirst()) {
+                          int idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                          if (idx >= 0) name = c.getString(idx);
+                      }
+                  } catch (Exception ignored) {}
+                  return name;
+              }
+          }
+          EOF
+
+      - name: Create PdfViewerActivity
+        run: |
+          cat > app/src/main/java/com/awal/pdfreader/PdfViewerActivity.java << 'EOF'
+          package com.awal.pdfreader;
+          import android.app.AlertDialog;
+          import android.content.Intent;
+          import android.graphics.Color;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.view.Surface;
+          import android.view.View;
+          import android.widget.*;
+          import androidx.appcompat.app.AppCompatActivity;
+          import com.github.barteksc.pdfviewer.PDFView;
+          import com.github.barteksc.pdfviewer.listener.*;
+          import com.github.barteksc.pdfviewer.scroll.DefaultScrollHandle;
+          import com.github.barteksc.pdfviewer.util.FitPolicy;
+          public class PdfViewerActivity extends AppCompatActivity {
+              private PDFView pdfView;
+              private DrawingView drawingView;
+              private TextView tvTitle, tvPage;
+              private SeekBar seekbar;
+              private ProgressBar progressBar;
+              private RecentFilesManager manager;
+              private String uriStr, fileName;
+              private int currentPage = 0, totalPages = 0;
+              private int rotation = 0;
+              private boolean drawMode = false;
+              private static final int MODE_DAY = 0, MODE_DARK = 1, MODE_SEPIA = 2,
+                  MODE_NIGHT_BLUE = 3, MODE_GREEN = 4;
+              private int currentMode = MODE_DAY;
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_pdf_viewer);
+                  pdfView = findViewById(R.id.pdfView);
+                  drawingView = findViewById(R.id.drawing_view);
+                  tvTitle = findViewById(R.id.tv_title);
+                  tvPage = findViewById(R.id.tv_page);
+                  seekbar = findViewById(R.id.seekbar_page);
+                  progressBar = findViewById(R.id.progress_bar);
+                  manager = new RecentFilesManager(this);
+                  Intent intent = getIntent();
+                  if (Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null) {
+                      uriStr = intent.getData().toString();
+                      fileName = intent.getData().getLastPathSegment();
+                  } else {
+                      uriStr = intent.getStringExtra("uri");
+                      fileName = intent.getStringExtra("name");
+                  }
+                  if (fileName == null) fileName = "Document";
+                  tvTitle.setText(fileName);
+                  currentPage = manager.getLastPage(uriStr);
+                  loadPdf();
+                  setupButtons();
+              }
+              private void loadPdf() {
+                  progressBar.setVisibility(View.VISIBLE);
+                  Uri uri = Uri.parse(uriStr);
+                  pdfView.fromUri(uri)
+                      .defaultPage(currentPage)
+                      .enableSwipe(true)
+                      .swipeHorizontal(false)
+                      .enableDoubletap(true)
+                      .onLoad(nbPages -> {
+                          totalPages = nbPages;
+                          progressBar.setVisibility(View.GONE);
+                          seekbar.setMax(Math.max(0, totalPages - 1));
+                          seekbar.setProgress(currentPage);
+                          updatePageLabel();
+                      })
+                      .onPageChange((page, pageCount) -> {
+                          currentPage = page;
+                          totalPages = pageCount;
+                          seekbar.setProgress(page);
+                          updatePageLabel();
+                          manager.addOrUpdate(uriStr, fileName, page);
+                      })
+                      .onError(t -> {
+                          progressBar.setVisibility(View.GONE);
+                          Toast.makeText(this, "Error loading PDF", Toast.LENGTH_SHORT).show();
+                      })
+                      .enableAnnotationRendering(true)
+                      .scrollHandle(new DefaultScrollHandle(this))
+                      .spacing(4)
+                      .pageFitPolicy(FitPolicy.WIDTH)
+                      .pageSnap(false)
+                      .autoSpacing(true)
+                      .pageFling(false)
+                      .nightMode(currentMode == MODE_DARK || currentMode == MODE_NIGHT_BLUE || currentMode == MODE_GREEN)
+                      .load();
+              }
+              private void applyMode() {
+                  switch (currentMode) {
+                      case MODE_DAY:
+                          pdfView.setBackgroundColor(Color.WHITE); break;
+                      case MODE_DARK:
+                          pdfView.setBackgroundColor(Color.parseColor("#121212")); break;
+                      case MODE_SEPIA:
+                          pdfView.setBackgroundColor(Color.parseColor("#F5E6C8")); break;
+                      case MODE_NIGHT_BLUE:
+                          pdfView.setBackgroundColor(Color.parseColor("#0A1628")); break;
+                      case MODE_GREEN:
+                          pdfView.setBackgroundColor(Color.parseColor("#0D2B0D")); break;
+                  }
+                  loadPdf();
+              }
+              private void setupButtons() {
+                  findViewById(R.id.btn_back).setOnClickListener(v -> finish());
+                  findViewById(R.id.btn_rotate).setOnClickListener(v -> {
+                      rotation = (rotation + 90) % 360;
+                      pdfView.setRotation(rotation);
+                  });
+                  findViewById(R.id.btn_bookmark).setOnClickListener(v -> showBookmarks());
+                  findViewById(R.id.btn_draw).setOnClickListener(v -> toggleDrawMode());
+                  findViewById(R.id.btn_mode).setOnClickListener(v -> showModeDialog());
+                  findViewById(R.id.btn_prev).setOnClickListener(v -> {
+                      if (currentPage > 0) pdfView.jumpTo(currentPage - 1, true);
+                  });
+                  findViewById(R.id.btn_next).setOnClickListener(v -> {
+                      if (currentPage < totalPages - 1) pdfView.jumpTo(currentPage + 1, true);
+                  });
+                  findViewById(R.id.btn_fast_up).setOnClickListener(v -> {
+                      int target = Math.max(0, currentPage - 10);
+                      pdfView.jumpTo(target, true);
+                  });
+                  findViewById(R.id.btn_fast_down).setOnClickListener(v -> {
+                      int target = Math.min(totalPages - 1, currentPage + 10);
+                      pdfView.jumpTo(target, true);
+                  });
+                  seekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                      @Override public void onProgressChanged(SeekBar s, int p, boolean user) {
+                          if (user) pdfView.jumpTo(p, true);
+                      }
+                      @Override public void onStartTrackingTouch(SeekBar s) {}
+                      @Override public void onStopTrackingTouch(SeekBar s) {}
+                  });
+              }
+              private void toggleDrawMode() {
+                  drawMode = !drawMode;
+                  drawingView.setVisibility(drawMode ? View.VISIBLE : View.GONE);
+                  Toast.makeText(this, drawMode ? "Draw mode ON (1 finger=draw, 2=zoom)"
+                      : "Draw mode OFF", Toast.LENGTH_SHORT).show();
+              }
+              private void showModeDialog() {
+                  String[] modes = {"Day", "Dark", "Sepia", "Night Blue", "Green"};
+                  new AlertDialog.Builder(this)
+                      .setTitle("Reading Mode")
+                      .setSingleChoiceItems(modes, currentMode, (d, which) -> {
+                          currentMode = which;
+                          d.dismiss();
+                          applyMode();
+                      })
+                      .show();
+              }
+              private void showBookmarks() {
+                  Toast.makeText(this, "PDF bookmarks shown in scroll handle", Toast.LENGTH_SHORT).show();
+              }
+              private void updatePageLabel() {
+                  tvPage.setText((currentPage + 1) + " / " + totalPages);
+              }
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  if (uriStr != null) manager.addOrUpdate(uriStr, fileName, currentPage);
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDFReader-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
